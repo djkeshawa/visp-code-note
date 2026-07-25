@@ -4,7 +4,7 @@
   "description": "A Markdown-first connected notes, tasks, backlinks, and graph workspace for VS Code.",
   "version": "0.2.0",
   "publisher": "visp",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "engines": {
     "vscode": "^1.96.0"
   },
