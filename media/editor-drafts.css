@@ -1,0 +1,36 @@
+.draft-conflict {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-block: 9px;
+  background: var(
+    --vscode-inputValidation-warningBackground,
+    color-mix(in srgb, var(--vscode-editorWarning-foreground, #ddb870) 13%, var(--visp-bg))
+  );
+  color: var(--vscode-inputValidation-warningForeground, var(--visp-text));
+}
+
+.notice-warning {
+  border-bottom-color: var(--vscode-inputValidation-warningBorder, var(--visp-border));
+}
+
+.draft-conflict-copy {
+  min-width: 0;
+  flex: 1;
+  line-height: 1.4;
+}
+
+.draft-conflict .secondary-button {
+  flex: 0 0 auto;
+}
+
+.draft-conflict .secondary-button:focus-visible {
+  outline-width: 2px;
+}
+
+@media (max-width: 520px) {
+  .draft-conflict {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

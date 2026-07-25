@@ -1,0 +1,93 @@
+import type { NoteTask, OffsetRange, TaskPriority } from "../domain/models";
+import { containsOffset } from "./lines";
+import type { SourceLine } from "./lines";
+import { collectTagNames, removeTagTokens } from "./tags";
+
+const taskPattern = /^( {0,3}(?:[-+*]|\d+[.)])[ \t]+\[)([ xX])(\])(?=[ \t]+|$)/;
+const taskIdPattern = /<!--\s*task:([A-Za-z0-9][\w.-]*)\s*-->/i;
+const duePattern = /@due\(\s*([^)]+?)\s*\)/i;
+const priorityPattern = /@priority\(\s*(low|medium|high)\s*\)/i;
+
+export interface TaskLineMatch {
+  readonly completed: boolean;
+  readonly statusOffset: number;
+  readonly bodyOffset: number;
+}
+
+export function matchTaskLine(text: string): TaskLineMatch | undefined {
+  const match = taskPattern.exec(text);
+  if (match === null) {
+    return undefined;
+  }
+  const beforeStatus = match[1] ?? "";
+  const status = match[2] ?? " ";
+  return {
+    completed: status.toLocaleLowerCase() === "x",
+    statusOffset: beforeStatus.length,
+    bodyOffset: beforeStatus.length + status.length + (match[3]?.length ?? 1),
+  };
+}
+
+export function parseTasks(
+  source: string,
+  lines: readonly SourceLine[],
+  excludedRanges: readonly OffsetRange[],
+): readonly NoteTask[] {
+  const tasks: NoteTask[] = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (line === undefined || containsOffset(excludedRanges, line.start)) {
+      continue;
+    }
+    const match = matchTaskLine(line.text);
+    if (match === undefined) {
+      continue;
+    }
+
+    const nextLine = lines[index + 1];
+    const hasIdLine = nextLine !== undefined && isTaskIdLine(nextLine.text);
+    const end = hasIdLine ? nextLine.end : line.end;
+    const taskSource = source.slice(line.start, end);
+    const body = line.text.slice(match.bodyOffset).trim();
+    const due = duePattern.exec(body)?.[1]?.trim();
+    const priority = priorityPattern.exec(body)?.[1]?.toLocaleLowerCase() as TaskPriority | undefined;
+    const tags = Object.freeze([...collectTagNames(body)]);
+    const text = cleanTaskText(body);
+
+    tasks.push({
+      ...(taskIdFromSource(taskSource) === undefined ? {} : { id: taskIdFromSource(taskSource) }),
+      text,
+      completed: match.completed,
+      ...(due === undefined || due === "" ? {} : { due }),
+      ...(priority === undefined ? {} : { priority }),
+      tags,
+      range: { start: line.start, end },
+      checkboxRange: {
+        start: line.start + match.statusOffset,
+        end: line.start + match.statusOffset + 1,
+      },
+      line: line.number,
+    });
+
+    if (hasIdLine) {
+      index += 1;
+    }
+  }
+  return Object.freeze(tasks);
+}
+
+export function taskIdFromSource(source: string): string | undefined {
+  return taskIdPattern.exec(source)?.[1];
+}
+
+export function isTaskIdLine(text: string): boolean {
+  return /^\s*<!--\s*task:[A-Za-z0-9][\w.-]*\s*-->\s*$/i.test(text);
+}
+
+function cleanTaskText(body: string): string {
+  return removeTagTokens(
+    body.replace(taskIdPattern, "").replace(duePattern, "").replace(priorityPattern, ""),
+  )
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}

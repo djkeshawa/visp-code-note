@@ -1,0 +1,237 @@
+import * as vscode from "vscode";
+import type { IndexSnapshot, NoteRecord } from "../domain/models";
+import { buildSnapshot } from "./projections";
+import {
+  discoverMarkdownUris,
+  isIndexableMarkdown,
+  readNoteRecord,
+  uriKey,
+} from "./discovery";
+import { freezeSnapshot } from "./immutable";
+import { mapConcurrent } from "./concurrency";
+import { createIndexWatchers } from "./watchers";
+import type { MarkdownChange } from "./watchers";
+import { createNoteResolver } from "./noteResolver";
+import type { NoteResolver } from "./noteResolver";
+
+export type IndexStatus = "idle" | "indexing" | "error";
+
+type PendingChange = MarkdownChange;
+
+const EMPTY_SNAPSHOT = freezeSnapshot({
+  notes: [],
+  links: [],
+  backlinks: [],
+  tasks: [],
+  version: 0,
+  indexedAt: 0,
+});
+
+export class WorkspaceIndex implements vscode.Disposable {
+  private readonly notes = new Map<string, NoteRecord>();
+  private readonly changeEmitter = new vscode.EventEmitter<IndexSnapshot>();
+  private readonly statusEmitter = new vscode.EventEmitter<IndexStatus>();
+  private readonly subscriptions: vscode.Disposable[] = [];
+  private readonly pendingChanges = new Map<string, PendingChange>();
+  private operationTail: Promise<void> = Promise.resolve();
+  private initialization: Promise<void> | undefined;
+  private drainQueued = false;
+  private disposed = false;
+  private currentSnapshot = EMPTY_SNAPSHOT;
+  private currentStatus: IndexStatus = "idle";
+  private errorMessage: string | undefined;
+  private resolver: NoteResolver = createNoteResolver([]);
+
+  readonly onDidChange = this.changeEmitter.event;
+  readonly onDidChangeStatus = this.statusEmitter.event;
+
+  get snapshot(): IndexSnapshot {
+    return this.currentSnapshot;
+  }
+
+  get status(): IndexStatus {
+    return this.currentStatus;
+  }
+
+  get lastError(): string | undefined {
+    return this.errorMessage;
+  }
+
+  initialize(): Promise<void> {
+    if (!this.initialization) {
+      this.subscriptions.push(
+        ...createIndexWatchers(
+          (change) => this.queueChange(change),
+          () => { void this.rebuild().catch(() => undefined); },
+        ),
+      );
+      this.initialization = this.rebuild();
+    }
+    return this.initialization;
+  }
+
+  rebuild(): Promise<void> {
+    return this.enqueueOperation(async () => {
+      const uris = await discoverMarkdownUris();
+      const records = await mapConcurrent(uris, 16, (uri) => this.readIfPresent(uri));
+      const next = new Map<string, NoteRecord>();
+      for (const record of records) {
+        if (record) {
+          next.set(record.uri, record);
+        }
+      }
+      this.commit(next);
+    });
+  }
+
+  refresh(uri: vscode.Uri): Promise<void> {
+    return this.upsert(uri);
+  }
+
+  move(previousUri: vscode.Uri, nextUri: vscode.Uri): Promise<void> {
+    return this.enqueueOperation(() => this.applyChanges([
+      { kind: "remove", uri: previousUri },
+      { kind: "upsert", uri: nextUri },
+    ]));
+  }
+
+  upsert(uri: vscode.Uri): Promise<void> {
+    return this.enqueueOperation(() => this.applyChanges([{ kind: "upsert", uri }]));
+  }
+
+  remove(uri: vscode.Uri): Promise<void> {
+    return this.enqueueOperation(() => this.applyChanges([{ kind: "remove", uri }]));
+  }
+
+  findNote(uri: vscode.Uri | string): NoteRecord | undefined {
+    return this.notes.get(uriKey(uri));
+  }
+
+  resolveTarget(sourceUri: vscode.Uri | string, target: string): NoteRecord | undefined {
+    return this.resolver.resolve(uriKey(sourceUri), target);
+  }
+
+  dispose(): void {
+    this.disposed = true;
+    this.pendingChanges.clear();
+    vscode.Disposable.from(...this.subscriptions).dispose();
+    this.changeEmitter.dispose();
+    this.statusEmitter.dispose();
+  }
+
+  private queueChange(change: PendingChange): void {
+    if (this.disposed) {
+      return;
+    }
+    this.pendingChanges.set(uriKey(change.uri), change);
+    this.schedulePendingDrain();
+  }
+
+  private schedulePendingDrain(): void {
+    if (this.drainQueued) {
+      return;
+    }
+
+    this.drainQueued = true;
+    void this.enqueueOperation(async () => {
+      const changes = [...this.pendingChanges.values()];
+      this.pendingChanges.clear();
+      await this.applyChanges(changes);
+    })
+      .catch(() => undefined)
+      .finally(() => {
+        this.drainQueued = false;
+        if (this.pendingChanges.size > 0) {
+          this.schedulePendingDrain();
+        }
+      });
+  }
+
+  private async applyChanges(changes: readonly PendingChange[]): Promise<void> {
+    const next = new Map(this.notes);
+    let changed = false;
+    for (const change of changes) {
+      const key = uriKey(change.uri);
+      if (change.kind === "remove" || !isIndexableMarkdown(change.uri)) {
+        changed = next.delete(key) || changed;
+        continue;
+      }
+
+      const record = await this.readIfPresent(change.uri);
+      if (record) {
+        const current = next.get(key);
+        if (
+          !current ||
+          current.content !== record.content ||
+          current.path !== record.path ||
+          current.modifiedAt !== record.modifiedAt
+        ) {
+          next.set(key, record);
+          changed = true;
+        }
+      } else {
+        changed = next.delete(key) || changed;
+      }
+    }
+    if (changed) {
+      this.commit(next);
+    }
+  }
+
+  private async readIfPresent(uri: vscode.Uri): Promise<NoteRecord | undefined> {
+    try {
+      return await readNoteRecord(uri);
+    } catch (error) {
+      if (error instanceof vscode.FileSystemError && error.code === "FileNotFound") {
+        return undefined;
+      }
+      throw error;
+    }
+  }
+
+  private commit(next: ReadonlyMap<string, NoteRecord>): void {
+    if (this.disposed) {
+      return;
+    }
+
+    this.notes.clear();
+    for (const [key, note] of next) {
+      this.notes.set(key, note);
+    }
+    const ordered = [...this.notes.values()].sort((left, right) =>
+      left.path.localeCompare(right.path),
+    );
+    this.resolver = createNoteResolver(ordered);
+    this.currentSnapshot = freezeSnapshot(
+      buildSnapshot(ordered, this.currentSnapshot.version + 1, Date.now()),
+    );
+    this.changeEmitter.fire(this.currentSnapshot);
+  }
+
+  private enqueueOperation(operation: () => Promise<void>): Promise<void> {
+    const run = this.operationTail.then(async () => {
+      if (this.disposed) {
+        return;
+      }
+      this.setStatus("indexing");
+      try {
+        await operation();
+        this.errorMessage = undefined;
+        this.setStatus("idle");
+      } catch (error) {
+        this.errorMessage = error instanceof Error ? error.message : String(error);
+        this.setStatus("error");
+        throw error;
+      }
+    });
+    this.operationTail = run.catch(() => undefined);
+    return run;
+  }
+
+  private setStatus(status: IndexStatus): void {
+    if (this.currentStatus !== status && !this.disposed) {
+      this.currentStatus = status;
+      this.statusEmitter.fire(status);
+    }
+  }
+}

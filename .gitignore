@@ -1,0 +1,11 @@
+node_modules/
+out/
+out-tests/
+media/scripts/
+*.vsix
+*.log
+
+# Local product design artifacts
+/visp-notes-*-view.png
+/visp-notes-vscode-design-spec.md
+/visp-notes-vscode-prototype.html

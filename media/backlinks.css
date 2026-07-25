@@ -1,0 +1,145 @@
+.backlinks-shell {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  background: var(--visp-panel);
+}
+
+.backlinks-header {
+  padding: 12px 12px 9px;
+  border-bottom: 1px solid var(--visp-border);
+}
+
+.backlinks-header h1 {
+  margin: 3px 0 0;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.backlink-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin: 10px;
+  border: 1px solid var(--visp-border);
+  border-radius: var(--visp-radius);
+  background: var(--visp-surface);
+}
+
+.backlink-summary div {
+  min-width: 0;
+  padding: 8px 3px;
+  border-right: 1px solid var(--visp-border);
+  text-align: center;
+}
+
+.backlink-summary div:last-child {
+  border-right: 0;
+}
+
+.backlink-summary strong,
+.backlink-summary span {
+  display: block;
+}
+
+.backlink-summary strong {
+  font-size: 14px;
+}
+
+.backlink-summary span {
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--visp-muted);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+}
+
+.backlinks-shell main {
+  min-height: 0;
+  overflow: auto;
+  padding: 2px 10px 40px;
+}
+
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 2px 8px;
+}
+
+.section-heading h2 {
+  margin: 0;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.section-heading span {
+  font-size: 10px;
+}
+
+.backlinks-list {
+  display: grid;
+  gap: 7px;
+}
+
+.backlink-card {
+  width: 100%;
+  display: block;
+  padding: 8px 9px 9px;
+  border: 1px solid var(--visp-border);
+  border-radius: var(--visp-radius);
+  background: var(--visp-surface);
+  color: var(--visp-text);
+  text-align: left;
+}
+
+.backlink-card:hover {
+  border-color: color-mix(in srgb, var(--visp-accent) 42%, var(--visp-border));
+  background: var(--visp-surface-hover);
+}
+
+.backlink-card-header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 5px;
+  font-size: 12px;
+}
+
+.backlink-card-header strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.backlink-location {
+  margin-left: auto;
+  overflow: hidden;
+  color: var(--visp-muted);
+  font-family: var(--visp-mono);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.backlink-context {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--visp-muted);
+  font-size: 11px;
+  line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.backlink-context mark {
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--visp-accent) 18%, transparent);
+  color: var(--visp-accent);
+}

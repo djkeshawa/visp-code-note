@@ -1,0 +1,325 @@
+{
+  "name": "visp-notes",
+  "displayName": "Visp Notes",
+  "description": "A Markdown-first connected notes, tasks, backlinks, and graph workspace for VS Code.",
+  "version": "0.2.0",
+  "publisher": "visp",
+  "license": "UNLICENSED",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Other",
+    "Visualization"
+  ],
+  "keywords": [
+    "markdown",
+    "notes",
+    "wiki-links",
+    "backlinks",
+    "tasks",
+    "knowledge-graph"
+  ],
+  "main": "./out/extension.js",
+  "files": [
+    "out",
+    "media",
+    "docs",
+    "README.md",
+    "CHANGELOG.md",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "onCustomEditor:vispNotes.noteEditor"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "vispNotes.newNote",
+        "title": "New Note",
+        "category": "Visp Notes",
+        "icon": "$(new-file)"
+      },
+      {
+        "command": "vispNotes.createMissingNote",
+        "title": "Create Missing Note",
+        "category": "Visp Notes"
+      },
+      {
+        "command": "vispNotes.newTask",
+        "title": "New Task",
+        "category": "Visp Notes",
+        "icon": "$(checklist)"
+      },
+      {
+        "command": "vispNotes.toggleTask",
+        "title": "Toggle Task",
+        "category": "Visp Notes",
+        "icon": "$(check)"
+      },
+      {
+        "command": "vispNotes.insertLink",
+        "title": "Insert Link",
+        "category": "Visp Notes"
+      },
+      {
+        "command": "vispNotes.showBacklinks",
+        "title": "Show Backlinks",
+        "category": "Visp Notes"
+      },
+      {
+        "command": "vispNotes.openLocalGraph",
+        "title": "Open Local Graph",
+        "category": "Visp Notes"
+      },
+      {
+        "command": "vispNotes.openWorkspaceGraph",
+        "title": "Open Workspace Graph",
+        "category": "Visp Notes"
+      },
+      {
+        "command": "vispNotes.toggleRenderedSource",
+        "title": "Toggle Live / Markdown",
+        "category": "Visp Notes"
+      },
+      {
+        "command": "vispNotes.renameNote",
+        "title": "Rename Note and Update Links",
+        "category": "Visp Notes"
+      },
+      {
+        "command": "vispNotes.findBrokenLinks",
+        "title": "Find Broken Links",
+        "category": "Visp Notes"
+      },
+      {
+        "command": "vispNotes.rebuildIndex",
+        "title": "Rebuild Index",
+        "category": "Visp Notes",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "vispNotes.openTasks",
+        "title": "Open Tasks",
+        "category": "Visp Notes"
+      },
+      {
+        "command": "vispNotes.openTodayTasks",
+        "title": "Open Tasks Due Today",
+        "category": "Visp Notes"
+      },
+      {
+        "command": "vispNotes.search",
+        "title": "Search Notes and Tasks",
+        "category": "Visp Notes",
+        "icon": "$(search)"
+      },
+      {
+        "command": "vispNotes.openNote",
+        "title": "Open Note",
+        "category": "Visp Notes"
+      }
+    ],
+    "customEditors": [
+      {
+        "viewType": "vispNotes.noteEditor",
+        "displayName": "Visp Notes",
+        "selector": [
+          {
+            "filenamePattern": "**/*.md"
+          }
+        ],
+        "priority": "default"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "vispNotes",
+          "title": "Visp Notes",
+          "icon": "media/activity.svg"
+        }
+      ]
+    },
+    "views": {
+      "vispNotes": [
+        {
+          "id": "vispNotes.explorer",
+          "name": "Workspace"
+        },
+        {
+          "id": "vispNotes.backlinks",
+          "name": "Backlinks",
+          "type": "webview"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "vispNotes.explorer",
+        "contents": "Open a folder to build your connected Markdown workspace.\n[Open Folder](command:vscode.openFolder)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "vispNotes.search",
+          "when": "view == vispNotes.explorer",
+          "group": "navigation@1"
+        },
+        {
+          "command": "vispNotes.newNote",
+          "when": "view == vispNotes.explorer",
+          "group": "navigation@2"
+        },
+        {
+          "command": "vispNotes.newTask",
+          "when": "view == vispNotes.explorer",
+          "group": "navigation@3"
+        },
+        {
+          "command": "vispNotes.rebuildIndex",
+          "when": "view == vispNotes.explorer",
+          "group": "navigation@4"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "vispNotes.openLocalGraph",
+          "when": "view == vispNotes.explorer && viewItem == vispNotes.note",
+          "group": "navigation@1"
+        },
+        {
+          "command": "vispNotes.renameNote",
+          "when": "view == vispNotes.explorer && viewItem == vispNotes.note",
+          "group": "navigation@2"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "vispNotes.toggleTask",
+          "when": "editorLangId == markdown",
+          "group": "modification@10"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "vispNotes.createMissingNote",
+          "when": "false"
+        },
+        {
+          "command": "vispNotes.openNote",
+          "when": "false"
+        },
+        {
+          "command": "vispNotes.openTodayTasks",
+          "when": "false"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "vispNotes.toggleRenderedSource",
+          "when": "resourceExtname == .md",
+          "group": "navigation@10"
+        },
+        {
+          "command": "vispNotes.openLocalGraph",
+          "when": "resourceExtname == .md",
+          "group": "navigation@11"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "vispNotes.insertLink",
+        "key": "ctrl+shift+l",
+        "mac": "cmd+shift+l",
+        "when": "editorTextFocus && editorLangId == markdown"
+      },
+      {
+        "command": "vispNotes.insertLink",
+        "key": "ctrl+shift+l",
+        "mac": "cmd+shift+l",
+        "when": "activeCustomEditorId == vispNotes.noteEditor"
+      },
+      {
+        "command": "vispNotes.showBacklinks",
+        "key": "ctrl+shift+b",
+        "mac": "cmd+shift+b"
+      },
+      {
+        "command": "vispNotes.openLocalGraph",
+        "key": "ctrl+shift+g",
+        "mac": "cmd+shift+g",
+        "when": "resourceExtname == .md"
+      }
+    ],
+    "configuration": {
+      "title": "Visp Notes",
+      "properties": {
+        "vispNotes.notesFolder": {
+          "type": "string",
+          "scope": "resource",
+          "default": "notes",
+          "description": "Workspace-relative folder used when creating notes. Markdown discovery still covers the entire workspace."
+        },
+        "vispNotes.exclude": {
+          "type": "array",
+          "scope": "resource",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "**/node_modules/**",
+            "**/.git/**",
+            "**/dist/**",
+            "**/out/**"
+          ],
+          "description": "Glob patterns excluded from the Visp Notes index."
+        },
+        "vispNotes.graph.defaultDepth": {
+          "type": "number",
+          "enum": [
+            1,
+            2
+          ],
+          "default": 1,
+          "description": "Default link depth for the local knowledge graph."
+        },
+        "vispNotes.openRenderedAfterCreate": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": true,
+          "description": "Open newly created notes in the Visp Notes editor."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "npm run compile:extension && npm run compile:webview",
+    "compile:extension": "node scripts/compile-extension.mjs",
+    "compile:webview": "tsc --noEmit -p tsconfig.webview.json && node scripts/build-webviews.mjs",
+    "compile:test": "node scripts/compile-tests.mjs",
+    "check": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.webview.json && tsc --noEmit -p tsconfig.test.json",
+    "test": "npm run compile:test && node --test out-tests/test/application/*.test.js out-tests/test/markdown/*.test.js out-tests/test/indexing/*.test.js",
+    "vscode:prepublish": "npm run check && npm run compile"
+  },
+  "devDependencies": {
+    "@codemirror/autocomplete": "^6.20.3",
+    "@codemirror/commands": "^6.10.4",
+    "@codemirror/lang-markdown": "^6.5.1",
+    "@codemirror/language": "^6.12.4",
+    "@codemirror/search": "^6.7.1",
+    "@codemirror/state": "^6.7.1",
+    "@codemirror/view": "^6.43.6",
+    "@lezer/highlight": "^1.2.3",
+    "@types/node": "20.17.10",
+    "@types/vscode": "1.96.0",
+    "esbuild": "^0.28.1",
+    "typescript": "^5.7.2"
+  }
+}
