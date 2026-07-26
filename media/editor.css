@@ -264,41 +264,49 @@
 }
 
 /*
- * The fold column stays present so text does not shift when a marker appears, but markers are
- * invisible until the pointer is over the editor or something is actually folded. An outline
- * of chevrons down an unfolded document is exactly the kind of standing decoration this
- * editor avoids elsewhere.
+ * The fold control sits in the left margin of its own line, so it is always beside the text it
+ * collapses and always on the right row.
+ *
+ * It is a zero-width inline box shifted left by a transform rather than an absolutely positioned
+ * one. Inline means it sits on the line's own baseline, which lines it up with a 2em heading and
+ * a body-size bullet alike without knowing either's padding; zero width plus a transform means
+ * revealing it shifts no text.
  */
-.editor-host .cm-foldGutter {
-  min-width: 14px;
-}
-
-.editor-host .cm-foldGutter .fold-marker {
+.editor-host .live-fold-toggle {
+  display: inline-block;
+  width: 0;
+  height: 1em;
   color: var(--visp-muted);
   cursor: pointer;
-  font-size: 13px;
+  font-size: max(11px, 0.55em);
   opacity: 0;
-  transition: opacity 120ms ease;
+  overflow: visible;
+  transform: translateX(-1.5em);
+  transition: opacity 120ms ease, color 120ms ease;
+  user-select: none;
+  vertical-align: baseline;
 }
 
-.editor-host .cm-editor:hover .cm-foldGutter .fold-marker,
-.editor-host .cm-foldGutter .fold-marker.codicon-chevron-right {
-  opacity: 0.75;
+/* Quiet until the pointer is in the note, but a collapsed section always shows its control. */
+.editor-host .cm-content:hover .live-fold-toggle,
+.editor-host .live-fold-toggle.codicon-chevron-right {
+  opacity: 0.55;
 }
 
-.editor-host .cm-foldGutter .fold-marker:hover {
+.editor-host .live-fold-toggle:hover {
   color: var(--visp-hue-structure);
   opacity: 1;
 }
 
 /* The collapsed marker reads as content rather than as a control. */
 .editor-host .cm-foldPlaceholder {
-  padding: 0 6px;
+  margin-left: 6px;
+  padding: 0 7px;
   border: 0;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--visp-hue-structure) 20%, transparent);
+  background: color-mix(in srgb, var(--visp-hue-structure) 18%, transparent);
   color: var(--visp-hue-structure);
-  font-size: 0.85em;
+  font-size: 0.8em;
 }
 
 .editor-host .cm-gutters {

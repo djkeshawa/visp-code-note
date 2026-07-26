@@ -25,9 +25,16 @@
 - **Headings and list items collapse.** `@codemirror/lang-markdown` folds every block except
   headings and lists, so fenced code and quotes already collapsed while an outline did not. A
   heading now collapses to the next heading of the same or higher level, and a list item
-  collapses its nested children. Chevrons appear on hover rather than standing permanently in
-  the gutter. Folding is presentation only: unlike Logseq, nothing writes `collapsed:: true`
-  into the file, so view state stays out of notes and diffs.
+  collapses its nested children, at any depth. Folding is presentation only: unlike Logseq,
+  nothing writes `collapsed:: true` into the file, so view state stays out of notes and diffs.
+- The control is an inline chevron in the left margin of its own line, not a fold gutter. A
+  gutter was wrong twice over: horizontally it is pinned to the scroller's edge while note
+  content is centred on a reading measure, which stranded the chevrons 218px from their text;
+  vertically its rows use the editor's base line height while live mode sets its own on the
+  content, so markers drifted out of step — rows 25px apart against markers 14px apart, two
+  overlapping — and a chevron folded a different line from the one it sat beside, which is what
+  made deeper nesting appear not to work. The chevron is now a zero-width inline box shifted by
+  a transform, so it sits on each line's own baseline and shifts no text.
 - **Tables render as a grid.** They previously showed as raw pipes. Rows stay editable text
   given a monospace grid so columns align, a header rule where the delimiter row was, and
   receding pipes; the delimiter row itself is hidden unless the caret is on it. A pipe in
