@@ -335,7 +335,7 @@
           "default": 1,
           "description": "Default link depth for the local knowledge graph."
         },
-            "vispNotes.editor.contentWidth": {
+        "vispNotes.editor.contentWidth": {
           "type": "string",
           "enum": [
             "readable",
@@ -365,9 +365,11 @@
     "compile:extension": "node scripts/compile-extension.mjs",
     "compile:webview": "tsc --noEmit -p tsconfig.webview.json && node scripts/build-webviews.mjs",
     "compile:test": "node scripts/compile-tests.mjs",
+    "compile:integration": "tsc -p tsconfig.integration.json",
     "lint": "eslint .",
+    "test:integration": "npm run compile && npm run compile:integration && node out-integration/test/integration/runExtensionTests.js",
     "lint:fix": "eslint . --fix",
-    "check": "npm run lint && tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.webview.json && tsc --noEmit -p tsconfig.test.json",
+    "check": "npm run lint && tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.webview.json && tsc --noEmit -p tsconfig.test.json && tsc --noEmit -p tsconfig.integration.json",
     "test": "npm run compile:test && node --test out-tests/test/application/*.test.js out-tests/test/markdown/*.test.js out-tests/test/indexing/*.test.js",
     "vscode:prepublish": "npm run check && npm run compile"
   },
@@ -384,6 +386,7 @@
     "@types/node": "20.17.10",
     "@types/vscode": "1.96.0",
     "@vscode/codicons": "^0.0.46-24",
+    "@vscode/test-electron": "^3.1.0",
     "esbuild": "^0.28.1",
     "eslint": "^10.8.0",
     "globals": "^17.7.0",

@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import { planTagAddition, planTagRemoval } from "../../application/noteMetadataEdits";
 import { buildNoteContext } from "../../indexing/projections";
-import { pickTag } from "../providers/tagPicker";
+import { isUsableTagName, normalizeTagInput, pickTag } from "../providers/tagPicker";
 import { activeMarkdownUri } from "./commandUtils";
 import type { CommandIndex, FeatureViews } from "./contracts";
 
@@ -12,14 +12,18 @@ import type { CommandIndex, FeatureViews } from "./contracts";
  * draft that editor is already holding and stays undoable. A note open in VS Code's own
  * text editor has no draft, so the same planned edit is applied directly.
  */
-export async function addTagToNote(index: CommandIndex, views: FeatureViews): Promise<void> {
+export async function addTagToNote(
+  index: CommandIndex,
+  views: FeatureViews,
+  requested?: unknown,
+): Promise<void> {
   const target = resolveTarget(views);
   if (target === undefined) {
     void vscode.window.showInformationMessage("Open a Markdown note before adding a tag.");
     return;
   }
   const declared = frontmatterTags(index, target.uri);
-  const tag = await pickTag(index.snapshot, {
+  const tag = givenTag(requested) ?? await pickTag(index.snapshot, {
     title: "Add a tag to this note",
     exclude: new Set(declared.map((name) => name.toLocaleLowerCase())),
   });
@@ -34,10 +38,23 @@ export async function addTagToNote(index: CommandIndex, views: FeatureViews): Pr
   await applyToTextDocument(target.uri, (source) => planTagAddition(source, tag));
 }
 
-export async function removeTagFromNote(index: CommandIndex, views: FeatureViews): Promise<void> {
+export async function removeTagFromNote(
+  index: CommandIndex,
+  views: FeatureViews,
+  requested?: unknown,
+): Promise<void> {
   const target = resolveTarget(views);
   if (target === undefined) {
     void vscode.window.showInformationMessage("Open a Markdown note before removing a tag.");
+    return;
+  }
+  const named = givenTag(requested);
+  if (named !== undefined) {
+    if (target.kind === "visp") {
+      await views.removeTag(named);
+      return;
+    }
+    await applyToTextDocument(target.uri, (source) => planTagRemoval(source, named));
     return;
   }
   const declared = frontmatterTags(index, target.uri);
@@ -60,6 +77,17 @@ export async function removeTagFromNote(index: CommandIndex, views: FeatureViews
     return;
   }
   await applyToTextDocument(target.uri, (source) => planTagRemoval(source, picked.tag));
+}
+
+/**
+ * Both commands accept the tag as an argument, which skips the picker. That makes them
+ * usable from a keybinding or another extension, and it is what lets the integration
+ * suite drive them: an interactive quick pick cannot be answered from a test.
+ */
+function givenTag(requested: unknown): string | undefined {
+  if (typeof requested !== "string") return undefined;
+  const tag = normalizeTagInput(requested);
+  return isUsableTagName(tag) ? tag : undefined;
 }
 
 interface TagTarget {

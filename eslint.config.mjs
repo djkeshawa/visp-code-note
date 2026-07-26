@@ -7,13 +7,20 @@ import tseslint from "typescript-eslint";
  * bundles, tests). Listing all three lets type-aware rules resolve every source file,
  * including the ones shared between projects.
  */
-const TS_PROJECTS = ["tsconfig.json", "tsconfig.webview.json", "tsconfig.test.json"];
+const TS_PROJECTS = [
+  "tsconfig.json",
+  "tsconfig.webview.json",
+  "tsconfig.test.json",
+  "tsconfig.integration.json",
+];
 
 export default tseslint.config(
   {
     ignores: [
       "out/**",
       "out-tests/**",
+      "out-integration/**",
+      ".vscode-test/**",
       "media/scripts/**",
       "media/codicons/**",
       "node_modules/**",

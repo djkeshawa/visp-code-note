@@ -59,8 +59,8 @@ export function registerCommands(
   register(COMMAND_IDS.openTodayTasks, () => views.openTasks("today"));
   register(COMMAND_IDS.search, () => searchWorkspace(index));
   register(COMMAND_IDS.openNote, (value) => openNoteArgument(value));
-  register(COMMAND_IDS.addTag, () => addTagToNote(index, views));
-  register(COMMAND_IDS.removeTag, () => removeTagFromNote(index, views));
+  register(COMMAND_IDS.addTag, (tag) => addTagToNote(index, views, tag));
+  register(COMMAND_IDS.removeTag, (tag) => removeTagFromNote(index, views, tag));
   register(COMMAND_IDS.useAsDefaultEditor, () => useVispNotesAsDefaultEditor());
   register(COMMAND_IDS.useTextEditorByDefault, () => useTextEditorByDefault());
 }

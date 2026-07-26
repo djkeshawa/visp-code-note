@@ -35,6 +35,10 @@ jobs:
       - name: Build
         run: npm run compile
 
+      - name: Integration tests (extension host)
+        # The extension host is a real VS Code window, so it needs a display.
+        run: xvfb-run -a npm run test:integration
+
   package:
     runs-on: ubuntu-latest
     needs: verify

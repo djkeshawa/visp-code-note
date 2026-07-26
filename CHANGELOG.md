@@ -2,6 +2,22 @@
 
 ## 0.3.0 - 2026-07-26
 
+### Added — integration tests
+
+- Added an extension-host suite (`npm run test:integration`) that drives a real VS Code
+  build against a scratch workspace and asserts on files on disk. Until now every suite was
+  pure logic: they proved a planner returned the right offsets, but nothing proved VS Code
+  applied those offsets to a real file. That gap is exactly how `planAliasAddition` shipped
+  broken for the commonest frontmatter shape.
+- Covers task toggling, tag add and remove across inline lists, block sequences and notes
+  without frontmatter, CRLF and YAML-comment preservation, refusal of unsafe YAML, and the
+  boundary that a plain file rename never rewrites a user's links.
+- `Visp Notes: Add Tag` and `Remove Tag` now accept the tag as a command argument, which
+  skips the picker. That makes them usable from a keybinding or another extension, and is
+  what lets the suite drive them — an interactive quick pick cannot be answered from a test.
+- The suite is wired into CI under `xvfb-run`, and uses a small `node:test`-style harness
+  rather than pulling in a second test framework, keeping the dependency audit at zero.
+
 ### Added — tag editing
 
 - Tags can now be added and removed from the note editor's context strip. Frontmatter tags

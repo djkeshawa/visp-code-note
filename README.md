@@ -131,10 +131,14 @@ Requirements: Node.js 20 or newer and VS Code 1.96 or newer.
 ```sh
 npm install
 npm run lint
-npm run check   # lint, then type-check the extension, webviews, and tests
-npm test
+npm run check            # lint, then type-check every TypeScript project
+npm test                 # pure-logic suites
+npm run test:integration # drives a real VS Code build against a scratch workspace
 npm run compile
 ```
+
+`test:integration` downloads a VS Code build on first run into `.vscode-test/`. On a
+headless machine run it under `xvfb-run`, as CI does — the extension host is a real window.
 
 `npm run compile` also copies the Codicon font into `media/codicons`, which the webviews load so their icons match the rest of VS Code. Both `media/scripts` and `media/codicons` are build output and are not committed.
 
