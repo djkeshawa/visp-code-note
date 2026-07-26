@@ -2,6 +2,30 @@
 
 ## 0.3.0 - 2026-07-26
 
+### Added — a colour scheme for rendered notes
+
+- **Fenced code blocks are syntax highlighted.** They previously rendered as flat monospace
+  text: the editor never passed `codeLanguages` to the Markdown parser, so a ```ts block got
+  no highlighting at all. TypeScript/JavaScript, JSON, Python, YAML, HTML, CSS and shell are
+  supported; anything else stays plain, as every fence was before. A curated set rather than
+  `@codemirror/language-data`, whose dynamic imports esbuild resolves at build time — "lazy"
+  would have meant bundling every language CodeMirror supports. Bundle cost: 71KB.
+- Inline code now uses `--vscode-textPreformat-foreground`, the token VS Code defines for
+  exactly this, instead of inheriting body colour.
+- The first three heading levels carry a hue, fading toward the text colour as they shrink.
+  H4–H6 stay neutral: at near-body size a hue reads as clutter rather than as structure.
+- A six-hue palette assigned by meaning rather than by grammar, shared between prose and
+  code so a note reads as one document: violet for structure, blue for references, green for
+  strings, gold for types, orange for literals, rose for keywords.
+- The palette is tuned against measurements, not taste. Every hue clears 4.5:1 on its
+  background and no pair sits closer than ΔE 30 in CIELAB. A first attempt in true pastels
+  failed that second test — orange and gold landed at ΔE 15, close enough that numbers and
+  types were the same colour in small text, with every hue crammed into a 16-point lightness
+  band. The shipped hues spread across lightness as well as hue.
+- Light themes get their own darker variants, since a colour legible on a dark background
+  washes out on white. High-contrast themes drop back to the theme's own tokens, because that
+  is an explicit accessibility choice and pastels should not override it.
+
 ### Changed — rendered prose colour
 
 Saturation was being spent on decoration while structure got none: every bullet, every

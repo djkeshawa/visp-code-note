@@ -29,6 +29,53 @@
    * one it was tuned in. In Dark Modern this is roughly 8.5:1, well clear of AA.
    */
   --visp-prose: color-mix(in srgb, var(--visp-text) 88%, var(--visp-bg));
+
+  /*
+   * Rendered-prose palette.
+   *
+   * Assigned by meaning rather than by grammar: cool hues carry structure and references,
+   * warm hues carry literal content, and the same six hues serve prose and code so a note
+   * reads as one document.
+   *
+   * Tuned against two measurements rather than by eye. Every hue clears 4.5:1 on its
+   * background, and no pair sits closer than ΔE 30 in CIELAB — a first pass in true pastels
+   * put orange and gold at ΔE 15, close enough that numbers and types were the same colour
+   * in small text. The hues are also spread across lightness, so they separate on two axes
+   * instead of relying on hue alone.
+   *
+   * A colour that reads well on a dark background washes out on white, so each hue ships a
+   * dark value here and a darker light-theme value below.
+   */
+  --visp-hue-structure: #a892e8;  /* violet  — headings, structure */
+  --visp-hue-reference: #78bdf2;  /* blue    — links, functions, properties */
+  --visp-hue-string: #6fc99a;     /* green   — strings */
+  --visp-hue-declare: #e3c66a;    /* gold    — types, classes */
+  --visp-hue-literal: #f09d6b;    /* orange  — inline code, numbers */
+  --visp-hue-accentuate: #ef8fab; /* rose    — keywords */
+}
+
+body.vscode-light {
+  /* The same hues, darkened enough to stay legible on a light background. */
+  --visp-hue-structure: #5b45a8;
+  --visp-hue-reference: #15618f;
+  --visp-hue-string: #186b46;
+  --visp-hue-declare: #7a5a0d;
+  --visp-hue-literal: #a8480f;
+  --visp-hue-accentuate: #a32d55;
+}
+
+/*
+ * High contrast is a deliberate accessibility choice by the user, so pastels step aside for
+ * the theme's own colours rather than overriding an explicit preference.
+ */
+body.vscode-high-contrast,
+body.vscode-high-contrast-light {
+  --visp-hue-structure: var(--visp-text);
+  --visp-hue-reference: var(--visp-accent);
+  --visp-hue-literal: var(--vscode-textPreformat-foreground, var(--visp-text));
+  --visp-hue-string: var(--visp-text);
+  --visp-hue-accentuate: var(--visp-text);
+  --visp-hue-declare: var(--visp-text);
   --visp-accent: var(--vscode-textLink-foreground, LinkText);
   --visp-focus: var(--vscode-focusBorder, Highlight);
   --visp-danger: var(--vscode-errorForeground, #d64550);

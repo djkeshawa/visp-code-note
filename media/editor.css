@@ -334,6 +334,23 @@
   letter-spacing: -0.012em;
 }
 
+/*
+ * The top three levels carry the structural hue, fading toward the text colour as they get
+ * smaller. Below that the size difference from body text is slight, and a hue there reads as
+ * clutter rather than as organisation.
+ */
+.is-live-mode .live-heading-1 {
+  color: var(--visp-hue-structure);
+}
+
+.is-live-mode .live-heading-2 {
+  color: color-mix(in srgb, var(--visp-hue-structure) 82%, var(--visp-text));
+}
+
+.is-live-mode .live-heading-3 {
+  color: color-mix(in srgb, var(--visp-hue-structure) 58%, var(--visp-text));
+}
+
 .is-live-mode .live-heading-1 {
   padding-block: 10px 4px;
   font-size: 2em;
@@ -451,6 +468,7 @@
   padding: 1px 5px;
   border-radius: 4px;
   background: var(--vscode-textCodeBlock-background, color-mix(in srgb, var(--visp-text) 10%, transparent));
+  color: var(--vscode-textPreformat-foreground, var(--visp-hue-literal));
   font-family: var(--visp-mono);
   font-size: 0.9em;
 }

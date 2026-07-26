@@ -34,6 +34,7 @@ import {
 } from "@codemirror/view";
 import type { OffsetTextEdit } from "../../application/textEdits.js";
 import type { NoteSuggestionWire } from "../contracts.js";
+import { codeLanguages } from "./codeLanguages.js";
 import { vispEditorTheme } from "./editorTheme.js";
 import {
   createEditorDocument,
@@ -246,7 +247,7 @@ export class CodeMirrorEditor {
         "aria-describedby": "editor-hint sync-status",
         spellcheck: "true",
       }),
-      markdown({ base: markdownLanguage, completeHTMLTags: false }),
+      markdown({ base: markdownLanguage, completeHTMLTags: false, codeLanguages: [...codeLanguages] }),
       markdownContext,
       history(),
       closeBrackets(),
