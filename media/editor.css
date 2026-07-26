@@ -45,7 +45,7 @@
   overflow: hidden;
   border-bottom: 1px solid var(--visp-border);
   background: var(--visp-bg);
-  color: var(--visp-muted);
+  color: var(--visp-muted-strong);
   font-size: 11px;
 }
 
@@ -95,13 +95,6 @@
   align-items: center;
   gap: 10px;
   margin-left: auto;
-}
-
-.note-stat {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  cursor: default;
 }
 
 .editor-width-field {

@@ -13,6 +13,14 @@
   --visp-border: var(--vscode-panel-border, color-mix(in srgb, CanvasText 24%, transparent));
   --visp-text: var(--vscode-editor-foreground, CanvasText);
   --visp-muted: var(--vscode-descriptionForeground, color-mix(in srgb, CanvasText 62%, transparent));
+
+  /*
+   * VS Code's descriptionForeground sits at about 4.3:1 on the side bar in the light
+   * theme, which is under WCAG AA and reads as mush at the 10-11px sizes these labels
+   * use. Pulling it toward the foreground clears AA in both themes while still reading
+   * as secondary text.
+   */
+  --visp-muted-strong: color-mix(in srgb, var(--visp-muted) 72%, var(--visp-text));
   --visp-accent: var(--vscode-textLink-foreground, LinkText);
   --visp-focus: var(--vscode-focusBorder, Highlight);
   --visp-danger: var(--vscode-errorForeground, #d64550);
@@ -260,12 +268,60 @@ label > .codicon {
   color: var(--visp-muted);
 }
 
+/* An icon and count. Shared so every view reports connections the same way. */
+.stat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: default;
+}
+
 .empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
   margin: auto;
-  padding: 28px;
+  padding: 28px 20px;
   color: var(--visp-muted);
   line-height: 1.5;
   text-align: center;
+}
+
+.empty-state .codicon {
+  font-size: 22px;
+  opacity: 0.55;
+}
+
+/* A loading empty state reads as progress rather than as a dead end. */
+.empty-state .codicon-loading {
+  animation: visp-spin 1.4s steps(24) infinite;
+}
+
+@keyframes visp-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .empty-state .codicon-loading {
+    animation: none;
+  }
+}
+
+.empty-state-message {
+  max-width: 34ch;
+  margin: 0;
+  color: var(--visp-text);
+  font-size: 12px;
+}
+
+.empty-state-hint {
+  max-width: 38ch;
+  margin: 0;
+  color: var(--visp-muted-strong);
+  font-size: 11px;
 }
 
 .full-width {

@@ -1,5 +1,12 @@
 import type { TaskWire, TasksSnapshotWire, TasksToHostWire } from "./contracts.js";
-import { htmlElement, isRecord, requireElement, setNotice } from "./shared/dom.js";
+import {
+  codicon,
+  emptyState,
+  htmlElement,
+  isRecord,
+  requireElement,
+  setNotice,
+} from "./shared/dom.js";
 import { acquireMessageSender } from "./shared/vscodeApi.js";
 import { formatDueDate, groupTasks, parseTaskGrouping } from "./tasks/grouping.js";
 import type { TaskStatusFilter } from "./tasks/grouping.js";
@@ -22,6 +29,8 @@ groupsRoot.addEventListener("click", handleTaskClick);
 groupsRoot.addEventListener("change", handleTaskToggle);
 window.addEventListener("message", handleHostMessage);
 
+// Paint the loading state before the host replies; otherwise the panel opens blank.
+render();
 api.postMessage({ type: "tasks/ready" });
 
 function handleHostMessage(event: MessageEvent<unknown>): void {
@@ -47,7 +56,7 @@ function handleHostMessage(event: MessageEvent<unknown>): void {
 function render(): void {
   groupsRoot.replaceChildren();
   if (snapshot === undefined) {
-    groupsRoot.append(emptyState("Building the workspace task index…"));
+    groupsRoot.append(emptyState("loading", "Building the workspace task index…"));
     return;
   }
   const groups = groupTasks(snapshot.tasks, {
@@ -62,10 +71,17 @@ function render(): void {
   ).size;
   countLabel.textContent = `${visibleCount} of ${snapshot.tasks.length} tasks · index ${snapshot.version}`;
   if (groups.length === 0) {
-    const message = snapshot.filter === "today" && search.value.trim() === ""
-      ? "No incomplete tasks are due today."
-      : "No tasks match the current filters.";
-    groupsRoot.append(emptyState(message));
+    groupsRoot.append(dueTodayView() && search.value.trim() === ""
+      ? emptyState(
+          "pass",
+          "No incomplete tasks are due today.",
+          "Add @due(YYYY-MM-DD) to a checkbox to schedule one.",
+        )
+      : emptyState(
+          "search",
+          "No tasks match the current filters.",
+          "Clear the filter text, or switch the status to All tasks.",
+        ));
     return;
   }
   for (const group of groups) {
@@ -95,7 +111,9 @@ function createTaskCard(task: TaskWire): HTMLElement {
   open.dataset.uri = task.noteUri;
   open.dataset.start = String(task.range.start);
   const metadata = htmlElement("div", "task-card-metadata");
-  metadata.append(htmlElement("span", "note-reference", task.noteTitle));
+  const noteReference = htmlElement("span", "note-reference");
+  noteReference.append(codicon("note"), htmlElement("span", undefined, task.noteTitle));
+  metadata.append(noteReference);
   for (const tag of task.tags.slice(0, 3)) {
     metadata.append(htmlElement("span", "task-tag", `#${tag}`));
   }
@@ -156,8 +174,8 @@ function selectedStatus(): TaskStatusFilter {
   return status.value === "all" || status.value === "completed" ? status.value : "open";
 }
 
-function emptyState(message: string): HTMLElement {
-  return htmlElement("p", "empty-state", message);
+function dueTodayView(): boolean {
+  return snapshot?.filter === "today";
 }
 
 function isTasksSnapshot(value: unknown): value is TasksSnapshotWire {

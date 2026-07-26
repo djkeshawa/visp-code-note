@@ -26,7 +26,7 @@ import {
   isNoteSuggestions,
   isUnresolvedLinks,
 } from "./editor/validation.js";
-import { isRecord, requireElement, setNotice } from "./shared/dom.js";
+import { isRecord, requireElement, setNotice, statChip } from "./shared/dom.js";
 import { acquireWebviewApi } from "./shared/vscodeApi.js";
 
 const api = acquireWebviewApi<EditorToHostWire, unknown>();
@@ -255,10 +255,10 @@ function renderNoteContext(context: NoteContextWire | undefined): void {
   noteTags.replaceChildren(...context.tags.map((tag) => contextSpan("note-tag", `#${tag}`)));
 
   noteStats.replaceChildren(
-    statChip("codicon-references", context.backlinkCount, "backlink", "backlinks"),
-    statChip("codicon-link", context.outgoingCount, "link out", "links out"),
+    statChip("references", context.backlinkCount, "backlink", "backlinks"),
+    statChip("link", context.outgoingCount, "link out", "links out"),
     statChip(
-      "codicon-checklist",
+      "checklist",
       context.openTaskCount,
       `open task of ${context.taskCount}`,
       `open tasks of ${context.taskCount}`,
@@ -271,25 +271,6 @@ function contextSpan(className: string, text: string): HTMLSpanElement {
   span.className = className;
   span.textContent = text;
   return span;
-}
-
-function statChip(
-  icon: string,
-  count: number,
-  singular: string,
-  plural: string,
-): HTMLSpanElement {
-  const chip = document.createElement("span");
-  chip.className = "note-stat";
-  chip.title = `${count} ${count === 1 ? singular : plural}`;
-  const glyph = document.createElement("span");
-  glyph.className = `codicon ${icon}`;
-  glyph.setAttribute("aria-hidden", "true");
-  const label = document.createElement("span");
-  label.textContent = String(count);
-  chip.append(glyph, label);
-  chip.setAttribute("aria-label", chip.title);
-  return chip;
 }
 
 function revealOffset(offset: number): void {

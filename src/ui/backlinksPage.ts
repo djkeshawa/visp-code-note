@@ -9,19 +9,11 @@ export function createBacklinksHtml(options: WebviewTemplateOptions): string {
     body: `
       <div class="visp-shell backlinks-shell">
         <header class="backlinks-header">
-          <span class="eyebrow">Linked mentions</span>
-          <h1 id="backlinks-title">Backlinks</h1>
+          <h1 id="backlinks-title">No note selected</h1>
+          <div id="backlinks-stats" class="backlinks-stats" aria-label="Note connections"></div>
         </header>
-        <section class="backlink-summary" aria-label="Note connection summary">
-          <div><strong id="backlinks-count">0</strong><span>Backlinks</span></div>
-          <div><strong id="outgoing-count">0</strong><span>Links out</span></div>
-          <div><strong id="inline-task-count">0</strong><span>Tasks</span></div>
-        </section>
         <main>
-          <div class="section-heading">
-            <h2>Mentions</h2>
-            <span id="mentions-label" class="muted">Waiting for note…</span>
-          </div>
+          <h2 id="mentions-label" class="section-heading">Linked mentions</h2>
           <div id="backlinks-list" class="backlinks-list" aria-live="polite"></div>
         </main>
       </div>`,

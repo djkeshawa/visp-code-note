@@ -1,5 +1,5 @@
 import type { GraphDataWire, GraphNodeWire } from "../contracts.js";
-import { htmlElement } from "../shared/dom.js";
+import { codicon, emptyState, htmlElement } from "../shared/dom.js";
 import { connectionsFor } from "./interactionModel.js";
 import type { GraphConnection } from "./interactionModel.js";
 
@@ -60,26 +60,47 @@ function connectionRows(connections: readonly GraphConnection[]): readonly HTMLE
     const button = htmlElement("button", "connection-row");
     button.type = "button";
     button.dataset.nodeId = connection.node.id;
-    button.title = `Select ${connection.node.label}`;
+    const relation = connectionRelation(connection);
+    button.title = `Select ${connection.node.label} — ${relation.description}`;
+    const kinds = connection.edgeKinds.map(capitalize).join(" + ");
     button.append(
       htmlElement("span", `connection-marker marker-${connection.node.kind}`),
+      codicon(NODE_ICONS[connection.node.kind]),
       htmlElement("span", "connection-label", connection.node.label),
-      htmlElement("span", "connection-relation", connectionRelation(connection)),
+      htmlElement("span", "connection-relation", kinds),
+      codicon(relation.icon, relation.description),
     );
     return button;
   });
 }
 
 function emptyConnections(): HTMLElement {
-  return htmlElement("p", "connection-empty muted", "No visible connections.");
+  return emptyState(
+    "circle-slash",
+    "No visible connections.",
+    "Widen the link depth or re-enable a node type to see more.",
+  );
 }
 
-function connectionRelation(connection: GraphConnection): string {
-  const kind = connection.edgeKinds.map(capitalize).join(" + ");
-  const direction = connection.direction === "both"
-    ? "↔"
-    : connection.direction === "outgoing" ? "out →" : "in ←";
-  return `${kind} · ${direction}`;
+const NODE_ICONS: Readonly<Record<GraphNodeWire["kind"], string>> = {
+  note: "note",
+  task: "checklist",
+  tag: "tag",
+  unresolved: "question",
+};
+
+/** Direction reads as an arrow rather than as a text glyph, with the words kept for a11y. */
+function connectionRelation(
+  connection: GraphConnection,
+): { readonly icon: string; readonly description: string } {
+  switch (connection.direction) {
+    case "both":
+      return { icon: "arrow-both", description: "links in both directions" };
+    case "outgoing":
+      return { icon: "arrow-right", description: "links out" };
+    case "incoming":
+      return { icon: "arrow-left", description: "links in" };
+  }
 }
 
 function findNode(graph: GraphDataWire, id: string | undefined): GraphNodeWire | undefined {

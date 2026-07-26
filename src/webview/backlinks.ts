@@ -3,14 +3,19 @@ import type {
   BacklinksToHostWire,
   BacklinkWire,
 } from "./contracts.js";
-import { htmlElement, isRecord, requireElement } from "./shared/dom.js";
+import {
+  codicon,
+  emptyState,
+  htmlElement,
+  isRecord,
+  requireElement,
+  statChip,
+} from "./shared/dom.js";
 import { acquireMessageSender } from "./shared/vscodeApi.js";
 
 const api = acquireMessageSender<BacklinksToHostWire>();
 const title = requireElement("#backlinks-title", HTMLHeadingElement);
-const backlinkCount = requireElement("#backlinks-count", HTMLElement);
-const outgoingCount = requireElement("#outgoing-count", HTMLElement);
-const taskCount = requireElement("#inline-task-count", HTMLElement);
+const stats = requireElement("#backlinks-stats", HTMLElement);
 const mentionsLabel = requireElement("#mentions-label", HTMLElement);
 const list = requireElement("#backlinks-list", HTMLElement);
 
@@ -18,6 +23,7 @@ let state: BacklinksStateWire | undefined;
 
 list.addEventListener("click", handleOpen);
 window.addEventListener("message", handleHostMessage);
+render();
 api.postMessage({ type: "backlinks/ready" });
 
 function handleHostMessage(event: MessageEvent<unknown>): void {
@@ -30,17 +36,34 @@ function handleHostMessage(event: MessageEvent<unknown>): void {
 
 function render(): void {
   if (state === undefined) {
+    // No note is active yet, so say what to do rather than showing an empty panel.
+    title.textContent = "No note selected";
+    mentionsLabel.textContent = "Linked mentions";
+    stats.replaceChildren();
+    list.replaceChildren(emptyState(
+      "book",
+      "Open a Markdown note to see which notes link to it.",
+    ));
     return;
   }
   const noteTitle = state.noteTitle ?? "Current note";
+  const total = state.backlinks.length;
   title.textContent = noteTitle;
-  backlinkCount.textContent = String(state.backlinks.length);
-  outgoingCount.textContent = String(state.outgoingCount);
-  taskCount.textContent = String(state.taskCount);
-  mentionsLabel.textContent = `${state.backlinks.length} linked ${state.backlinks.length === 1 ? "mention" : "mentions"}`;
+  // The editor's context strip carries these too, but a note opened in VS Code's own text
+  // editor has no strip, so the panel stays the one place that always reports them.
+  stats.replaceChildren(
+    statChip("references", total, "backlink", "backlinks"),
+    statChip("link", state.outgoingCount, "link out", "links out"),
+    statChip("checklist", state.taskCount, "task", "tasks"),
+  );
+  mentionsLabel.textContent = total === 1 ? "1 linked mention" : `${total} linked mentions`;
   list.replaceChildren();
-  if (state.backlinks.length === 0) {
-    list.append(htmlElement("p", "empty-state", "No notes link here yet."));
+  if (total === 0) {
+    list.append(emptyState(
+      "link",
+      "No notes link here yet.",
+      `Type [[${noteTitle}]] in another note to create the first link.`,
+    ));
     return;
   }
   list.append(...state.backlinks.map((backlink) => createBacklinkCard(backlink, noteTitle)));
@@ -55,6 +78,7 @@ function createBacklinkCard(backlink: BacklinkWire, noteTitle: string): HTMLButt
 
   const header = htmlElement("span", "backlink-card-header");
   header.append(
+    codicon("note"),
     htmlElement("strong", undefined, backlink.sourceTitle),
     htmlElement("span", "backlink-location", `${backlink.sourcePath}:${backlink.line + 1}`),
   );

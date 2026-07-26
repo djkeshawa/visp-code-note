@@ -48,7 +48,11 @@ export function createGraphHtml(options: WebviewTemplateOptions): string {
             </div>
           </aside>
           <main class="graph-canvas">
-            <div id="graph-empty" class="empty-state" hidden>No nodes match these filters.</div>
+            <div id="graph-empty" class="empty-state" hidden>
+              <span class="codicon codicon-filter" aria-hidden="true"></span>
+              <p class="empty-state-message">No nodes match these filters.</p>
+              <p class="empty-state-hint">Re-enable a type under Display, or turn on orphan notes.</p>
+            </div>
             <svg id="graph-svg" viewBox="0 0 960 640" role="group"
               aria-label="Interactive knowledge graph" aria-describedby="graph-keyboard-hint"></svg>
             <span id="graph-keyboard-hint" class="sr-only">

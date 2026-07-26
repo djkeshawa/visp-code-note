@@ -303,8 +303,12 @@
   pointer-events: none;
 }
 
+/*
+ * `is-hub` is deliberately absent: it marks any node with four or more links, which in a
+ * real workspace is most of them. Standing labels are granted by the renderer's ranked
+ * budget instead, and these rules cover labels revealed by interaction.
+ */
 .graph-node:hover .node-label,
-.graph-node.is-hub .node-label,
 .graph-node.is-connected .node-label,
 .graph-node.is-search-match .node-label,
 .graph-node.is-selected .node-label,
@@ -404,8 +408,9 @@
 }
 
 .node-stats dt {
-  color: var(--visp-muted);
-  font-size: 9px;
+  color: var(--visp-muted-strong);
+  font-size: 10px;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
 }
 
@@ -432,12 +437,12 @@
 }
 
 .connection-heading span {
-  min-width: 18px;
-  padding: 1px 5px;
+  min-width: 19px;
+  padding: 1px 6px;
   border-radius: 9px;
-  background: var(--visp-surface);
-  color: var(--visp-muted);
-  font-size: 9px;
+  background: var(--vscode-badge-background, var(--visp-surface));
+  color: var(--vscode-badge-foreground, var(--visp-muted));
+  font-size: 10px;
   text-align: center;
 }
 
@@ -451,9 +456,10 @@
   width: 100%;
   min-height: 32px;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  /* marker, kind icon, label, relation, direction arrow */
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   padding: 5px 7px;
   border: 1px solid var(--visp-border);
   border-radius: 5px;
@@ -495,9 +501,20 @@
 }
 
 .connection-relation {
-  color: var(--visp-muted);
-  font-size: 9px;
+  color: var(--visp-muted-strong);
+  font-size: 10px;
   white-space: nowrap;
+}
+
+.connection-row .codicon {
+  flex: 0 0 auto;
+  color: var(--visp-muted);
+  font-size: 12px;
+}
+
+/* The direction arrow anchors the right edge of the row. */
+.connection-row > .codicon:last-child {
+  margin-left: 2px;
 }
 
 .connection-list .connection-empty {

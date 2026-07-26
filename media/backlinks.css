@@ -1,6 +1,6 @@
 .backlinks-shell {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   background: var(--visp-panel);
 }
 
@@ -18,43 +18,13 @@
   white-space: nowrap;
 }
 
-.backlink-summary {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  margin: 10px;
-  border: 1px solid var(--visp-border);
-  border-radius: var(--visp-radius);
-  background: var(--visp-surface);
-}
-
-.backlink-summary div {
-  min-width: 0;
-  padding: 8px 3px;
-  border-right: 1px solid var(--visp-border);
-  text-align: center;
-}
-
-.backlink-summary div:last-child {
-  border-right: 0;
-}
-
-.backlink-summary strong,
-.backlink-summary span {
-  display: block;
-}
-
-.backlink-summary strong {
-  font-size: 14px;
-}
-
-.backlink-summary span {
-  margin-top: 2px;
-  overflow: hidden;
-  color: var(--visp-muted);
-  font-size: 9px;
-  letter-spacing: 0.04em;
-  text-overflow: ellipsis;
-  text-transform: uppercase;
+.backlinks-stats {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 7px;
+  color: var(--visp-muted-strong);
+  font-size: 11px;
 }
 
 .backlinks-shell main {
@@ -64,22 +34,13 @@
 }
 
 .section-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 5px 2px 8px;
-}
-
-.section-heading h2 {
   margin: 0;
+  padding: 6px 2px 8px;
+  color: var(--visp-muted-strong);
   font-size: 10px;
+  font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-}
-
-.section-heading span {
-  font-size: 10px;
 }
 
 .backlinks-list {
@@ -106,9 +67,15 @@
 .backlink-card-header {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   margin-bottom: 5px;
   font-size: 12px;
+}
+
+.backlink-card-header .codicon {
+  flex: 0 0 auto;
+  color: var(--visp-muted);
+  font-size: 13px;
 }
 
 .backlink-card-header strong {
@@ -123,7 +90,7 @@
   overflow: hidden;
   color: var(--visp-muted);
   font-family: var(--visp-mono);
-  font-size: 9px;
+  font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

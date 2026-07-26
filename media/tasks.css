@@ -93,12 +93,19 @@
   align-items: center;
   gap: 7px;
   margin-top: 6px;
-  color: var(--visp-muted);
+  color: var(--visp-muted-strong);
   font-size: 10px;
 }
 
 .note-reference {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   color: var(--visp-accent);
+}
+
+.task-card-metadata .codicon {
+  font-size: 12px;
 }
 
 .task-tag {
@@ -110,7 +117,7 @@
   flex-direction: column;
   align-items: flex-end;
   gap: 7px;
-  color: var(--visp-muted);
+  color: var(--visp-muted-strong);
   font-size: 10px;
 }
 
