@@ -6,6 +6,7 @@ out-integration/
 media/scripts/
 media/codicons/
 *.vsix
+*-harness.local.html
 *.log
 
 # Local product design artifacts
