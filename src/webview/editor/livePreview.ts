@@ -9,6 +9,8 @@ import {
 import type { DecorationSet, ViewUpdate } from "@codemirror/view";
 import { parseCalloutBlock } from "../../markdown/callouts.js";
 import type { CalloutHeader } from "../../markdown/callouts.js";
+import { pipePositions, tableLines } from "../../markdown/tables.js";
+import type { TableLineKind } from "../../markdown/tables.js";
 import {
   findRecognizedWikiLink,
   isRecognizedWikiLink,
@@ -16,6 +18,7 @@ import {
   markdownFormattingMarks,
   markdownFrontmatterRange,
   markdownInlineCodeRanges,
+  markdownInlineLinks,
 } from "./markdownContext.js";
 import { findWikiLinkAtPosition } from "./wikiLinkNavigation.js";
 import { wikiLinkDisplayRange } from "./wikiLinkPresentation.js";
@@ -163,14 +166,18 @@ function buildDecorations(
   const ranges: Range<Decoration>[] = [];
   const visitedLines = new Set<number>();
   const frontmatter = markdownFrontmatterRange(view.state);
+  const tables = tableRolesByLine(view);
   for (const visible of view.visibleRanges) {
     let position = view.state.doc.lineAt(visible.from).from;
     while (position <= visible.to && position <= view.state.doc.length) {
       const line = view.state.doc.lineAt(position);
       if (!visitedLines.has(line.from)) {
         visitedLines.add(line.from);
+        const tableRole = tables.get(line.number);
         if (frontmatter !== undefined && line.from < frontmatter.end) {
           decorateFrontmatterLine(line.from, line.to, frontmatter, ranges);
+        } else if (tableRole !== undefined) {
+          decorateTableLine(view, line.from, line.to, line.text, tableRole, ranges);
         } else {
           decorateLine(view, line.from, line.to, line.text, unresolvedLinks, ranges);
         }
@@ -198,6 +205,50 @@ function decorateFrontmatterLine(
       class: isFence ? "live-frontmatter-line is-fence" : "live-frontmatter-line",
     }).range(from),
   );
+}
+
+/**
+ * Table roles keyed by 1-based line number. Computed for the whole document because a row's
+ * role depends on the delimiter beneath the header, which a per-line pass cannot see.
+ */
+function tableRolesByLine(view: EditorView): ReadonlyMap<number, TableLineKind> {
+  const document = view.state.doc;
+  const lines: string[] = [];
+  for (let number = 1; number <= document.lines; number += 1) {
+    lines.push(document.line(number).text);
+  }
+  return new Map(tableLines(lines).map((entry) => [entry.line + 1, entry.kind]));
+}
+
+/**
+ * Rows stay editable text. A monospace grid lines the columns up, the header reads as a
+ * header, the pipes recede, and the delimiter row collapses to a rule unless the caret is on
+ * it. Replacing the block with an HTML table would take the text out of the document the
+ * caret moves through, which is the one thing this editor does not do.
+ */
+function decorateTableLine(
+  view: EditorView,
+  from: number,
+  to: number,
+  text: string,
+  kind: TableLineKind,
+  ranges: Range<Decoration>[],
+): void {
+  const active = view.state.selection.ranges.some((selection) =>
+    selection.from <= to && selection.to >= from);
+  ranges.push(
+    Decoration.line({ class: `live-table-line is-${kind}` }).range(from),
+  );
+  if (kind === "delimiter" && !active) {
+    // Hidden entirely; the header line's bottom border stands in for it.
+    addHiddenMarkup(ranges, from, to - from, false);
+    return;
+  }
+  for (const offset of pipePositions(text)) {
+    ranges.push(
+      Decoration.mark({ class: "live-table-pipe" }).range(from + offset, from + offset + 1),
+    );
+  }
 }
 
 function decorateLine(
@@ -307,6 +358,14 @@ function decorateLine(
   if (block !== undefined && block.kind !== "code") {
     for (const span of markdownInlineCodeRanges(view.state, from, to)) {
       ranges.push(Decoration.mark({ class: "live-inline-code" }).range(span.start, span.end));
+    }
+    for (const link of markdownInlineLinks(view.state, from, to)) {
+      const className = link.image ? "live-md-link is-image" : "live-md-link";
+      ranges.push(Decoration.mark({ class: className }).range(link.labelStart, link.labelEnd));
+      if (active) continue;
+      // Hide the brackets and the target, leaving the label reading as a link.
+      addHiddenMarkup(ranges, link.start, link.labelStart - link.start, false);
+      addHiddenMarkup(ranges, link.labelEnd, link.end - link.labelEnd, false);
     }
   }
 }

@@ -496,6 +496,44 @@
   vertical-align: baseline;
 }
 
+/*
+ * Tables stay editable text. Monospace lines the columns up, the header carries a rule where
+ * the delimiter row used to be, and the pipes recede so the content reads before the grid.
+ */
+.is-live-mode .live-table-line {
+  font-family: var(--visp-mono);
+  font-size: 0.92em;
+  white-space: pre;
+}
+
+.is-live-mode .live-table-line.is-header {
+  border-bottom: 1px solid color-mix(in srgb, var(--visp-hue-structure) 50%, transparent);
+  color: var(--visp-text);
+  font-weight: 650;
+}
+
+.is-live-mode .live-table-line.is-delimiter {
+  height: 0;
+  overflow: hidden;
+}
+
+.is-live-mode .live-table-pipe {
+  color: color-mix(in srgb, var(--visp-muted) 60%, transparent);
+}
+
+/* A Markdown link shows its label; the brackets and target are hidden until edited. */
+.is-live-mode .live-md-link {
+  color: var(--visp-hue-reference);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
+  text-underline-offset: 2px;
+}
+
+.is-live-mode .live-md-link.is-image {
+  color: var(--visp-hue-literal);
+  text-decoration-style: dotted;
+}
+
 .is-live-mode .live-thematic-break {
   height: 0;
   margin-block: 12px;

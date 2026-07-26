@@ -2,6 +2,22 @@
 
 ## 0.3.0 - 2026-07-26
 
+### Added — collapsible outline, tables, and Markdown links
+
+- **Headings and list items collapse.** `@codemirror/lang-markdown` folds every block except
+  headings and lists, so fenced code and quotes already collapsed while an outline did not. A
+  heading now collapses to the next heading of the same or higher level, and a list item
+  collapses its nested children. Chevrons appear on hover rather than standing permanently in
+  the gutter. Folding is presentation only: unlike Logseq, nothing writes `collapsed:: true`
+  into the file, so view state stays out of notes and diffs.
+- **Tables render as a grid.** They previously showed as raw pipes. Rows stay editable text
+  given a monospace grid so columns align, a header rule where the delimiter row was, and
+  receding pipes; the delimiter row itself is hidden unless the caret is on it. A pipe in
+  ordinary prose, and a table drawn inside a fence, are both left alone.
+- **Markdown links and images render their label.** `[label](url)` and `![alt](src)` showed
+  their full syntax; the brackets and target are now hidden until the caret enters them, read
+  from the syntax tree so nested brackets and escapes are handled by the parser.
+
 ### Added — prose font setting
 
 - `vispNotes.editor.fontFamily` sets the font for rendered note prose. Empty follows VS

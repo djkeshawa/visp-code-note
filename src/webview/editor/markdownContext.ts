@@ -111,6 +111,69 @@ export function markdownInlineCodeRanges(
   return ranges;
 }
 
+export interface InlineLinkRange {
+  /** The whole `[label](target)` construct. */
+  readonly start: number;
+  readonly end: number;
+  /** The visible label inside the brackets. */
+  readonly labelStart: number;
+  readonly labelEnd: number;
+  /** True for an image, `![alt](src)`. */
+  readonly image: boolean;
+}
+
+/**
+ * Markdown links and images, read from the syntax tree rather than by regex so nested brackets
+ * and escapes are handled by the parser that already understands them.
+ */
+export function markdownInlineLinks(
+  state: EditorState,
+  from: number,
+  to: number,
+): readonly InlineLinkRange[] {
+  const links: InlineLinkRange[] = [];
+  syntaxTree(state).iterate({
+    from,
+    to,
+    enter: (node) => {
+      if (node.name !== "Link" && node.name !== "Image") return;
+      if (node.from < from || node.to > to) return;
+      const text = state.sliceDoc(node.from, node.to);
+      const image = node.name === "Image";
+      const open = text.indexOf("[");
+      const close = findLabelEnd(text, open);
+      if (open === -1 || close === -1) return;
+      links.push({
+        start: node.from,
+        end: node.to,
+        labelStart: node.from + open + 1,
+        labelEnd: node.from + close,
+        image,
+      });
+    },
+  });
+  return links;
+}
+
+/** Matches the closing bracket of a label, allowing nested brackets inside it. */
+function findLabelEnd(text: string, open: number): number {
+  if (open === -1) return -1;
+  let depth = 0;
+  for (let index = open; index < text.length; index += 1) {
+    const character = text[index];
+    if (character === "\\") {
+      index += 1;
+      continue;
+    }
+    if (character === "[") depth += 1;
+    else if (character === "]") {
+      depth -= 1;
+      if (depth === 0) return index;
+    }
+  }
+  return -1;
+}
+
 export function markdownBlockAtPosition(
   state: EditorState,
   position: number,
