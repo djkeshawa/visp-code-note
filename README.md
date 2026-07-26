@@ -6,8 +6,10 @@ Visp Notes turns ordinary workspace Markdown files into a connected note system 
 
 - Continuous Markdown editing with one natural CodeMirror document, Live/Markdown modes, undo history, search, bracket matching, list continuation, and explicit sync/conflict status
 - `[[wiki links]]`, aliases, heading links, block references, context-aware completion, exact-anchor navigation, and missing-anchor diagnostics
+- Live presentation of callouts (`> [!note]`), inline code, thematic breaks, and frontmatter as a property block
+- A document context strip with the note's location, tags, backlink count, links out, and open tasks
 - Backlinks with source context
-- Standard Markdown checkbox tasks, Toggle Task, and all/due-today dashboards
+- Standard Markdown checkbox tasks, Toggle Task, tickable tasks in the Activity Bar, and dashboards grouped by due date, note, or tag
 - Interactive one- and two-hop local graphs plus a live force-directed workspace graph, with spring motion, connection-scaled nodes, hover neighborhoods, pan, cursor-centered zoom, fit/center controls, non-destructive search, and connection details
 - Safe note rename choices with a native before/after diff preview
 - Broken-link diagnostics
@@ -17,10 +19,18 @@ Visp Notes turns ordinary workspace Markdown files into a connected note system 
 
 1. Open a folder containing Markdown files.
 2. Open **Visp Notes** from the Activity Bar.
-3. Run **Visp Notes: New Note**, or open an existing `.md` file. The editor opens in Live mode; use the toolbar to switch to raw Markdown without changing editors or losing your selection and undo history.
+3. Run **Visp Notes: New Note**. New notes open in the Visp Notes editor in Live mode; use the toolbar to switch to raw Markdown without changing editors or losing your selection and undo history.
 4. Type `[[` anywhere to fuzzy-search notes and aliases. Continue with `#` for headings or `^` for block IDs. You can also press `Ctrl+Shift+L` (`Cmd+Shift+L` on macOS) to insert a note link at the active caret.
 
 New notes are created under `notes/` by default. Change `vispNotes.notesFolder` to use another workspace-relative folder.
+
+### Opening existing notes in the Visp Notes editor
+
+Installing Visp Notes does not take over the Markdown files you already have. A `README.md` or `CHANGELOG.md` keeps opening in VS Code's own text editor, and the Visp Notes editor is one of the choices offered by **Reopen Editor With…**.
+
+To open every Markdown file in Visp Notes by default, run **Visp Notes: Use Visp Notes as the Default Markdown Editor**. That writes the standard `workbench.editorAssociations` setting, so VS Code's own editor-association UI stays in charge of it. **Visp Notes: Restore the Built-in Markdown Text Editor** undoes it without disturbing associations other extensions have set.
+
+Commands that open a note — **New Note**, tree items, wiki-link navigation, **Open Local Graph** — always use the Visp Notes editor regardless of this setting.
 
 ## Markdown conventions
 
@@ -40,7 +50,19 @@ Add an explicit block ID after a paragraph or heading to make it addressable:
 The index is rebuilt from Markdown. ^parser-block
 ```
 
-In the graph, nodes settle through a live force simulation. Drag any visible dot or label to reshape the graph: linked nodes respond through springs, nearby nodes repel each other, and released nodes settle with momentum. Select a node to keep its neighborhood visible, or use **Reset** to restart the automatic layout. Larger dots indicate more visible connections. Drag empty canvas space to pan, use the wheel or trackpad to zoom around the pointer, and use **Fit** or **Center** to recover the view. Search highlights matches without removing their surrounding context; press Enter or Shift+Enter to cycle through results.
+In the graph, nodes settle through a live force simulation using quadtree (Barnes–Hut) repulsion, which keeps layout quality steady as a workspace grows to thousands of notes. Drag any visible dot or label to reshape the graph: linked nodes respond through springs, nearby nodes repel each other, and released nodes settle with momentum. Select a node to keep its neighborhood visible, or use **Reset** to restart the automatic layout. Larger dots indicate more visible connections. Drag empty canvas space to pan, use the wheel or trackpad to zoom around the pointer, and use **Fit** or **Center** to recover the view. Search highlights matches without removing their surrounding context; press Enter or Shift+Enter to cycle through results.
+
+Callouts are ordinary blockquotes whose first line declares a type. In Live mode the marker collapses to an icon and the block takes on the matching accent; the Markdown underneath is untouched:
+
+```md
+> [!note] Current direction
+> Keep files human-readable.
+
+> [!warning] Migration needed
+> The old index format is dropped in 0.3.
+```
+
+Types map onto six tones — note, tip, important, warning, danger, success — and aliases such as `info`, `caution`, `bug`, or `done` resolve to the closest one. An unrecognised type renders as a note rather than as plain text.
 
 Tasks stay valid Markdown. Optional metadata is read without changing the line:
 
@@ -73,6 +95,16 @@ tags: [engineering, architecture]
 - `Visp Notes: Find Broken Links`
 - `Visp Notes: Rebuild Index`
 - `Visp Notes: Search Notes and Tasks`
+- `Visp Notes: Use Visp Notes as the Default Markdown Editor`
+- `Visp Notes: Restore the Built-in Markdown Text Editor`
+
+## Settings
+
+- `vispNotes.notesFolder` — workspace-relative folder for new notes.
+- `vispNotes.exclude` — glob patterns kept out of the index.
+- `vispNotes.editor.contentWidth` — `readable`, `wide`, or `full` measure for note content. Also changeable from the editor's context strip, which writes this setting so every open note agrees.
+- `vispNotes.graph.defaultDepth` — default local-graph link depth.
+- `vispNotes.openRenderedAfterCreate` — open newly created notes in the Visp Notes editor.
 
 ## Data safety
 
@@ -90,10 +122,15 @@ Requirements: Node.js 20 or newer and VS Code 1.96 or newer.
 
 ```sh
 npm install
-npm run check
+npm run lint
+npm run check   # lint, then type-check the extension, webviews, and tests
 npm test
 npm run compile
 ```
+
+`npm run compile` also copies the Codicon font into `media/codicons`, which the webviews load so their icons match the rest of VS Code. Both `media/scripts` and `media/codicons` are build output and are not committed.
+
+CI runs lint, type-check, tests, build, and `vsce package` on every push and pull request.
 
 Press `F5` in VS Code to launch an Extension Development Host. See `docs/architecture.md` for module boundaries and data flow.
 

@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import type { GraphToHostMessage, HostToGraphMessage } from "../../domain/protocol";
+import type { HostToGraphMessage } from "../../domain/protocol";
 import type { IndexSnapshot } from "../../domain/models";
 import { buildLocalGraph, buildWorkspaceGraph } from "../../indexing/projections";
 import { createGraphHtml } from "../../ui";

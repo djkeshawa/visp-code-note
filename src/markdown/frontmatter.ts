@@ -3,6 +3,10 @@ import type { SourceLine } from "./lines";
 
 type FrontmatterValue = string | readonly string[];
 
+function isValueList(value: FrontmatterValue | undefined): value is readonly string[] {
+  return Array.isArray(value);
+}
+
 export interface FrontmatterResult {
   readonly data?: Readonly<Record<string, FrontmatterValue>>;
   readonly range?: OffsetRange;
@@ -35,7 +39,7 @@ export function parseFrontmatter(lines: readonly SourceLine[]): FrontmatterResul
     if (listKey !== undefined && listItem !== null) {
       const current = values[listKey];
       const item = parseScalar(listItem[1] ?? "");
-      values[listKey] = [...(Array.isArray(current) ? current : []), item];
+      values[listKey] = isValueList(current) ? [...current, item] : [item];
       continue;
     }
 
@@ -60,7 +64,7 @@ export function parseFrontmatter(lines: readonly SourceLine[]): FrontmatterResul
 
   const closing = lines[closingIndex];
   for (const [key, value] of Object.entries(values)) {
-    if (Array.isArray(value)) {
+    if (isValueList(value)) {
       values[key] = Object.freeze([...value]);
     }
   }

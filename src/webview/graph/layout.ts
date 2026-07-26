@@ -11,9 +11,40 @@ export interface GraphBounds {
   readonly height: number;
 }
 
+const BASE_BOUNDS: GraphBounds = { width: 960, height: 640 };
+
+/**
+ * Space each node wants to itself. Node radii reach roughly 17px, so this leaves a clear
+ * gap between neighbours once the layout settles.
+ */
+const NODE_SPACING = 64;
+
+/**
+ * Grows the layout area with the node count.
+ *
+ * The canvas used to be a fixed 960x640 whatever the workspace size, and a few thousand
+ * nodes simply do not fit: the area needed exceeds what is available, so repulsion and the
+ * boundary force fight each other and nodes overlap no matter how good the algorithm is.
+ * The viewport already pans and zooms, and Fit frames whatever it is given, so a larger
+ * world costs nothing on screen.
+ */
+export function graphLayoutBounds(
+  nodeCount: number,
+  base: GraphBounds = BASE_BOUNDS,
+): GraphBounds {
+  const baseArea = base.width * base.height;
+  const required = Math.max(1, nodeCount) * NODE_SPACING * NODE_SPACING;
+  if (required <= baseArea) return base;
+  const scale = Math.sqrt(required / baseArea);
+  return {
+    width: Math.round(base.width * scale),
+    height: Math.round(base.height * scale),
+  };
+}
+
 export function layoutGraph(
   graph: GraphDataWire,
-  bounds: GraphBounds = { width: 960, height: 640 },
+  bounds: GraphBounds = graphLayoutBounds(graph.nodes.length),
 ): ReadonlyMap<string, GraphPoint> {
   if (graph.nodes.length === 0) return new Map();
   const center = { x: bounds.width / 2, y: bounds.height / 2 };

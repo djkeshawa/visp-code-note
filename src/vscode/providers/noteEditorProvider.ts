@@ -1,7 +1,10 @@
 import * as vscode from "vscode";
 import { DraftRecoveryStore } from "../../application/draftRecoveryStore";
+import { parseEditorContentWidth } from "../../application/editorContentWidth";
+import type { EditorContentWidth } from "../../application/editorContentWidth";
 import type { EditorDocumentState, HostToEditorMessage } from "../../domain/protocol";
 import { parseMarkdown } from "../../markdown/parser";
+import { buildNoteContext } from "../../indexing/projections";
 import { createWikiReferenceResolver } from "../../indexing/wikiReferenceResolver";
 import { createEditorHtml } from "../../ui";
 import type { CommandIndex } from "../commands/contracts";
@@ -34,6 +37,11 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
     this.disposables.push(
       vscode.workspace.onDidChangeTextDocument((event) => this.publishDocument(event.document)),
       vscode.workspace.onDidSaveTextDocument((document) => this.publishDocument(document)),
+      vscode.workspace.onDidChangeConfiguration((event) => {
+        if (event.affectsConfiguration(CONTENT_WIDTH_SETTING)) {
+          this.publishContentWidth();
+        }
+      }),
     );
   }
 
@@ -166,6 +174,13 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
             saveRequested: message.saveRequested,
           });
           break;
+        case "editor/setContentWidth":
+          await vscode.workspace.getConfiguration().update(
+            CONTENT_WIDTH_SETTING,
+            message.contentWidth,
+            vscode.ConfigurationTarget.Global,
+          );
+          break;
         case "editor/requestLink":
           await this.promptForLink(document, panel);
           break;
@@ -275,6 +290,7 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
         uri: document.uri.toString(),
         ...state,
         noteSuggestions: buildNoteSuggestions(this.index.snapshot.notes, document.uri.toString()),
+        contentWidth: contentWidthSetting(),
         ...(recoveredDraft === undefined ? {} : { recoveredDraft }),
       },
     } satisfies HostToEditorMessage);
@@ -299,6 +315,7 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
   ): EditorDocumentState {
     const source = document.getText();
     const parsed = parseMarkdown(source);
+    const context = buildNoteContext(this.index.snapshot, document.uri.toString());
     return {
       title: parsed.title ?? this.noteTitle(document),
       source,
@@ -306,6 +323,7 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
       version: document.version,
       dirty: document.isDirty,
       ...(acknowledgedSequence === undefined ? {} : { acknowledgedSequence }),
+      ...(context === undefined ? {} : { context }),
     };
   }
 
@@ -347,6 +365,18 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
     return fileName.replace(/\.md$/i, "");
   }
 
+  private publishContentWidth(): void {
+    const contentWidth = contentWidthSetting();
+    for (const [, panels] of this.panels.entries()) {
+      for (const panel of panels) {
+        void panel.webview.postMessage({
+          type: "editor/contentWidth",
+          contentWidth,
+        } satisfies HostToEditorMessage);
+      }
+    }
+  }
+
   private async publishPendingReveal(uri: string, panel: vscode.WebviewPanel): Promise<void> {
     const offset = this.pendingReveals.get(uri);
     if (offset === undefined) {
@@ -356,4 +386,12 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
     this.pendingReveals.delete(uri);
   }
 
+}
+
+const CONTENT_WIDTH_SETTING = "vispNotes.editor.contentWidth";
+
+function contentWidthSetting(): EditorContentWidth {
+  return parseEditorContentWidth(
+    vscode.workspace.getConfiguration().get<string>(CONTENT_WIDTH_SETTING),
+  );
 }

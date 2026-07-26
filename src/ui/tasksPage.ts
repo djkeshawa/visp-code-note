@@ -16,7 +16,7 @@ export function createTasksHtml(options: WebviewTemplateOptions): string {
           <div class="toolbar-spacer"></div>
           <label class="search-field">
             <span class="sr-only">Filter tasks</span>
-            <span aria-hidden="true">⌕</span>
+            <span class="codicon codicon-search" aria-hidden="true"></span>
             <input id="task-search" type="search" placeholder="Filter tasks" autocomplete="off">
           </label>
           <label class="select-field">
@@ -25,6 +25,15 @@ export function createTasksHtml(options: WebviewTemplateOptions): string {
               <option value="open">Open tasks</option>
               <option value="all">All tasks</option>
               <option value="completed">Completed</option>
+            </select>
+          </label>
+          <label class="select-field" title="Group tasks by">
+            <span class="codicon codicon-list-tree" aria-hidden="true"></span>
+            <span class="sr-only">Group tasks by</span>
+            <select id="task-group-by">
+              <option value="due">By due date</option>
+              <option value="note">By note</option>
+              <option value="tag">By tag</option>
             </select>
           </label>
         </header>

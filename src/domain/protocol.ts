@@ -1,4 +1,6 @@
-import type { Backlink, GraphData, IndexSnapshot } from "./models";
+import type { Backlink, GraphData, IndexSnapshot, NoteContext } from "./models";
+
+export type EditorContentWidth = "readable" | "wide" | "full";
 
 export interface EditorDocumentState {
   readonly title: string;
@@ -7,11 +9,13 @@ export interface EditorDocumentState {
   readonly version: number;
   readonly dirty: boolean;
   readonly acknowledgedSequence?: number;
+  readonly context?: NoteContext;
 }
 
 export interface EditorState extends EditorDocumentState {
   readonly uri: string;
   readonly noteSuggestions: readonly NoteSuggestion[];
+  readonly contentWidth: EditorContentWidth;
   readonly recoveredDraft?: RecoveredDraft;
 }
 
@@ -36,6 +40,7 @@ export type HostToEditorMessage =
   | { readonly type: "editor/toggleMode" }
   | { readonly type: "editor/reveal"; readonly offset: number }
   | { readonly type: "editor/insertLink"; readonly target: string }
+  | { readonly type: "editor/contentWidth"; readonly contentWidth: EditorContentWidth }
   | {
       readonly type: "editor/indexState";
       readonly suggestions: readonly NoteSuggestion[];
@@ -67,6 +72,7 @@ export type EditorToHostMessage =
   | { readonly type: "editor/discardDraft"; readonly version: number }
   | { readonly type: "editor/requestLink" }
   | { readonly type: "editor/openLink"; readonly target: string; readonly beside?: boolean }
+  | { readonly type: "editor/setContentWidth"; readonly contentWidth: EditorContentWidth }
   | { readonly type: "editor/ready" };
 
 export type HostToTasksMessage =

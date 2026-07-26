@@ -1,29 +1,123 @@
 .editor-shell {
   display: grid;
-  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
 }
 
+/*
+ * The tab bar already names the document and the status bar already reports state, so
+ * the editor's own chrome stays to one compact row plus a context strip.
+ */
 .editor-toolbar {
-  min-height: 45px;
+  min-height: 34px;
+  padding: 3px 12px;
   flex-wrap: wrap;
 }
 
-.editor-toolbar .title-stack {
-  min-width: 120px;
+.editor-toolbar .toolbar-title {
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .editor-link-button,
-.editor-save-button {
+.editor-retry-button {
+  min-height: 24px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 5px;
+  padding: 2px 8px;
+  font-size: 11px;
   white-space: nowrap;
 }
 
 .secondary-button:disabled {
   cursor: default;
   opacity: 0.55;
+}
+
+/* Document context strip: where the note lives, how it is tagged, how connected it is. */
+.note-context {
+  min-height: 26px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 12px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--visp-border);
+  background: var(--visp-bg);
+  color: var(--visp-muted);
+  font-size: 11px;
+}
+
+.note-breadcrumb {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.note-breadcrumb .crumb {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.note-breadcrumb .crumb.is-current {
+  color: var(--visp-text);
+}
+
+.note-breadcrumb .crumb-separator {
+  flex: 0 0 auto;
+  opacity: 0.6;
+}
+
+.note-tags {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.note-tag {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--visp-accent) 14%, transparent);
+  color: var(--visp-accent);
+  line-height: 17px;
+  white-space: nowrap;
+}
+
+.note-stats {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.note-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: default;
+}
+
+.editor-width-field {
+  min-height: 22px;
+  flex: 0 0 auto;
+  gap: 4px;
+  padding: 0 4px 0 6px;
+  color: var(--visp-muted);
+  font-size: 11px;
+}
+
+.editor-width-field select {
+  min-height: 20px;
+  min-width: 66px;
+  color: var(--vscode-input-foreground, var(--visp-text));
+  font-size: 11px;
 }
 
 .editor-content,
@@ -38,9 +132,28 @@
 }
 
 .editor-host {
+  --editor-inline-gutter: clamp(16px, 2.5vw, 32px);
+  --editor-content-max-width: 1280px;
+
   width: 100%;
   height: 100%;
   background: var(--visp-bg);
+}
+
+.editor-host[data-content-width="readable"] {
+  --editor-content-max-width: 820px;
+}
+
+.editor-host[data-content-width="wide"] {
+  --editor-content-max-width: 1280px;
+}
+
+.editor-host[data-content-width="full"] {
+  --editor-content-max-width: none;
+}
+
+.editor-host[data-content-width="full"] .cm-content {
+  margin-inline: var(--editor-inline-gutter);
 }
 
 .editor-host .cm-editor {
@@ -66,16 +179,16 @@
 }
 
 .editor-host .cm-content {
-  width: 100%;
+  width: calc(100% - var(--editor-inline-gutter) - var(--editor-inline-gutter));
+  max-width: var(--editor-content-max-width);
   min-height: 100%;
-  padding: 36px clamp(22px, 5vw, 72px) 120px;
+  margin-inline: auto;
+  padding: 36px 0 120px;
   caret-color: var(--vscode-editorCursor-foreground, var(--visp-text));
   tab-size: var(--vscode-editor-tab-size, 2);
 }
 
 .editor-host.is-live-mode .cm-content {
-  max-width: 900px;
-  margin-inline: auto;
   font-family: var(--visp-font);
   font-size: 14px;
   line-height: 1.72;
@@ -189,17 +302,25 @@
 }
 
 .is-live-mode .live-heading-4 {
-  font-size: 1.1em;
+  padding-block: 5px 2px;
+  font-size: 1.12em;
+  font-weight: 700;
+  line-height: 1.45;
 }
 
 .is-live-mode .live-heading-5 {
+  padding-block: 4px 1px;
   font-size: 1em;
+  font-weight: 700;
+  letter-spacing: 0.01em;
 }
 
 .is-live-mode .live-heading-6 {
+  padding-block: 4px 1px;
   color: var(--visp-muted);
-  font-size: 0.95em;
-  letter-spacing: 0.02em;
+  font-size: 0.86em;
+  font-weight: 700;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
 }
 
@@ -219,6 +340,83 @@
   border-left: 3px solid var(--visp-accent);
   background: color-mix(in srgb, var(--visp-accent) 8%, transparent);
   color: var(--vscode-textBlockQuote-foreground, var(--visp-muted));
+}
+
+/* Callouts: `> [!note] Title`. Tone drives the accent; the block keeps one continuous edge. */
+.is-live-mode .live-callout-line {
+  --live-callout-accent: var(--visp-accent);
+
+  border-left: 3px solid var(--live-callout-accent);
+  background: color-mix(in srgb, var(--live-callout-accent) 9%, transparent);
+}
+
+.is-live-mode .live-callout-line.is-header {
+  color: var(--live-callout-accent);
+  font-weight: 650;
+}
+
+.is-live-mode .live-callout-note {
+  --live-callout-accent: var(--vscode-editorInfo-foreground, var(--visp-accent));
+}
+
+.is-live-mode .live-callout-tip {
+  --live-callout-accent: var(--vscode-charts-green, #3fa270);
+}
+
+.is-live-mode .live-callout-important {
+  --live-callout-accent: var(--vscode-charts-purple, #a074c4);
+}
+
+.is-live-mode .live-callout-warning {
+  --live-callout-accent: var(--vscode-editorWarning-foreground, #ddb870);
+}
+
+.is-live-mode .live-callout-danger {
+  --live-callout-accent: var(--vscode-editorError-foreground, var(--visp-danger));
+}
+
+.is-live-mode .live-callout-success {
+  --live-callout-accent: var(--vscode-testing-iconPassed, #3fa270);
+}
+
+.is-live-mode .live-callout-icon {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 2px;
+  color: var(--live-callout-accent);
+  vertical-align: baseline;
+}
+
+.is-live-mode .live-thematic-break {
+  height: 0;
+  margin-block: 12px;
+  border-top: 1px solid var(--visp-border);
+}
+
+.is-live-mode .live-inline-code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--vscode-textCodeBlock-background, color-mix(in srgb, var(--visp-text) 10%, transparent));
+  font-family: var(--visp-mono);
+  font-size: 0.9em;
+}
+
+/*
+ * Frontmatter stays editable text, presented as a property block so it reads as
+ * metadata rather than as the note's opening paragraph.
+ */
+.is-live-mode .live-frontmatter-line {
+  background: color-mix(in srgb, var(--visp-surface) 45%, transparent);
+  box-shadow: inset 2px 0 0 var(--visp-border);
+  color: var(--visp-muted);
+  font-family: var(--visp-mono);
+  font-size: 0.85em;
+  line-height: 1.6;
+}
+
+.is-live-mode .live-frontmatter-line.is-fence {
+  /* Still text, so keep it legible rather than purely decorative. */
+  color: color-mix(in srgb, var(--visp-muted) 82%, transparent);
 }
 
 .is-live-mode .live-code-line {
@@ -284,29 +482,21 @@
   transition: background-color 180ms ease, box-shadow 180ms ease;
 }
 
-.sync-status,
-.editor-version {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .sync-status {
+  min-width: 0;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  color: var(--vscode-statusBar-foreground, var(--visp-muted));
+  gap: 5px;
+  overflow: hidden;
+  color: var(--visp-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: default;
 }
 
-.sync-status::before {
-  width: 6px;
-  height: 6px;
+.sync-status .codicon {
   flex: 0 0 auto;
-  border-radius: 50%;
-  background: currentColor;
-  content: "";
-  opacity: 0.72;
+  font-size: 13px;
 }
 
 .sync-status.is-unsaved,
@@ -328,54 +518,57 @@
   color: var(--vscode-testing-iconPassed, var(--visp-muted));
 }
 
-.editor-version {
-  color: var(--visp-muted);
+/* Moved out of the CodeMirror JS theme so one stylesheet owns the editor's look. */
+.editor-host .cm-searchMatch {
+  background: var(--vscode-editor-findMatchHighlightBackground, color-mix(in srgb, var(--visp-accent) 26%, transparent));
+  outline: 1px solid var(--vscode-editor-findMatchHighlightBorder, transparent);
 }
 
-.editor-version::before {
-  margin-right: 10px;
-  color: var(--visp-border);
-  content: "·";
+.editor-host .cm-searchMatch.cm-searchMatch-selected {
+  background: var(--vscode-editor-findMatchBackground, color-mix(in srgb, var(--visp-accent) 45%, transparent));
 }
 
 @media (max-width: 720px) {
-  .editor-toolbar .title-stack {
-    flex: 1 1 calc(100% - 40px);
+  .note-stats {
+    gap: 8px;
   }
 
-  .editor-toolbar .toolbar-spacer {
+  .note-tags {
     display: none;
   }
 
+  .editor-host {
+    --editor-inline-gutter: 20px;
+  }
+
   .editor-host .cm-content {
-    padding: 28px 20px 96px;
+    padding-block: 28px 96px;
   }
 }
 
 @media (max-width: 520px) {
   .editor-toolbar {
-    gap: 7px;
+    gap: 6px;
     padding-inline: 10px;
   }
 
-  .editor-toolbar .title-stack {
-    flex-basis: 100%;
-  }
-
-  .editor-link-button,
-  .editor-save-button {
-    flex: 1 1 auto;
+  .editor-toolbar .toolbar-title {
+    flex: 1 1 100%;
   }
 
   .editor-toolbar .segmented-control {
     margin-left: auto;
   }
 
-  .editor-host .cm-content {
-    padding-inline: 15px;
+  .note-breadcrumb .crumb:not(.is-current),
+  .note-breadcrumb .crumb-separator {
+    display: none;
   }
 
-  .editor-version,
+  .editor-host {
+    --editor-inline-gutter: 12px;
+  }
+
   .footer-hint {
     display: none;
   }

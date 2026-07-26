@@ -15,7 +15,7 @@ import {
   resolveSelection,
 } from "./graph/interactionModel.js";
 import {
-  applyGraphEmphasis,
+  GraphEmphasis,
   connectionNodeIdFromTarget,
   focusConnectionRow,
   focusGraphNode,
@@ -37,16 +37,20 @@ const openSelected = details.openButton;
 
 let graph: GraphDataWire = { nodes: [], edges: [] };
 let visibleGraph: GraphDataWire = graph;
+/** Node lookup by id, so hover and selection do not scan the node list. */
+let visibleNodesById: ReadonlyMap<string, GraphNodeWire> = new Map();
 let renderedGraph: RenderedGraph = { positions: new Map() };
 let selectedId: string | undefined;
 let hoveredId: string | undefined;
 let matchingIds: readonly string[] = [];
+let matchingIdSet: ReadonlySet<string> = new Set();
 let scopeKey: string | undefined;
 let fitPending = true;
 
 const viewport = new GraphViewportController(svg, (percent) => {
   zoomStatus.textContent = `${percent}%`;
 });
+const emphasis = new GraphEmphasis(svg);
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 const motion = new GraphMotionController(svg, updateRenderedGraph, () => !reducedMotion.matches);
 
@@ -106,11 +110,14 @@ function refreshVisibleGraph(): void {
       .map((toggle) => toggle.dataset.kind as GraphNodeKindWire),
   );
   visibleGraph = filterGraph(graph, kinds, orphanToggle.checked);
+  visibleNodesById = new Map(visibleGraph.nodes.map((node) => [node.id, node]));
   selectedId = resolveSelection(visibleGraph, selectedId);
   hoveredId = undefined;
   emptyState.hidden = visibleGraph.nodes.length > 0;
   svg.toggleAttribute("hidden", visibleGraph.nodes.length === 0);
   renderedGraph = motion.render(visibleGraph, selectedId, renderedGraph.positions);
+  // The SVG was rebuilt, so cached element handles and adjacency are stale.
+  emphasis.refresh(visibleGraph);
   if (fitPending && renderedGraph.extent !== undefined) {
     viewport.fit(renderedGraph.extent);
     fitPending = false;
@@ -130,17 +137,17 @@ function refreshVisibleGraph(): void {
 function updateSearch(): void {
   const query = search.value.trim();
   matchingIds = findMatchingNodeIds(visibleGraph, query);
+  matchingIdSet = new Set(matchingIds);
   searchStatus.textContent = searchStatusText(query, matchingIds.length, visibleGraph.nodes.length);
   updateEmphasis();
 }
 
 function updateEmphasis(): void {
-  applyGraphEmphasis(
-    svg,
+  emphasis.apply(
     visibleGraph,
     selectedId,
     hoveredId,
-    new Set(matchingIds),
+    matchingIdSet,
     search.value.trim().length > 0,
   );
 }
@@ -302,7 +309,7 @@ function nodeIdFromTarget(target: EventTarget | null): string | undefined {
 }
 
 function findNode(id: string | undefined): GraphNodeWire | undefined {
-  return id === undefined ? undefined : visibleGraph.nodes.find((node) => node.id === id);
+  return id === undefined ? undefined : visibleNodesById.get(id);
 }
 
 function searchStatusText(query: string, matches: number, visibleNodes: number): string {

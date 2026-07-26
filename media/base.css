@@ -1,15 +1,21 @@
 :root {
   color-scheme: light dark;
-  --visp-bg: var(--vscode-editor-background, #1b1b1b);
-  --visp-panel: var(--vscode-sideBar-background, #202020);
-  --visp-surface: var(--vscode-editorWidget-background, #252526);
-  --visp-surface-hover: var(--vscode-list-hoverBackground, #303032);
-  --visp-border: var(--vscode-panel-border, #343437);
-  --visp-text: var(--vscode-editor-foreground, #d8d8d8);
-  --visp-muted: var(--vscode-descriptionForeground, #929295);
-  --visp-accent: var(--vscode-textLink-foreground, #8f8cff);
-  --visp-focus: var(--vscode-focusBorder, #8f8cff);
-  --visp-danger: var(--vscode-errorForeground, #f07178);
+
+  /*
+   * Fallbacks use CSS system colors rather than fixed hex values. A theme that omits
+   * one of these tokens then still renders with the correct polarity instead of
+   * painting dark chrome into a light window.
+   */
+  --visp-bg: var(--vscode-editor-background, Canvas);
+  --visp-panel: var(--vscode-sideBar-background, Canvas);
+  --visp-surface: var(--vscode-editorWidget-background, Canvas);
+  --visp-surface-hover: var(--vscode-list-hoverBackground, color-mix(in srgb, CanvasText 9%, transparent));
+  --visp-border: var(--vscode-panel-border, color-mix(in srgb, CanvasText 24%, transparent));
+  --visp-text: var(--vscode-editor-foreground, CanvasText);
+  --visp-muted: var(--vscode-descriptionForeground, color-mix(in srgb, CanvasText 62%, transparent));
+  --visp-accent: var(--vscode-textLink-foreground, LinkText);
+  --visp-focus: var(--vscode-focusBorder, Highlight);
+  --visp-danger: var(--vscode-errorForeground, #d64550);
   --visp-radius: 6px;
   --visp-font: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
   --visp-mono: var(--vscode-editor-font-family, "SFMono-Regular", Consolas, monospace);
@@ -63,6 +69,36 @@ textarea:focus-visible,
 
 [hidden] {
   display: none !important;
+}
+
+/* Codicons ship at 16px; match the surrounding text so they sit on the baseline. */
+.codicon[class*="codicon-"] {
+  font-size: inherit;
+  vertical-align: middle;
+}
+
+button > .codicon,
+label > .codicon {
+  flex: 0 0 auto;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.icon-button {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--visp-muted);
+}
+
+.icon-button:not(:disabled):hover {
+  background: var(--visp-surface-hover);
+  color: var(--visp-text);
 }
 
 .visp-shell {

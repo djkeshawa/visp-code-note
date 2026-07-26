@@ -14,12 +14,19 @@ export interface WebviewPageDefinition {
   readonly body: string;
 }
 
+/**
+ * Every page loads the Codicon font so webview controls use the same icon set as the
+ * rest of VS Code. The stylesheet resolves `codicon.ttf` relative to itself, which the
+ * build step guarantees by copying both files into `media/codicons`.
+ */
+const CODICON_STYLESHEET = "codicons/codicon.css";
+
 export function createWebviewPage(
   options: WebviewTemplateOptions,
   definition: WebviewPageDefinition,
 ): string {
   const nonce = randomBytes(18).toString("base64");
-  const styleLinks = definition.styles
+  const styleLinks = [CODICON_STYLESHEET, ...definition.styles]
     .map((file) => assetUri(options, file))
     .map((uri) => `<link rel="stylesheet" href="${escapeAttribute(uri)}">`)
     .join("\n    ");

@@ -1,6 +1,7 @@
 import type {
   Backlink,
   IndexSnapshot,
+  NoteContext,
   NoteRecord,
   ResolvedLink,
 } from "../domain/models";
@@ -101,6 +102,26 @@ export function getOrphanNotes(snapshot: IndexSnapshot): readonly NoteRecord[] {
     }
   }
   return Object.freeze(snapshot.notes.filter((note) => !connected.has(note.uri)));
+}
+
+export function buildNoteContext(
+  snapshot: IndexSnapshot,
+  uri: string,
+): NoteContext | undefined {
+  const note = snapshot.notes.find((candidate) => candidate.uri === uri);
+  if (note === undefined) {
+    return undefined;
+  }
+  const segments = note.path.split("/").filter((segment) => segment.length > 0);
+  return Object.freeze({
+    folders: Object.freeze(segments.slice(0, -1)),
+    fileName: segments[segments.length - 1] ?? note.fileName,
+    tags: note.tags,
+    backlinkCount: snapshot.backlinks.filter((backlink) => backlink.targetUri === uri).length,
+    outgoingCount: snapshot.links.filter((link) => link.sourceUri === uri).length,
+    taskCount: note.tasks.length,
+    openTaskCount: note.tasks.filter((task) => !task.completed).length,
+  });
 }
 
 function lineContext(content: string, offset: number): string {

@@ -3,6 +3,18 @@ export interface OffsetRangeWire {
   readonly end: number;
 }
 
+export type EditorContentWidthWire = "readable" | "wide" | "full";
+
+export interface NoteContextWire {
+  readonly folders: readonly string[];
+  readonly fileName: string;
+  readonly tags: readonly string[];
+  readonly backlinkCount: number;
+  readonly outgoingCount: number;
+  readonly taskCount: number;
+  readonly openTaskCount: number;
+}
+
 export interface EditorDocumentStateWire {
   readonly title: string;
   readonly source: string;
@@ -10,11 +22,13 @@ export interface EditorDocumentStateWire {
   readonly version: number;
   readonly dirty: boolean;
   readonly acknowledgedSequence?: number;
+  readonly context?: NoteContextWire;
 }
 
 export interface EditorStateWire extends EditorDocumentStateWire {
   readonly uri: string;
   readonly noteSuggestions: readonly NoteSuggestionWire[];
+  readonly contentWidth: EditorContentWidthWire;
   readonly recoveredDraft?: RecoveredDraftWire;
 }
 
@@ -39,6 +53,7 @@ export type HostToEditorWire =
   | { readonly type: "editor/toggleMode" }
   | { readonly type: "editor/reveal"; readonly offset: number }
   | { readonly type: "editor/insertLink"; readonly target: string }
+  | { readonly type: "editor/contentWidth"; readonly contentWidth: EditorContentWidthWire }
   | {
       readonly type: "editor/indexState";
       readonly suggestions: readonly NoteSuggestionWire[];
@@ -70,6 +85,7 @@ export type EditorToHostWire =
     }
   | { readonly type: "editor/discardDraft"; readonly version: number }
   | { readonly type: "editor/requestLink" }
+  | { readonly type: "editor/setContentWidth"; readonly contentWidth: EditorContentWidthWire }
   | { readonly type: "editor/ready" };
 
 interface NoteTaskWire {

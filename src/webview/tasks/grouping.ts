@@ -1,43 +1,94 @@
 import type { TaskWire } from "../contracts.js";
 
 export type TaskStatusFilter = "open" | "all" | "completed";
-export type TaskGroupName = "Overdue" | "Today" | "Upcoming" | "No due date" | "Completed";
+export type TaskGrouping = "due" | "note" | "tag";
+export type DueGroupName = "Overdue" | "Today" | "Upcoming" | "No due date" | "Completed";
+
+export const TASK_GROUPINGS: readonly TaskGrouping[] = ["due", "note", "tag"];
 
 export interface TaskFilter {
   readonly query: string;
   readonly status: TaskStatusFilter;
   readonly view: "all" | "today";
+  /** Defaults to due-date buckets, the order most task lists are read in. */
+  readonly groupBy?: TaskGrouping;
 }
 
 export interface TaskGroup {
-  readonly name: TaskGroupName;
+  readonly name: string;
   readonly tasks: readonly TaskWire[];
 }
 
-const groupOrder: readonly TaskGroupName[] = ["Overdue", "Today", "Upcoming", "No due date", "Completed"];
+const NO_TAG = "No tag";
+
+const dueGroupOrder: readonly DueGroupName[] = [
+  "Overdue",
+  "Today",
+  "Upcoming",
+  "No due date",
+  "Completed",
+];
+
+export function parseTaskGrouping(value: unknown): TaskGrouping {
+  return TASK_GROUPINGS.find((grouping) => grouping === value) ?? "due";
+}
 
 export function groupTasks(
   tasks: readonly TaskWire[],
   filter: TaskFilter,
   today = localDateKey(new Date()),
 ): readonly TaskGroup[] {
-  const groups = new Map<TaskGroupName, TaskWire[]>();
+  const visible = tasks.filter((task) => matchesFilter(task, filter, today));
+  switch (filter.groupBy ?? "due") {
+    case "note":
+      return groupByKeys(visible, (task) => [task.noteTitle]);
+    case "tag":
+      return groupByKeys(
+        visible,
+        (task) => task.tags.length === 0 ? [NO_TAG] : task.tags.map((tag) => `#${tag}`),
+      );
+    case "due":
+      return groupByDueDate(visible, today);
+  }
+}
+
+function groupByDueDate(tasks: readonly TaskWire[], today: string): readonly TaskGroup[] {
+  const groups = new Map<DueGroupName, TaskWire[]>();
   for (const task of tasks) {
-    if (!matchesFilter(task, filter, today)) {
-      continue;
-    }
     const name = classifyTask(task, today);
     const group = groups.get(name) ?? [];
     group.push(task);
     groups.set(name, group);
   }
-  return groupOrder.flatMap((name) => {
+  return dueGroupOrder.flatMap((name) => {
     const groupedTasks = groups.get(name);
-    if (groupedTasks === undefined) {
-      return [];
-    }
-    return [{ name, tasks: groupedTasks.sort(compareTasks) }];
+    return groupedTasks === undefined ? [] : [{ name, tasks: groupedTasks.sort(compareTasks) }];
   });
+}
+
+/**
+ * A task can belong to more than one tag group, so keys are collected per task. Named
+ * groups sort alphabetically with the catch-all bucket last.
+ */
+function groupByKeys(
+  tasks: readonly TaskWire[],
+  keysOf: (task: TaskWire) => readonly string[],
+): readonly TaskGroup[] {
+  const groups = new Map<string, TaskWire[]>();
+  for (const task of tasks) {
+    for (const key of keysOf(task)) {
+      const group = groups.get(key) ?? [];
+      group.push(task);
+      groups.set(key, group);
+    }
+  }
+  return [...groups.entries()]
+    .sort(([left], [right]) => {
+      if (left === NO_TAG) return 1;
+      if (right === NO_TAG) return -1;
+      return left.localeCompare(right, undefined, { sensitivity: "base" });
+    })
+    .map(([name, groupedTasks]) => ({ name, tasks: groupedTasks.sort(compareTasks) }));
 }
 
 export function formatDueDate(due: string | undefined): string | undefined {
@@ -73,7 +124,7 @@ function matchesFilter(task: TaskWire, filter: TaskFilter, today: string): boole
     .includes(query);
 }
 
-function classifyTask(task: TaskWire, today: string): TaskGroupName {
+function classifyTask(task: TaskWire, today: string): DueGroupName {
   if (task.completed) {
     return "Completed";
   }
@@ -88,7 +139,11 @@ function classifyTask(task: TaskWire, today: string): TaskGroupName {
 }
 
 function compareTasks(left: TaskWire, right: TaskWire): number {
-  return (left.due ?? "9999").localeCompare(right.due ?? "9999") || left.text.localeCompare(right.text);
+  if (left.completed !== right.completed) {
+    return left.completed ? 1 : -1;
+  }
+  return (left.due ?? "9999").localeCompare(right.due ?? "9999") ||
+    left.text.localeCompare(right.text);
 }
 
 function localDateKey(date: Date): string {

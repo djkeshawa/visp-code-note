@@ -54,11 +54,18 @@ export interface MarkdownWikiAnalysis {
   readonly protectedRanges: readonly OffsetRange[];
   readonly links: readonly WikiLink[];
   readonly blocks: readonly MarkdownBlock[];
+  /** Present only when the source opens with a closed frontmatter block. */
+  readonly frontmatterRange?: OffsetRange;
 }
 
 export function analyzeMarkdownWikiSyntax(source: string): MarkdownWikiAnalysis {
-  const { protectedRanges, links, parsedBlocks } = analyzeMarkdownSource(source);
-  return { protectedRanges, links, blocks: parsedBlocks.blocks };
+  const { protectedRanges, links, parsedBlocks, frontmatter } = analyzeMarkdownSource(source);
+  return {
+    protectedRanges,
+    links,
+    blocks: parsedBlocks.blocks,
+    ...(frontmatter.range === undefined ? {} : { frontmatterRange: frontmatter.range }),
+  };
 }
 
 function analyzeMarkdownSource(source: string) {

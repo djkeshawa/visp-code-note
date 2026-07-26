@@ -1,4 +1,4 @@
-import type { GraphDataWire, GraphNodeKindWire, GraphNodeWire } from "../contracts.js";
+import type { GraphDataWire, GraphNodeWire } from "../contracts.js";
 import { htmlElement } from "../shared/dom.js";
 import { connectionsFor } from "./interactionModel.js";
 import type { GraphConnection } from "./interactionModel.js";
@@ -86,6 +86,6 @@ function findNode(graph: GraphDataWire, id: string | undefined): GraphNodeWire |
   return id === undefined ? undefined : graph.nodes.find((node) => node.id === id);
 }
 
-function capitalize(value: string | GraphNodeKindWire): string {
+function capitalize(value: string): string {
   return value.charAt(0).toLocaleUpperCase() + value.slice(1);
 }

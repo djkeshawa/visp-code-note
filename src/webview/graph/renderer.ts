@@ -1,9 +1,15 @@
 import type { GraphDataWire, GraphNodeWire } from "../contracts.js";
 import { svgElement } from "../shared/dom.js";
 import { positionsWithOverrides } from "./dragModel.js";
-import { layoutGraph } from "./layout.js";
+import { graphLayoutBounds, layoutGraph } from "./layout.js";
 import type { GraphPoint } from "./layout.js";
-import { isHubNode, nodeDegrees, nodeHitRadius, nodeRadius } from "./metrics.js";
+import {
+  isHubNode,
+  nodeDegrees,
+  nodeHitRadius,
+  nodeRadius,
+  standingLabelIds,
+} from "./metrics.js";
 import type { GraphExtent } from "./viewportModel.js";
 
 export interface RenderedGraph {
@@ -18,8 +24,11 @@ export function renderGraphSvg(
   positionOverrides: ReadonlyMap<string, GraphPoint> = new Map(),
 ): RenderedGraph {
   const nodeIds = new Set(graph.nodes.map((node) => node.id));
-  const positions = positionsWithOverrides(layoutGraph(graph), nodeIds, positionOverrides);
+  const bounds = graphLayoutBounds(graph.nodes.length);
+  const positions = positionsWithOverrides(layoutGraph(graph, bounds), nodeIds, positionOverrides);
+  const midX = bounds.width / 2;
   const degrees = nodeDegrees(graph);
+  const labelledIds = standingLabelIds(graph, degrees);
   const tabStopId = selectedId ?? graph.focusId ?? graph.nodes[0]?.id;
   const edgeLayer = svgElement("g", { class: "edge-layer" });
   for (const edge of graph.edges) {
@@ -53,6 +62,8 @@ export function renderGraphSvg(
         graph.focusId === node.id,
         selectedId === node.id,
         tabStopId === node.id,
+        labelledIds.has(node.id),
+        midX,
       ));
     }
   }
@@ -67,6 +78,8 @@ function createNode(
   focused: boolean,
   selected: boolean,
   tabbable: boolean,
+  labelled: boolean,
+  midX: number,
 ): SVGGElement {
   const classNames = ["graph-node", `node-${node.kind}`];
   if (isHubNode(degree)) {
@@ -80,6 +93,10 @@ function createNode(
   }
   if (selected) {
     classNames.push("is-selected");
+  }
+  // Focus and selection always keep their label, however crowded the canvas.
+  if (labelled || focused || selected) {
+    classNames.push("has-standing-label");
   }
   const group = svgElement("g", {
     class: classNames.join(" "),
@@ -105,7 +122,7 @@ function createNode(
   }));
   group.append(createShape(node, radius));
 
-  const labelOnLeft = point.x > 480;
+  const labelOnLeft = point.x > midX;
   const label = svgElement("text", {
     class: "node-label",
     x: String((radius + 6) * (labelOnLeft ? -1 : 1)),

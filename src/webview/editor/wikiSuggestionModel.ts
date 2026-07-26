@@ -27,7 +27,7 @@ export function findWikiQuery(
     return undefined;
   }
   const query = beforeCaret.slice(opener + 2);
-  if (/[\r\n\[\]|]/.test(query)) {
+  if (/[\r\n[\]|]/.test(query)) {
     return undefined;
   }
   return { start: opener + 2, end: selectionStart, query };

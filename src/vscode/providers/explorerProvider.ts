@@ -1,13 +1,16 @@
 import * as vscode from "vscode";
 import type { WorkspaceIndex } from "../../indexing/workspaceIndex";
+import { COMMAND_IDS } from "../ids";
 import {
   type ExplorerNode,
+  type ExplorerTask,
   ROOT_NODES,
   noteChildren,
   notesWithTag,
   orphanNotes,
   smartViews,
   tagNodes,
+  taskNodes,
 } from "./explorerModel";
 import { openRenderedNoteCommand, smartViewCommand } from "./explorerCommands";
 
@@ -19,7 +22,10 @@ export class NotesExplorerProvider
 
   readonly onDidChangeTreeData = this.changeEmitter.event;
 
-  constructor(private readonly index: WorkspaceIndex) {
+  constructor(
+    private readonly index: WorkspaceIndex,
+    private readonly toggleTask: (task: ExplorerTask) => Promise<void>,
+  ) {
     this.subscriptions = [
       index.onDidChange(() => this.changeEmitter.fire(undefined)),
       index.onDidChangeStatus(() => this.changeEmitter.fire(undefined)),
@@ -36,6 +42,8 @@ export class NotesExplorerProvider
         return this.noteItem(node);
       case "smart":
         return this.smartItem(node);
+      case "task":
+        return this.taskItem(node);
       case "tag":
         return this.tagItem(node);
       case "status":
@@ -61,10 +69,29 @@ export class NotesExplorerProvider
     if (node.kind === "tag") {
       return [...notesWithTag(this.index.snapshot, node.tag)];
     }
-    if (node.kind === "smart" && node.id === "orphans") {
-      return [...orphanNotes(this.index.snapshot)];
+    if (node.kind === "smart") {
+      if (node.id === "orphans") return [...orphanNotes(this.index.snapshot)];
+      if (node.id === "tasks") return [...taskNodes(this.index.snapshot, "all")];
+      if (node.id === "due") return [...taskNodes(this.index.snapshot, "due")];
     }
     return [];
+  }
+
+  /**
+   * Checkbox changes arrive from the TreeView, so the owner wires this in. Completing a
+   * task edits the checkbox in the Markdown file; the index refresh redraws the tree.
+   */
+  public async handleCheckboxChange(
+    changes: readonly [ExplorerNode, vscode.TreeItemCheckboxState][],
+  ): Promise<void> {
+    for (const [node, state] of changes) {
+      if (node.kind !== "task") continue;
+      const requested = state === vscode.TreeItemCheckboxState.Checked;
+      // The toggle is driven by the indexed state, so ignore events that ask for the
+      // state the task is already in.
+      if (requested === node.task.completed) continue;
+      await this.toggleTask(node.task);
+    }
   }
 
   dispose(): void {
@@ -102,8 +129,39 @@ export class NotesExplorerProvider
     return item;
   }
 
+  private taskItem(node: Extract<ExplorerNode, { kind: "task" }>): vscode.TreeItem {
+    const { task } = node;
+    const item = new vscode.TreeItem(
+      task.text.length > 0 ? task.text : "Untitled task",
+      vscode.TreeItemCollapsibleState.None,
+    );
+    item.id = `task:${task.noteUri}:${task.id ?? task.range.start}`;
+    item.contextValue = "vispNotes.task";
+    item.checkboxState = task.completed
+      ? vscode.TreeItemCheckboxState.Checked
+      : vscode.TreeItemCheckboxState.Unchecked;
+    item.description = [task.due, task.noteTitle].filter(Boolean).join(" · ");
+    item.tooltip = new vscode.MarkdownString(
+      [
+        task.text,
+        "",
+        `Note: ${task.noteTitle}`,
+        ...(task.due === undefined ? [] : [`Due: ${task.due}`]),
+        ...(task.priority === undefined ? [] : [`Priority: ${task.priority}`]),
+        ...(task.tags.length === 0 ? [] : [`Tags: ${task.tags.map((tag) => `#${tag}`).join(" ")}`]),
+      ].join("\n"),
+    );
+    item.command = {
+      command: COMMAND_IDS.openNote,
+      title: "Open Task",
+      arguments: [task.noteUri],
+    };
+    return item;
+  }
+
   private smartItem(node: Extract<ExplorerNode, { kind: "smart" }>): vscode.TreeItem {
-    const expandable = node.id === "orphans" && (node.count ?? 0) > 0;
+    const expandable = (node.id === "orphans" || node.id === "tasks" || node.id === "due") &&
+      (node.count ?? 0) > 0;
     const item = new vscode.TreeItem(
       node.label,
       expandable ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None,

@@ -88,6 +88,29 @@ export function markdownFormattingMarks(
   return marks;
 }
 
+export function markdownFrontmatterRange(state: EditorState): OffsetRange | undefined {
+  return contextFor(state).frontmatterRange;
+}
+
+/** Inline code spans, so live presentation can render them as pills. */
+export function markdownInlineCodeRanges(
+  state: EditorState,
+  from: number,
+  to: number,
+): readonly OffsetRange[] {
+  const ranges: OffsetRange[] = [];
+  syntaxTree(state).iterate({
+    from,
+    to,
+    enter: (node) => {
+      if (node.name === "InlineCode" && node.from >= from && node.to <= to) {
+        ranges.push({ start: node.from, end: node.to });
+      }
+    },
+  });
+  return ranges;
+}
+
 export function markdownBlockAtPosition(
   state: EditorState,
   position: number,

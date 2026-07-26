@@ -274,16 +274,25 @@
   font-family: var(--visp-font);
   font-size: 11px;
   font-weight: 450;
-  opacity: 0.9;
+  opacity: 0;
   paint-order: stroke;
-  pointer-events: all;
+  pointer-events: none;
   stroke: var(--visp-bg);
   stroke-linejoin: round;
   stroke-width: 3.5px;
   transition: opacity 140ms ease;
 }
 
-.graph-node.is-orphan .node-label {
+/*
+ * A standing label is granted by the renderer to focus, selection, hubs, and to every
+ * node in a small graph. Everything else surfaces its label on interaction.
+ */
+.graph-node.has-standing-label .node-label {
+  opacity: 0.9;
+  pointer-events: all;
+}
+
+.graph-node.is-orphan.has-standing-label .node-label {
   opacity: 0.78;
 }
 
@@ -294,6 +303,7 @@
   pointer-events: none;
 }
 
+.graph-node:hover .node-label,
 .graph-node.is-hub .node-label,
 .graph-node.is-connected .node-label,
 .graph-node.is-search-match .node-label,

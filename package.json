@@ -1,17 +1,41 @@
 {
   "name": "visp-notes",
   "displayName": "Visp Notes",
+  "icon": "media/icon.png",
   "description": "A Markdown-first connected notes, tasks, backlinks, and graph workspace for VS Code.",
-  "version": "0.2.0",
-  "publisher": "visp",
+  "version": "0.3.0",
+  "publisher": "visp-code-note",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/djkeshawa/visp-code-note.git"
+  },
+  "homepage": "https://github.com/djkeshawa/visp-code-note#readme",
+  "bugs": {
+    "url": "https://github.com/djkeshawa/visp-code-note/issues"
+  },
   "engines": {
     "vscode": "^1.96.0"
   },
   "categories": [
-    "Other",
-    "Visualization"
+    "Notebooks",
+    "Visualization",
+    "Other"
   ],
+  "galleryBanner": {
+    "color": "#1f1d2b",
+    "theme": "dark"
+  },
+  "qna": "https://github.com/djkeshawa/visp-code-note/issues",
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    },
+    "virtualWorkspaces": {
+      "supported": false,
+      "description": "Visp Notes indexes Markdown files from the local workspace file system."
+    }
+  },
   "keywords": [
     "markdown",
     "notes",
@@ -27,6 +51,7 @@
     "docs",
     "README.md",
     "CHANGELOG.md",
+    "LICENSE",
     "THIRD_PARTY_NOTICES.md"
   ],
   "extensionKind": [
@@ -122,6 +147,16 @@
         "command": "vispNotes.openNote",
         "title": "Open Note",
         "category": "Visp Notes"
+      },
+      {
+        "command": "vispNotes.useAsDefaultEditor",
+        "title": "Use Visp Notes as the Default Markdown Editor",
+        "category": "Visp Notes"
+      },
+      {
+        "command": "vispNotes.useTextEditorByDefault",
+        "title": "Restore the Built-in Markdown Text Editor",
+        "category": "Visp Notes"
       }
     ],
     "customEditors": [
@@ -133,7 +168,7 @@
             "filenamePattern": "**/*.md"
           }
         ],
-        "priority": "default"
+        "priority": "option"
       }
     ],
     "viewsContainers": {
@@ -290,6 +325,22 @@
           "default": 1,
           "description": "Default link depth for the local knowledge graph."
         },
+            "vispNotes.editor.contentWidth": {
+          "type": "string",
+          "enum": [
+            "readable",
+            "wide",
+            "full"
+          ],
+          "enumDescriptions": [
+            "Constrain rendered notes to a comfortable reading measure.",
+            "Allow rendered notes to use a wider column.",
+            "Let rendered notes fill the available editor width."
+          ],
+          "default": "readable",
+          "scope": "window",
+          "description": "Measure used for note content in the Visp Notes editor."
+        },
         "vispNotes.openRenderedAfterCreate": {
           "type": "boolean",
           "scope": "resource",
@@ -304,7 +355,9 @@
     "compile:extension": "node scripts/compile-extension.mjs",
     "compile:webview": "tsc --noEmit -p tsconfig.webview.json && node scripts/build-webviews.mjs",
     "compile:test": "node scripts/compile-tests.mjs",
-    "check": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.webview.json && tsc --noEmit -p tsconfig.test.json",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "check": "npm run lint && tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.webview.json && tsc --noEmit -p tsconfig.test.json",
     "test": "npm run compile:test && node --test out-tests/test/application/*.test.js out-tests/test/markdown/*.test.js out-tests/test/indexing/*.test.js",
     "vscode:prepublish": "npm run check && npm run compile"
   },
@@ -316,10 +369,15 @@
     "@codemirror/search": "^6.7.1",
     "@codemirror/state": "^6.7.1",
     "@codemirror/view": "^6.43.6",
+    "@eslint/js": "^10.0.1",
     "@lezer/highlight": "^1.2.3",
     "@types/node": "20.17.10",
     "@types/vscode": "1.96.0",
+    "@vscode/codicons": "^0.0.46-24",
     "esbuild": "^0.28.1",
-    "typescript": "^5.7.2"
+    "eslint": "^10.8.0",
+    "globals": "^17.7.0",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.65.0"
   }
 }

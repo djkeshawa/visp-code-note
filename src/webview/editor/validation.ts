@@ -1,3 +1,4 @@
+import { EDITOR_CONTENT_WIDTHS } from "../../application/editorContentWidth.js";
 import type { EditorDocumentStateWire, EditorStateWire } from "../contracts.js";
 import { isRecord } from "../shared/dom.js";
 
@@ -6,6 +7,7 @@ export function isEditorState(value: unknown): value is EditorStateWire {
   const state: Record<string, unknown> = value;
   return (
     typeof state.uri === "string" &&
+    EDITOR_CONTENT_WIDTHS.some((width) => width === state.contentWidth) &&
     (state.recoveredDraft === undefined || (
       isRecord(state.recoveredDraft) &&
       typeof state.recoveredDraft.source === "string" &&
@@ -22,7 +24,25 @@ export function isEditorDocumentState(value: unknown): value is EditorDocumentSt
     isOffset(value.version) &&
     (value.acknowledgedSequence === undefined || isOffset(value.acknowledgedSequence)) &&
     typeof value.dirty === "boolean" &&
-    isUnresolvedLinks(value.unresolvedLinks);
+    isUnresolvedLinks(value.unresolvedLinks) &&
+    (value.context === undefined || isNoteContext(value.context));
+}
+
+function isNoteContext(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    isStringArray(value.folders) &&
+    typeof value.fileName === "string" &&
+    isStringArray(value.tags) &&
+    isOffset(value.backlinkCount) &&
+    isOffset(value.outgoingCount) &&
+    isOffset(value.taskCount) &&
+    isOffset(value.openTaskCount)
+  );
+}
+
+function isStringArray(value: unknown): value is readonly string[] {
+  return Array.isArray(value) && value.every((entry) => typeof entry === "string");
 }
 
 export function isNoteSuggestions(value: unknown): value is EditorStateWire["noteSuggestions"] {

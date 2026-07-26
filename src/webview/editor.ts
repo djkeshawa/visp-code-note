@@ -2,6 +2,7 @@ import type {
   EditorDocumentStateWire,
   EditorStateWire,
   EditorToHostWire,
+  NoteContextWire,
   NoteSuggestionWire,
 } from "./contracts.js";
 import { CodeMirrorEditor } from "./editor/codeMirrorEditor.js";
@@ -9,6 +10,12 @@ import type { MarkdownEditorMode } from "./editor/codeMirrorEditor.js";
 import { DocumentSyncModel } from "./editor/documentSync.js";
 import type { DocumentSyncAction, HostStateTransition } from "./editor/documentSync.js";
 import type { TextPatch } from "../application/textPatch.js";
+import {
+  editorContentWidthFromState,
+  parseEditorContentWidth,
+  stateWithEditorContentWidth,
+} from "./editor/contentWidth.js";
+import type { EditorContentWidth } from "./editor/contentWidth.js";
 import {
   fitsEditorSourceMessage,
   SOURCE_LIMIT_MESSAGE,
@@ -20,17 +27,22 @@ import {
   isUnresolvedLinks,
 } from "./editor/validation.js";
 import { isRecord, requireElement, setNotice } from "./shared/dom.js";
-import { acquireMessageSender } from "./shared/vscodeApi.js";
+import { acquireWebviewApi } from "./shared/vscodeApi.js";
 
-const api = acquireMessageSender<EditorToHostWire>();
+const api = acquireWebviewApi<EditorToHostWire, unknown>();
 const title = requireElement("#note-title", HTMLHeadingElement);
 const insertLink = requireElement("#insert-link", HTMLButtonElement);
-const saveNote = requireElement("#save-note", HTMLButtonElement);
+const retrySync = requireElement("#retry-sync", HTMLButtonElement);
+const editorWidth = requireElement("#editor-width", HTMLSelectElement);
 const liveMode = requireElement("#live-mode", HTMLButtonElement);
 const markdownMode = requireElement("#markdown-mode", HTMLButtonElement);
 const editorHost = requireElement("#editor-host", HTMLElement);
+const breadcrumb = requireElement("#note-breadcrumb", HTMLElement);
+const noteTags = requireElement("#note-tags", HTMLElement);
+const noteStats = requireElement("#note-stats", HTMLElement);
 const syncStatus = requireElement("#sync-status", HTMLElement);
-const versionLabel = requireElement("#editor-version", HTMLElement);
+const syncStatusIcon = requireElement("#sync-status-icon", HTMLElement);
+const syncStatusText = requireElement("#sync-status-text", HTMLElement);
 const errorNotice = requireElement("#editor-error", HTMLElement);
 const conflictNotice = requireElement("#editor-conflict", HTMLElement);
 const cspNonce = requireCspNonce();
@@ -44,14 +56,19 @@ let lastStashedSource: string | undefined;
 let lastStashedSaveRequested = false;
 
 insertLink.disabled = true;
-saveNote.disabled = true;
 insertLink.addEventListener("click", requestLink);
-saveNote.addEventListener("click", requestSave);
+retrySync.addEventListener("click", requestSave);
+editorWidth.addEventListener("change", () => {
+  const contentWidth = parseEditorContentWidth(editorWidth.value);
+  setContentWidth(contentWidth);
+  api.postMessage({ type: "editor/setContentWidth", contentWidth });
+});
 liveMode.addEventListener("click", () => setMode("live"));
 markdownMode.addEventListener("click", () => setMode("markdown"));
 window.addEventListener("message", handleHostMessage);
 window.addEventListener("unload", () => editor?.destroy(), { once: true });
 
+setContentWidth(editorContentWidthFromState(api.getState()));
 api.postMessage({ type: "editor/ready" });
 
 function handleHostMessage(event: MessageEvent<unknown>): void {
@@ -65,6 +82,8 @@ function handleHostMessage(event: MessageEvent<unknown>): void {
     isEditorDocumentState(message.state)
   ) {
     acceptEditorDocumentState(message.state);
+  } else if (message.type === "editor/contentWidth") {
+    setContentWidth(parseEditorContentWidth(message.contentWidth));
   } else if (message.type === "editor/toggleMode") {
     setMode(editor?.toggleMode() ?? "live");
   } else if (message.type === "editor/reveal" && typeof message.offset === "number") {
@@ -92,6 +111,7 @@ function handleHostMessage(event: MessageEvent<unknown>): void {
 
 function acceptEditorState(nextState: EditorStateWire): void {
   suggestions = nextState.noteSuggestions;
+  setContentWidth(parseEditorContentWidth(nextState.contentWidth));
   acceptEditorDocumentState(nextState);
   if (nextState.recoveredDraft !== undefined) {
     runTransition(sync.recoverDraft(
@@ -104,6 +124,7 @@ function acceptEditorState(nextState: EditorStateWire): void {
 
 function acceptEditorDocumentState(nextState: EditorDocumentStateWire): void {
   title.textContent = nextState.title;
+  renderNoteContext(nextState.context);
   updateUnresolvedLinks(nextState.unresolvedLinks);
   const transition = sync.onHostState({
     source: nextState.source,
@@ -209,6 +230,68 @@ function setMode(mode: MarkdownEditorMode): void {
   markdownMode.setAttribute("aria-pressed", String(!live));
 }
 
+function setContentWidth(contentWidth: EditorContentWidth): void {
+  editorHost.dataset.contentWidth = contentWidth;
+  editorWidth.value = contentWidth;
+  // Cached so a reloaded panel paints at the right measure before the host replies.
+  api.setState(stateWithEditorContentWidth(api.getState(), contentWidth));
+}
+
+function renderNoteContext(context: NoteContextWire | undefined): void {
+  if (context === undefined) {
+    breadcrumb.replaceChildren();
+    noteTags.replaceChildren();
+    noteStats.replaceChildren();
+    return;
+  }
+
+  const crumbs: Node[] = [];
+  for (const folder of context.folders) {
+    crumbs.push(contextSpan("crumb", folder), contextSpan("crumb-separator", "›"));
+  }
+  crumbs.push(contextSpan("crumb is-current", context.fileName));
+  breadcrumb.replaceChildren(...crumbs);
+
+  noteTags.replaceChildren(...context.tags.map((tag) => contextSpan("note-tag", `#${tag}`)));
+
+  noteStats.replaceChildren(
+    statChip("codicon-references", context.backlinkCount, "backlink", "backlinks"),
+    statChip("codicon-link", context.outgoingCount, "link out", "links out"),
+    statChip(
+      "codicon-checklist",
+      context.openTaskCount,
+      `open task of ${context.taskCount}`,
+      `open tasks of ${context.taskCount}`,
+    ),
+  );
+}
+
+function contextSpan(className: string, text: string): HTMLSpanElement {
+  const span = document.createElement("span");
+  span.className = className;
+  span.textContent = text;
+  return span;
+}
+
+function statChip(
+  icon: string,
+  count: number,
+  singular: string,
+  plural: string,
+): HTMLSpanElement {
+  const chip = document.createElement("span");
+  chip.className = "note-stat";
+  chip.title = `${count} ${count === 1 ? singular : plural}`;
+  const glyph = document.createElement("span");
+  glyph.className = `codicon ${icon}`;
+  glyph.setAttribute("aria-hidden", "true");
+  const label = document.createElement("span");
+  label.textContent = String(count);
+  chip.append(glyph, label);
+  chip.setAttribute("aria-label", chip.title);
+  return chip;
+}
+
 function revealOffset(offset: number): void {
   if (editor === undefined) {
     pendingReveal = offset;
@@ -272,40 +355,35 @@ function updateStatus(): void {
   const protectedDraft = conflict || snapshot.failed;
   const saving = snapshot.savePending || snapshot.saveRequested;
   const applying = snapshot.editPending || snapshot.localDirty;
-  const status = !snapshot.ready
-    ? "Loading…"
+  const presentation = !snapshot.ready
+    ? { state: undefined, icon: "codicon-loading codicon-modifier-spin", text: "Loading…" }
     : conflict
-      ? "Conflict — local edits preserved"
+      ? { state: "conflict", icon: "codicon-warning", text: "Conflict — local edits preserved" }
       : snapshot.failed
-        ? "Synchronization failed — retry available"
+        ? { state: "error", icon: "codicon-error", text: "Could not sync — retry available" }
         : saving
-          ? "Saving…"
+          ? { state: "syncing", icon: "codicon-sync codicon-modifier-spin", text: "Saving…" }
           : applying
-            ? "Applying…"
-            : baseline?.dirty === true ? "Unsaved" : "Saved";
-  syncStatus.textContent = status;
-  const statusState = !snapshot.ready
-    ? undefined
-    : conflict
-      ? "conflict"
-      : snapshot.failed
-        ? "error"
-        : saving || applying
-          ? "syncing"
-          : baseline?.dirty === true ? "unsaved" : "saved";
-  if (statusState === undefined) {
+            ? { state: "syncing", icon: "codicon-sync codicon-modifier-spin", text: "Applying…" }
+            : baseline?.dirty === true
+              ? { state: "unsaved", icon: "codicon-circle-filled", text: "Unsaved" }
+              : { state: "saved", icon: "codicon-check", text: "Saved" };
+
+  syncStatusText.textContent = presentation.text;
+  syncStatusIcon.className = `codicon ${presentation.icon}`;
+  if (presentation.state === undefined) {
     delete syncStatus.dataset.state;
   } else {
-    syncStatus.dataset.state = statusState;
+    syncStatus.dataset.state = presentation.state;
   }
-  versionLabel.textContent = baseline === undefined
+  syncStatus.title = baseline === undefined
     ? "Waiting for document…"
-    : `${baseline.dirty ? "Unsaved" : "Saved"} · version ${baseline.version}`;
-  saveNote.textContent = snapshot.failed
-    ? "Retry"
-    : saving ? "Saving…" : baseline?.dirty === true || applying ? "Save" : "Saved";
-  saveNote.disabled = !snapshot.ready || conflict || snapshot.savePending ||
-    (!snapshot.failed && !applying && baseline?.dirty !== true);
+    : `${presentation.text} · document version ${baseline.version}`;
+
+  // Saving is Ctrl/Cmd+S and the tab's dirty indicator, as in any other editor. A
+  // button only appears when a change could not be applied and needs a manual retry.
+  retrySync.hidden = !snapshot.failed;
+  retrySync.disabled = !snapshot.failed || snapshot.savePending;
   insertLink.disabled = editor === undefined || protectedDraft;
   editor?.setReadOnly(protectedDraft);
   if (protectedDraft) {

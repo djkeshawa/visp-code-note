@@ -18,7 +18,7 @@ export class WikiCompletionProvider implements vscode.CompletionItemProvider {
     }
 
     const query = linePrefix.slice(opener + 2);
-    if (/[|\[\]]/.test(query)) {
+    if (/[|[\]]/.test(query)) {
       return undefined;
     }
 

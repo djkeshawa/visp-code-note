@@ -1,57 +1,115 @@
 import type { GraphDataWire } from "../contracts.js";
+import {
+  EDGE_CLASSES,
+  NODE_CLASSES,
+  SELECTED,
+  TAB_STOP,
+  buildAdjacency,
+  edgeEmphasisMask,
+  nodeEmphasisMask,
+} from "./emphasisModel.js";
+import type { EmphasisInput } from "./emphasisModel.js";
 
-export function applyGraphEmphasis(
-  svg: SVGSVGElement,
-  graph: GraphDataWire,
-  selectedId: string | undefined,
-  hoveredId: string | undefined,
-  matchingIds: ReadonlySet<string>,
-  searchActive: boolean,
-): void {
-  const emphasisId = hoveredId ?? selectedId;
-  const tabStopId = selectedId ?? graph.focusId ?? graph.nodes[0]?.id;
-  const neighborIds = emphasisId === undefined ? new Set<string>() : findNeighbors(graph, emphasisId);
-  for (const element of Array.from(svg.querySelectorAll<SVGGElement>(".graph-node"))) {
-    const nodeId = element.dataset.nodeId;
-    const selected = nodeId === selectedId;
-    const hovered = nodeId === hoveredId;
-    const emphasisSource = nodeId === emphasisId;
-    const connected = nodeId !== undefined && neighborIds.has(nodeId);
-    const matches = nodeId !== undefined && matchingIds.has(nodeId);
-    element.classList.toggle("is-selected", selected);
-    element.classList.toggle("is-hovered", hovered);
-    element.classList.toggle("is-emphasis-source", emphasisSource);
-    element.classList.toggle("is-connected", connected);
-    element.classList.toggle(
-      "is-context-dimmed",
-      emphasisId !== undefined && !emphasisSource && !connected && !selected,
+const EMPTY_SET: ReadonlySet<string> = new Set();
+
+interface CachedNode {
+  readonly element: SVGGElement;
+  readonly nodeId: string;
+  mask: number;
+}
+
+interface CachedEdge {
+  readonly element: SVGLineElement;
+  readonly sourceId: string | undefined;
+  readonly targetId: string | undefined;
+  mask: number;
+}
+
+/**
+ * Applies hover, selection, and search emphasis to the rendered graph.
+ *
+ * Element handles and adjacency are cached per render, and each element remembers the
+ * emphasis it currently shows. A pointer moving across a large graph therefore touches
+ * only the elements whose appearance actually changes, instead of re-querying the whole
+ * SVG and rewriting every class on every event.
+ */
+export class GraphEmphasis {
+  private nodes: CachedNode[] = [];
+  private edges: CachedEdge[] = [];
+  private adjacency: ReadonlyMap<string, ReadonlySet<string>> = new Map();
+
+  public constructor(private readonly svg: SVGSVGElement) {}
+
+  /** Call after the SVG is rebuilt, when cached handles and adjacency are stale. */
+  public refresh(graph: GraphDataWire): void {
+    this.nodes = [];
+    for (const element of Array.from(this.svg.querySelectorAll<SVGGElement>(".graph-node"))) {
+      const nodeId = element.dataset.nodeId;
+      // -1 matches no real mask, so the first apply always writes.
+      if (nodeId !== undefined) this.nodes.push({ element, nodeId, mask: -1 });
+    }
+    this.edges = Array.from(this.svg.querySelectorAll<SVGLineElement>(".graph-edge")).map(
+      (element) => ({
+        element,
+        sourceId: element.dataset.sourceId,
+        targetId: element.dataset.targetId,
+        mask: -1,
+      }),
     );
-    element.classList.toggle("is-search-match", searchActive && matches);
-    element.classList.toggle("is-search-dimmed", searchActive && !matches);
-    element.setAttribute("tabindex", nodeId === tabStopId ? "0" : "-1");
-    if (selected) element.setAttribute("aria-current", "true");
-    else element.removeAttribute("aria-current");
+    this.adjacency = buildAdjacency(graph);
   }
-  for (const edge of Array.from(svg.querySelectorAll<SVGLineElement>(".graph-edge"))) {
-    const source = edge.dataset.sourceId;
-    const target = edge.dataset.targetId;
-    const connected = emphasisId !== undefined && (source === emphasisId || target === emphasisId);
-    const matches = (source !== undefined && matchingIds.has(source))
-      || (target !== undefined && matchingIds.has(target));
-    edge.classList.toggle("is-connected", connected);
-    edge.classList.toggle("is-context-dimmed", emphasisId !== undefined && !connected);
-    edge.classList.toggle("is-search-dimmed", searchActive && !matches);
+
+  public apply(
+    graph: GraphDataWire,
+    selectedId: string | undefined,
+    hoveredId: string | undefined,
+    matchingIds: ReadonlySet<string>,
+    searchActive: boolean,
+  ): void {
+    const emphasisId = hoveredId ?? selectedId;
+    const input: EmphasisInput = {
+      selectedId,
+      hoveredId,
+      matchingIds,
+      searchActive,
+      tabStopId: selectedId ?? graph.focusId ?? graph.nodes[0]?.id,
+      neighborIds: (emphasisId === undefined ? undefined : this.adjacency.get(emphasisId))
+        ?? EMPTY_SET,
+    };
+
+    for (const node of this.nodes) {
+      const mask = nodeEmphasisMask(node.nodeId, input);
+      if (mask === node.mask) continue;
+      const changed = mask ^ node.mask;
+      for (const [bit, className] of NODE_CLASSES) {
+        if ((changed & bit) !== 0) node.element.classList.toggle(className, (mask & bit) !== 0);
+      }
+      if ((changed & TAB_STOP) !== 0) {
+        node.element.setAttribute("tabindex", (mask & TAB_STOP) !== 0 ? "0" : "-1");
+      }
+      if ((changed & SELECTED) !== 0) {
+        if ((mask & SELECTED) !== 0) node.element.setAttribute("aria-current", "true");
+        else node.element.removeAttribute("aria-current");
+      }
+      node.mask = mask;
+    }
+
+    for (const edge of this.edges) {
+      const mask = edgeEmphasisMask(edge.sourceId, edge.targetId, input);
+      if (mask === edge.mask) continue;
+      const changed = mask ^ edge.mask;
+      for (const [bit, className] of EDGE_CLASSES) {
+        if ((changed & bit) !== 0) edge.element.classList.toggle(className, (mask & bit) !== 0);
+      }
+      edge.mask = mask;
+    }
   }
 }
 
 export function focusGraphNode(svg: SVGSVGElement, nodeId: string | undefined): void {
   if (nodeId === undefined) return;
-  for (const element of Array.from(svg.querySelectorAll<SVGGElement>(".graph-node"))) {
-    if (element.dataset.nodeId === nodeId) {
-      element.focus();
-      return;
-    }
-  }
+  const escaped = nodeId.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
+  svg.querySelector<SVGGElement>(`.graph-node[data-node-id="${escaped}"]`)?.focus();
 }
 
 export function connectionNodeIdFromTarget(target: EventTarget | null): string | undefined {
@@ -68,14 +126,4 @@ export function focusConnectionRow(container: HTMLElement, nodeId: string): bool
     }
   }
   return false;
-}
-
-function findNeighbors(graph: GraphDataWire, selectedId: string): Set<string> {
-  const neighbors = new Set<string>();
-  for (const edge of graph.edges) {
-    if (edge.source === selectedId) neighbors.add(edge.target);
-    if (edge.target === selectedId) neighbors.add(edge.source);
-  }
-  neighbors.delete(selectedId);
-  return neighbors;
 }

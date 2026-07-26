@@ -19,6 +19,7 @@
     "src/indexing/projections.ts",
     "src/vscode/ids.ts",
     "src/vscode/providers/explorerCommands.ts",
+    "src/vscode/providers/explorerModel.ts",
     "test/**/*.ts"
   ]
 }

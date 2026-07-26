@@ -81,12 +81,13 @@ class FakeState implements KeyValueState {
     return this.value as T | undefined;
   }
 
-  public async update(_key: string, value: unknown): Promise<void> {
+  public update(_key: string, value: unknown): Promise<void> {
     this.updateCount += 1;
     if (this.failures > 0) {
       this.failures -= 1;
-      throw new Error("simulated persistence failure");
+      return Promise.reject(new Error("simulated persistence failure"));
     }
     this.value = value;
+    return Promise.resolve();
   }
 }

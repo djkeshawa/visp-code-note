@@ -1,9 +1,5 @@
 import * as vscode from "vscode";
-import type {
-  BacklinksState,
-  BacklinksToHostMessage,
-  HostToBacklinksMessage,
-} from "../../domain/protocol";
+import type { BacklinksState, HostToBacklinksMessage } from "../../domain/protocol";
 import type { IndexSnapshot } from "../../domain/models";
 import { createBacklinksHtml } from "../../ui";
 import { revealOffset } from "../documentEdits";

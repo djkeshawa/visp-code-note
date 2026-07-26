@@ -78,7 +78,7 @@ export async function rebuildIndex(index: CommandIndex): Promise<void> {
   void vscode.window.showInformationMessage(`Indexed ${index.snapshot.notes.length} Markdown notes.`);
 }
 
-export async function showLocalGraph(views: FeatureViews, value?: unknown): Promise<void> {
+export function showLocalGraph(views: FeatureViews, value?: unknown): void {
   const uri = coerceUri(value) ?? activeMarkdownUri() ?? views.activeNoteUri();
   if (!uri) {
     void vscode.window.showInformationMessage("Open a note before showing its local graph.");

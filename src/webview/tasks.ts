@@ -1,12 +1,13 @@
 import type { TaskWire, TasksSnapshotWire, TasksToHostWire } from "./contracts.js";
 import { htmlElement, isRecord, requireElement, setNotice } from "./shared/dom.js";
 import { acquireMessageSender } from "./shared/vscodeApi.js";
-import { formatDueDate, groupTasks } from "./tasks/grouping.js";
+import { formatDueDate, groupTasks, parseTaskGrouping } from "./tasks/grouping.js";
 import type { TaskStatusFilter } from "./tasks/grouping.js";
 
 const api = acquireMessageSender<TasksToHostWire>();
 const search = requireElement("#task-search", HTMLInputElement);
 const status = requireElement("#task-status", HTMLSelectElement);
+const groupBy = requireElement("#task-group-by", HTMLSelectElement);
 const title = requireElement("#task-view-title", HTMLHeadingElement);
 const groupsRoot = requireElement("#task-groups", HTMLElement);
 const countLabel = requireElement("#task-count", HTMLElement);
@@ -16,6 +17,7 @@ let snapshot: TasksSnapshotWire | undefined;
 
 search.addEventListener("input", render);
 status.addEventListener("change", render);
+groupBy.addEventListener("change", render);
 groupsRoot.addEventListener("click", handleTaskClick);
 groupsRoot.addEventListener("change", handleTaskToggle);
 window.addEventListener("message", handleHostMessage);
@@ -52,8 +54,12 @@ function render(): void {
     query: search.value,
     status: selectedStatus(),
     view: snapshot.filter,
+    groupBy: parseTaskGrouping(groupBy.value),
   });
-  const visibleCount = groups.reduce((total, group) => total + group.tasks.length, 0);
+  // Tag grouping lists a multi-tag task under each of its tags, so count identities.
+  const visibleCount = new Set(
+    groups.flatMap((group) => group.tasks.map((task) => `${task.noteUri}:${task.range.start}`)),
+  ).size;
   countLabel.textContent = `${visibleCount} of ${snapshot.tasks.length} tasks · index ${snapshot.version}`;
   if (groups.length === 0) {
     const message = snapshot.filter === "today" && search.value.trim() === ""

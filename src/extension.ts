@@ -48,7 +48,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     draftRecoveries,
   );
   activeNoteEditor = noteEditor;
-  const explorer = new NotesExplorerProvider(index);
+  const explorer = new NotesExplorerProvider(index, (task) =>
+    toggleTask(
+      index,
+      task.noteUri,
+      task.range.start,
+      task.id,
+      task.completed,
+      index.snapshot.version,
+    ));
+  const explorerView = vscode.window.createTreeView("vispNotes.explorer", {
+    treeDataProvider: explorer,
+    showCollapseAll: true,
+  });
   const diagnostics = new WikiLinkDiagnostics(index);
   const diffPreview = new TextDiffPreviewProvider();
 
@@ -64,9 +76,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     diffPreview,
     diffPreview.register(),
     noteEditor.register(),
-    vscode.window.createTreeView("vispNotes.explorer", {
-      treeDataProvider: explorer,
-      showCollapseAll: true,
+    explorerView,
+    explorerView.onDidChangeCheckboxState((event) => {
+      void explorer.handleCheckboxChange(event.items);
     }),
     vscode.window.registerWebviewViewProvider("vispNotes.backlinks", backlinks, {
       webviewOptions: { retainContextWhenHidden: true },

@@ -1,21 +1,16 @@
 import type { GraphDataWire, GraphEdgeWire } from "../contracts.js";
+import { BarnesHutField } from "./barnesHut.js";
+import type { RepulsionSettings } from "./barnesHut.js";
 import type { GraphBounds, GraphPoint } from "./layout.js";
 
-interface NodeState {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-}
-
-interface Force {
-  x: number;
-  y: number;
-}
-
 const PADDING = 56;
-const FULL_REPULSION_LIMIT = 160;
-const REPULSION_SAMPLE_SIZE = 48;
+
+/**
+ * The settle pass shares the live simulation's quadtree repulsion, so the opening layout
+ * and every later frame agree about which nodes push on which. Collision separation is off
+ * here because radii are not known at settle time; the live pass takes over that job.
+ */
+const REPULSION: RepulsionSettings = { strength: 0.04, collisionStrength: 0, theta: 1.5 };
 
 export function settleGraphLayout(
   graph: GraphDataWire,
@@ -24,115 +19,113 @@ export function settleGraphLayout(
 ): ReadonlyMap<string, GraphPoint> {
   const ids = [...initial.keys()].sort((left, right) => hash(left) - hash(right));
   const indexById = new Map(ids.map((id, index) => [id, index]));
-  const states = ids.map((id) => ({ ...initial.get(id)!, vx: 0, vy: 0 }));
+  const count = ids.length;
+  const x = new Float64Array(count);
+  const y = new Float64Array(count);
+  const vx = new Float64Array(count);
+  const vy = new Float64Array(count);
+  const forceX = new Float64Array(count);
+  const forceY = new Float64Array(count);
+  // Repulsion here is positional only, so a uniform placeholder radius is enough.
+  const radius = new Float64Array(count).fill(1);
+  for (const [index, id] of ids.entries()) {
+    const point = initial.get(id)!;
+    x[index] = point.x;
+    y[index] = point.y;
+  }
+
   const edges = graph.edges.filter((edge) => edge.source !== edge.target);
-  const idealDistance = clamp(Math.sqrt((bounds.width * bounds.height) / states.length) * 0.66, 48, 104);
-  const iterations = states.length <= 60 ? 90 : states.length <= FULL_REPULSION_LIMIT ? 68 : 44;
+  const idealDistance = clamp(
+    Math.sqrt((bounds.width * bounds.height) / Math.max(1, count)) * 0.66,
+    48,
+    104,
+  );
+  // The settle pass only has to place nodes roughly right: the live simulation refines
+  // from here, and for callers that cannot animate, GraphMotionController settles
+  // synchronously instead. So a large graph spends its budget on the live pass, where
+  // quadtree repulsion converges, rather than on many expensive opening iterations.
+  const iterations = count <= 60 ? 90 : 34;
+  const field = new BarnesHutField(count);
+  const focusIndex = graph.focusId === undefined ? -1 : indexById.get(graph.focusId) ?? -1;
 
   for (let iteration = 0; iteration < iterations; iteration += 1) {
-    const forces = states.map<Force>(() => ({ x: 0, y: 0 }));
-    applyRepulsion(states, forces, idealDistance);
-    applyLinks(edges, indexById, states, forces, idealDistance);
-    integrate(ids, states, forces, graph.focusId, bounds, iteration / iterations);
-  }
-
-  return new Map(ids.map((id, index) => [id, roundPoint(states[index]!) ]));
-}
-
-function applyRepulsion(states: readonly NodeState[], forces: Force[], idealDistance: number): void {
-  if (states.length <= FULL_REPULSION_LIMIT) {
-    for (let left = 0; left < states.length; left += 1) {
-      for (let right = left + 1; right < states.length; right += 1) {
-        repelPair(left, right, states, forces, idealDistance, 1);
-      }
+    forceX.fill(0);
+    forceY.fill(0);
+    field.build(x, y, count);
+    for (let index = 0; index < count; index += 1) {
+      field.accumulate(index, x, y, radius, forceX, forceY, idealDistance, 1, REPULSION);
     }
-    return;
+    applyLinks(edges, indexById, x, y, forceX, forceY, idealDistance);
+    integrate(x, y, vx, vy, forceX, forceY, focusIndex, bounds, iteration / iterations);
   }
 
-  const sampleSize = Math.min(REPULSION_SAMPLE_SIZE, Math.floor((states.length - 1) / 2));
-  const sampleScale = Math.min(4, states.length / Math.max(1, sampleSize * 2));
-  for (let left = 0; left < states.length; left += 1) {
-    for (let offset = 1; offset <= sampleSize; offset += 1) {
-      repelPair(left, (left + offset) % states.length, states, forces, idealDistance, sampleScale);
-    }
-  }
-}
-
-function repelPair(
-  left: number,
-  right: number,
-  states: readonly NodeState[],
-  forces: Force[],
-  idealDistance: number,
-  scale: number,
-): void {
-  const dx = states[left]!.x - states[right]!.x || 0.01;
-  const dy = states[left]!.y - states[right]!.y || 0.01;
-  const distanceSquared = Math.max(36, dx * dx + dy * dy);
-  const strength = (idealDistance * idealDistance * scale * 0.04) / distanceSquared;
-  const forceX = dx * strength;
-  const forceY = dy * strength;
-  forces[left]!.x += forceX;
-  forces[left]!.y += forceY;
-  forces[right]!.x -= forceX;
-  forces[right]!.y -= forceY;
+  return new Map(ids.map((id, index) => [id, roundPoint(x[index]!, y[index]!)]));
 }
 
 function applyLinks(
   edges: readonly GraphEdgeWire[],
   indexById: ReadonlyMap<string, number>,
-  states: readonly NodeState[],
-  forces: Force[],
+  x: Float64Array,
+  y: Float64Array,
+  forceX: Float64Array,
+  forceY: Float64Array,
   idealDistance: number,
 ): void {
   for (const edge of edges) {
-    const sourceIndex = indexById.get(edge.source);
-    const targetIndex = indexById.get(edge.target);
-    if (sourceIndex === undefined || targetIndex === undefined) continue;
-    const dx = states[targetIndex]!.x - states[sourceIndex]!.x;
-    const dy = states[targetIndex]!.y - states[sourceIndex]!.y;
-    const distance = Math.max(1, Math.hypot(dx, dy));
+    const from = indexById.get(edge.source);
+    const to = indexById.get(edge.target);
+    if (from === undefined || to === undefined) continue;
+    const dx = x[to]! - x[from]!;
+    const dy = y[to]! - y[from]!;
+    const distance = Math.max(1, Math.sqrt(dx * dx + dy * dy));
     const targetDistance = idealDistance * (edge.kind === "link" ? 1 : 0.76);
     const strength = (distance - targetDistance) * 0.045;
-    const forceX = (dx / distance) * strength;
-    const forceY = (dy / distance) * strength;
-    forces[sourceIndex]!.x += forceX;
-    forces[sourceIndex]!.y += forceY;
-    forces[targetIndex]!.x -= forceX;
-    forces[targetIndex]!.y -= forceY;
+    const pushX = (dx / distance) * strength;
+    const pushY = (dy / distance) * strength;
+    forceX[from] = forceX[from]! + pushX;
+    forceY[from] = forceY[from]! + pushY;
+    forceX[to] = forceX[to]! - pushX;
+    forceY[to] = forceY[to]! - pushY;
   }
 }
 
 function integrate(
-  ids: readonly string[],
-  states: NodeState[],
-  forces: readonly Force[],
-  focusId: string | undefined,
+  x: Float64Array,
+  y: Float64Array,
+  vx: Float64Array,
+  vy: Float64Array,
+  forceX: Float64Array,
+  forceY: Float64Array,
+  focusIndex: number,
   bounds: GraphBounds,
   progress: number,
 ): void {
-  const center = { x: bounds.width / 2, y: bounds.height / 2 };
+  const centerX = bounds.width / 2;
+  const centerY = bounds.height / 2;
   const maxSpeed = 8 - progress * 6;
-  const maximum = { x: bounds.width - PADDING, y: bounds.height - PADDING };
-  for (let index = 0; index < states.length; index += 1) {
-    const state = states[index]!;
-    if (ids[index] === focusId) {
-      Object.assign(state, center, { vx: 0, vy: 0 });
+  const maximumX = bounds.width - PADDING;
+  const maximumY = bounds.height - PADDING;
+  const centerPull = 0.025;
+  for (let index = 0; index < x.length; index += 1) {
+    if (index === focusIndex) {
+      x[index] = centerX;
+      y[index] = centerY;
+      vx[index] = 0;
+      vy[index] = 0;
       continue;
     }
-    const centerPull = 0.025;
-    const boundaryX = boundaryForce(state.x, PADDING, maximum.x);
-    const boundaryY = boundaryForce(state.y, PADDING, maximum.y);
-    state.vx = (
-      state.vx + forces[index]!.x + (center.x - state.x) * centerPull + boundaryX
-    ) * 0.72;
-    state.vy = (
-      state.vy + forces[index]!.y + (center.y - state.y) * centerPull + boundaryY
-    ) * 0.72;
-    const speed = Math.max(1, Math.hypot(state.vx, state.vy));
+    const boundaryX = boundaryForce(x[index]!, PADDING, maximumX);
+    const boundaryY = boundaryForce(y[index]!, PADDING, maximumY);
+    const nextVX = (vx[index]! + forceX[index]! + (centerX - x[index]!) * centerPull + boundaryX) *
+      0.72;
+    const nextVY = (vy[index]! + forceY[index]! + (centerY - y[index]!) * centerPull + boundaryY) *
+      0.72;
+    vx[index] = nextVX;
+    vy[index] = nextVY;
+    const speed = Math.max(1, Math.sqrt(nextVX * nextVX + nextVY * nextVY));
     const scale = Math.min(1, maxSpeed / speed);
-    state.x += state.vx * scale;
-    state.y += state.vy * scale;
+    x[index] = x[index]! + nextVX * scale;
+    y[index] = y[index]! + nextVY * scale;
   }
 }
 
@@ -150,8 +143,8 @@ function hash(value: string): number {
   return result >>> 0;
 }
 
-function roundPoint(point: GraphPoint): GraphPoint {
-  return { x: Math.round(point.x * 100) / 100, y: Math.round(point.y * 100) / 100 };
+function roundPoint(x: number, y: number): GraphPoint {
+  return { x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100 };
 }
 
 function clamp(value: number, minimum: number, maximum: number): number {

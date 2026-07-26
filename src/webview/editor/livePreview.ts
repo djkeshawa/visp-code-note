@@ -7,11 +7,15 @@ import {
   WidgetType,
 } from "@codemirror/view";
 import type { DecorationSet, ViewUpdate } from "@codemirror/view";
+import { parseCalloutBlock } from "../../markdown/callouts.js";
+import type { CalloutHeader } from "../../markdown/callouts.js";
 import {
   findRecognizedWikiLink,
   isRecognizedWikiLink,
   markdownBlockAtPosition,
   markdownFormattingMarks,
+  markdownFrontmatterRange,
+  markdownInlineCodeRanges,
 } from "./markdownContext.js";
 import { findWikiLinkAtPosition } from "./wikiLinkNavigation.js";
 import { wikiLinkDisplayRange } from "./wikiLinkPresentation.js";
@@ -107,6 +111,33 @@ class TaskWidget extends WidgetType {
   }
 }
 
+class CalloutIconWidget extends WidgetType {
+  public constructor(
+    private readonly icon: string,
+    private readonly kind: string,
+  ) {
+    super();
+  }
+
+  public override eq(other: CalloutIconWidget): boolean {
+    return this.icon === other.icon && this.kind === other.kind;
+  }
+
+  public override toDOM(): HTMLElement {
+    const wrapper = document.createElement("span");
+    wrapper.className = "live-callout-icon";
+    wrapper.title = this.kind;
+    const glyph = document.createElement("span");
+    glyph.className = `codicon ${this.icon}`;
+    glyph.setAttribute("aria-hidden", "true");
+    const label = document.createElement("span");
+    label.className = "sr-only";
+    label.textContent = `${this.kind} callout`;
+    wrapper.append(glyph, label);
+    return wrapper;
+  }
+}
+
 class ListMarkerWidget extends WidgetType {
   public constructor(private readonly marker: string) {
     super();
@@ -131,19 +162,42 @@ function buildDecorations(
 ): DecorationSet {
   const ranges: Range<Decoration>[] = [];
   const visitedLines = new Set<number>();
+  const frontmatter = markdownFrontmatterRange(view.state);
   for (const visible of view.visibleRanges) {
     let position = view.state.doc.lineAt(visible.from).from;
     while (position <= visible.to && position <= view.state.doc.length) {
       const line = view.state.doc.lineAt(position);
       if (!visitedLines.has(line.from)) {
         visitedLines.add(line.from);
-        decorateLine(view, line.from, line.to, line.text, unresolvedLinks, ranges);
+        if (frontmatter !== undefined && line.from < frontmatter.end) {
+          decorateFrontmatterLine(line.from, line.to, frontmatter, ranges);
+        } else {
+          decorateLine(view, line.from, line.to, line.text, unresolvedLinks, ranges);
+        }
       }
       if (line.to >= view.state.doc.length) break;
       position = line.to + 1;
     }
   }
   return Decoration.set(ranges, true);
+}
+
+/**
+ * Frontmatter stays fully visible and editable — it is metadata the author owns — but
+ * reads as a property block rather than as the note's first paragraph.
+ */
+function decorateFrontmatterLine(
+  from: number,
+  to: number,
+  frontmatter: { readonly start: number; readonly end: number },
+  ranges: Range<Decoration>[],
+): void {
+  const isFence = from === frontmatter.start || to >= frontmatter.end - 1;
+  ranges.push(
+    Decoration.line({
+      class: isFence ? "live-frontmatter-line is-fence" : "live-frontmatter-line",
+    }).range(from),
+  );
 }
 
 function decorateLine(
@@ -184,7 +238,17 @@ function decorateLine(
     }
   }
   if (block?.kind === "blockquote") {
-    ranges.push(Decoration.line({ class: "live-quote-line" }).range(from));
+    const callout = parseCalloutBlock(block.source);
+    if (callout === undefined) {
+      ranges.push(Decoration.line({ class: "live-quote-line" }).range(from));
+    } else {
+      decorateCalloutLine(from, text, block.range.start === from, callout, active, ranges);
+    }
+  }
+  if (block?.kind === "thematic-break") {
+    ranges.push(Decoration.line({ class: "live-thematic-break" }).range(from));
+    // Hiding the characters lets the line's CSS border be the rule itself.
+    addHiddenMarkup(ranges, from, to - from, active);
   }
 
   if (block?.kind === "task") {
@@ -238,6 +302,42 @@ function decorateLine(
     for (const mark of markdownFormattingMarks(view.state, from, to)) {
       addHiddenMarkup(ranges, mark.start, mark.end - mark.start, false);
     }
+  }
+
+  if (block !== undefined && block.kind !== "code") {
+    for (const span of markdownInlineCodeRanges(view.state, from, to)) {
+      ranges.push(Decoration.mark({ class: "live-inline-code" }).range(span.start, span.end));
+    }
+  }
+}
+
+/**
+ * A callout is a blockquote whose first line declares a type. Every line of the block
+ * carries the tone class so the border and tint span the whole callout, and the marker
+ * itself collapses to an icon while the caret is elsewhere.
+ */
+function decorateCalloutLine(
+  from: number,
+  text: string,
+  isHeader: boolean,
+  callout: CalloutHeader,
+  active: boolean,
+  ranges: Range<Decoration>[],
+): void {
+  const classes = ["live-callout-line", `live-callout-${callout.tone}`];
+  if (isHeader) classes.push("is-header");
+  ranges.push(Decoration.line({ class: classes.join(" ") }).range(from));
+  if (!isHeader || active) {
+    return;
+  }
+  const markerFrom = from + callout.markerStart;
+  const markerTo = from + Math.min(callout.markerEnd, text.length);
+  if (markerTo > markerFrom) {
+    ranges.push(
+      Decoration.replace({
+        widget: new CalloutIconWidget(callout.icon, callout.kind),
+      }).range(markerFrom, markerTo),
+    );
   }
 }
 

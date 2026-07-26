@@ -26,7 +26,7 @@ export function createGraphHtml(options: WebviewTemplateOptions): string {
           <aside class="graph-controls" aria-label="Graph filters">
             <label class="search-field graph-search">
               <span class="sr-only">Find a node</span>
-              <span aria-hidden="true">⌕</span>
+              <span class="codicon codicon-search" aria-hidden="true"></span>
               <input id="graph-search" type="search" placeholder="Find a node" autocomplete="off"
                 aria-describedby="graph-search-status">
             </label>
@@ -56,14 +56,24 @@ export function createGraphHtml(options: WebviewTemplateOptions): string {
               and Space to select.
             </span>
             <div class="graph-viewport-controls" role="toolbar" aria-label="Graph viewport">
-              <button id="graph-zoom-in" type="button" title="Zoom in" aria-label="Zoom in" disabled>+</button>
-              <button id="graph-zoom-out" type="button" title="Zoom out" aria-label="Zoom out" disabled>−</button>
+              <button id="graph-zoom-in" type="button" title="Zoom in" aria-label="Zoom in" disabled>
+                <span class="codicon codicon-zoom-in" aria-hidden="true"></span>
+              </button>
+              <button id="graph-zoom-out" type="button" title="Zoom out" aria-label="Zoom out" disabled>
+                <span class="codicon codicon-zoom-out" aria-hidden="true"></span>
+              </button>
               <button id="graph-fit" class="viewport-text-button" type="button"
-                title="Fit all nodes" disabled>Fit</button>
+                title="Fit all nodes" disabled>
+                <span class="codicon codicon-screen-full" aria-hidden="true"></span> Fit
+              </button>
               <button id="graph-center" class="viewport-text-button" type="button"
-                title="Center selected node" disabled>Center</button>
+                title="Center selected node" disabled>
+                <span class="codicon codicon-target" aria-hidden="true"></span> Center
+              </button>
               <button id="graph-reset" class="viewport-text-button" type="button"
-                title="Restart force layout" disabled>Reset</button>
+                title="Restart force layout" disabled>
+                <span class="codicon codicon-debug-restart" aria-hidden="true"></span> Reset
+              </button>
               <output id="graph-zoom-status" aria-label="Zoom level">100%</output>
             </div>
           </main>

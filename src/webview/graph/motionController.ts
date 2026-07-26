@@ -1,5 +1,6 @@
 import type { GraphDataWire } from "../contracts.js";
 import { movedGraphPositions } from "./dragModel.js";
+import { graphLayoutBounds } from "./layout.js";
 import type { GraphPoint } from "./layout.js";
 import { LiveForceController } from "./liveForceController.js";
 import { GraphNodeDragController } from "./nodeDragController.js";
@@ -36,6 +37,7 @@ export class GraphMotionController {
   ): RenderedGraph {
     this.simulation.stop();
     this.rendered = renderGraphSvg(this.svg, graph, selectedId, retainedPositions);
+    this.positionUpdater.setMidX(graphLayoutBounds(graph.nodes.length).width / 2);
     this.positionUpdater.refresh();
     this.nodeDrag.setPositions(this.rendered.positions);
     this.simulation.start(graph, this.rendered.positions);

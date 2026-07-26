@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import type { HostToTasksMessage, TasksToHostMessage } from "../../domain/protocol";
+import type { HostToTasksMessage } from "../../domain/protocol";
 import type { IndexSnapshot } from "../../domain/models";
 import { createTasksHtml } from "../../ui";
 import { isTasksMessage } from "./messageValidation";

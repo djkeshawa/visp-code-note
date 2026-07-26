@@ -79,6 +79,20 @@ export interface NoteRecord extends ParsedNote {
   readonly content: string;
 }
 
+/**
+ * Document context shown in the note editor header: where the note lives, how it is
+ * tagged, and how connected it is. Derived from the index, never from the draft.
+ */
+export interface NoteContext {
+  readonly folders: readonly string[];
+  readonly fileName: string;
+  readonly tags: readonly string[];
+  readonly backlinkCount: number;
+  readonly outgoingCount: number;
+  readonly taskCount: number;
+  readonly openTaskCount: number;
+}
+
 export interface ResolvedLink {
   readonly sourceUri: string;
   readonly link: WikiLink;

@@ -4,6 +4,8 @@ import { getBrokenLinks, getOrphanNotes } from "../../indexing/projections";
 export type SectionId = "notes" | "smart" | "tags";
 export type SmartViewId = "tasks" | "due" | "graph" | "broken" | "orphans";
 
+export type ExplorerTask = IndexSnapshot["tasks"][number];
+
 export type ExplorerNode =
   | { readonly kind: "section"; readonly id: SectionId; readonly label: string }
   | { readonly kind: "folder"; readonly path: string; readonly label: string }
@@ -14,6 +16,7 @@ export type ExplorerNode =
       readonly label: string;
       readonly count?: number;
     }
+  | { readonly kind: "task"; readonly task: ExplorerTask }
   | { readonly kind: "tag"; readonly tag: string; readonly count: number }
   | { readonly kind: "status" };
 
@@ -89,18 +92,59 @@ export function orphanNotes(snapshot: IndexSnapshot): readonly ExplorerNode[] {
     .sort(compareNoteNodes);
 }
 
-function brokenLinkCount(snapshot: IndexSnapshot): number {
-  return getBrokenLinks(snapshot).length;
+/**
+ * Tasks appear directly in the tree so they can be completed with the item checkbox,
+ * without opening the note or the Tasks view first.
+ */
+export function taskNodes(
+  snapshot: IndexSnapshot,
+  filter: "all" | "due",
+  today = todayStamp(),
+): readonly ExplorerNode[] {
+  const tasks = filter === "due"
+    ? snapshot.tasks.filter((task) => isDueToday(task, today))
+    : snapshot.tasks;
+  return [...tasks]
+    .sort(compareTasks)
+    .map((task) => ({ kind: "task" as const, task }));
 }
 
-function dueTodayCount(snapshot: IndexSnapshot): number {
-  const now = new Date();
-  const today = [
+/**
+ * Shared by the Due Today children and its badge count so the two can never disagree
+ * about what the view contains. Overdue work stays discoverable under All Tasks, which
+ * groups by due date with Overdue first.
+ */
+function isDueToday(task: ExplorerTask, today: string): boolean {
+  return !task.completed && task.due?.slice(0, 10) === today;
+}
+
+export function todayStamp(now = new Date()): string {
+  return [
     now.getFullYear(),
     String(now.getMonth() + 1).padStart(2, "0"),
     String(now.getDate()).padStart(2, "0"),
   ].join("-");
-  return snapshot.tasks.filter((task) => !task.completed && task.due === today).length;
+}
+
+function compareTasks(left: ExplorerTask, right: ExplorerTask): number {
+  if (left.completed !== right.completed) {
+    return left.completed ? 1 : -1;
+  }
+  // Dated work sorts ahead of undated work, earliest first.
+  if (left.due !== right.due) {
+    if (left.due === undefined) return 1;
+    if (right.due === undefined) return -1;
+    return compareText(left.due, right.due);
+  }
+  return compareText(left.noteTitle, right.noteTitle) || left.line - right.line;
+}
+
+function brokenLinkCount(snapshot: IndexSnapshot): number {
+  return getBrokenLinks(snapshot).length;
+}
+
+function dueTodayCount(snapshot: IndexSnapshot, today = todayStamp()): number {
+  return snapshot.tasks.filter((task) => isDueToday(task, today)).length;
 }
 
 function compareText(left: string, right: string): number {

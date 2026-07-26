@@ -17,6 +17,8 @@ export const COMMAND_IDS = {
   openTodayTasks: "vispNotes.openTodayTasks",
   search: "vispNotes.search",
   openNote: "vispNotes.openNote",
+  useAsDefaultEditor: "vispNotes.useAsDefaultEditor",
+  useTextEditorByDefault: "vispNotes.useTextEditorByDefault",
 } as const;
 
 export const CONTRIBUTED_COMMAND_IDS = Object.freeze(Object.values(COMMAND_IDS));
