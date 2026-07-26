@@ -9,6 +9,7 @@ import {
 import type { DecorationSet, ViewUpdate } from "@codemirror/view";
 import { parseCalloutBlock } from "../../markdown/callouts.js";
 import type { CalloutHeader } from "../../markdown/callouts.js";
+import type { MarkdownBlock } from "../../domain/models.js";
 import { pipePositions, rowCells, tableBlocks } from "../../markdown/tables.js";
 import type { TableLineKind } from "../../markdown/tables.js";
 import {
@@ -270,15 +271,24 @@ function decorateTableLine(
     if (width === undefined || cell.end <= cell.start) continue;
     ranges.push(
       Decoration.mark({
-        class: "live-table-cell",
+        class: cell.column === 0 ? "live-table-cell is-first" : "live-table-cell",
         attributes: { style: `min-width: ${width + 2}ch` },
       }).range(from + cell.start, from + cell.end),
     );
   }
+  /*
+   * The pipes go once the columns hold their own shape. Dimming them was not enough: a row of
+   * `| yes | yes |` still reads as source rather than as a table, and the column edge is carried
+   * by the cell now. They come back with the caret, because that is when they are being edited.
+   */
   for (const offset of pipePositions(text)) {
-    ranges.push(
-      Decoration.mark({ class: "live-table-pipe" }).range(from + offset, from + offset + 1),
-    );
+    if (active) {
+      ranges.push(
+        Decoration.mark({ class: "live-table-pipe" }).range(from + offset, from + offset + 1),
+      );
+    } else {
+      addHiddenMarkup(ranges, from + offset, 1, false);
+    }
   }
 }
 
@@ -312,6 +322,7 @@ function decorateLine(
 
   if (block?.kind === "code") {
     ranges.push(Decoration.line({ class: "live-code-line" }).range(from));
+    decorateCodeFence(ranges, from, to, text, block, active);
   }
   if (block?.kind === "heading" && block.range.start === from) {
     const heading = /^(\s{0,3})(#{1,6})(?:\s+|$)/.exec(text);
@@ -359,6 +370,7 @@ function decorateLine(
     const callout = parseCalloutBlock(block.source);
     if (callout === undefined) {
       ranges.push(Decoration.line({ class: "live-quote-line" }).range(from));
+      hideQuoteMarker(ranges, from, text, active);
     } else {
       decorateCalloutLine(from, text, block.range.start === from, callout, active, ranges);
     }
@@ -453,6 +465,7 @@ function decorateCalloutLine(
   const classes = ["live-callout-line", `live-callout-${callout.tone}`];
   if (isHeader) classes.push("is-header");
   ranges.push(Decoration.line({ class: classes.join(" ") }).range(from));
+  hideQuoteMarker(ranges, from, text, active);
   if (!isHeader || active) {
     return;
   }
@@ -463,6 +476,51 @@ function decorateCalloutLine(
       Decoration.replace({
         widget: new CalloutIconWidget(callout.icon, callout.kind),
       }).range(markerFrom, markerTo),
+    );
+  }
+}
+
+/**
+ * The `>` that marks a quote or a callout. The block already reads as one — it carries a left
+ * edge and its own tone — so repeating the marker on every line only makes the prose ragged.
+ * It comes back the moment the caret is on the line, like every other hidden mark here.
+ */
+function hideQuoteMarker(
+  ranges: Range<Decoration>[],
+  from: number,
+  text: string,
+  active: boolean,
+): void {
+  const marker = /^(\s{0,3})((?:>[ \t]?)+)/.exec(text);
+  if (marker?.[2] === undefined) return;
+  addHiddenMarkup(ranges, from + (marker[1]?.length ?? 0), marker[2].length, active);
+}
+
+/**
+ * A fenced block's own fence. The block is already drawn as code, so the backticks are noise;
+ * the language is not, and stays as a quiet label above the code.
+ */
+function decorateCodeFence(
+  ranges: Range<Decoration>[],
+  from: number,
+  to: number,
+  text: string,
+  block: MarkdownBlock,
+  active: boolean,
+): void {
+  const fence = /^(\s*)(`{3,}|~{3,})(\S*)/.exec(text);
+  if (fence?.[2] === undefined) return;
+  const opening = block.range.start === from;
+  const closing = to >= block.range.end - 1;
+  if (!opening && !closing) return;
+  const markerFrom = from + (fence[1]?.length ?? 0);
+  addHiddenMarkup(ranges, markerFrom, fence[2].length, active);
+  const language = fence[3] ?? "";
+  if (opening && language.length > 0 && !active) {
+    const languageFrom = markerFrom + fence[2].length;
+    ranges.push(
+      Decoration.mark({ class: "live-code-lang" })
+        .range(languageFrom, languageFrom + language.length),
     );
   }
 }

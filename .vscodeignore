@@ -1,0 +1,10 @@
+# `files` in package.json is already a whitelist, so this only has to drop what lives inside
+# those directories but has no business in the installed extension.
+
+# README screenshots. The Marketplace rewrites the README's relative image paths to the
+# repository, so it fetches these over HTTP and shipping them would more than double the
+# download for something no installed copy ever reads.
+media/screenshots/**
+
+# Local harness pages used to drive the webviews in a browser while developing.
+*.local.html

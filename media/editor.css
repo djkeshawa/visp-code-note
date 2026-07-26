@@ -544,6 +544,12 @@
   display: inline-block;
 }
 
+/* With the pipes hidden, the column edge is the cell's own, kept faint so rows stay readable. */
+.is-live-mode .live-table-cell:not(.is-first) {
+  border-left: 1px solid color-mix(in srgb, var(--visp-border) 70%, transparent);
+  padding-left: 0.6ch;
+}
+
 .is-live-mode .live-table-pipe {
   color: color-mix(in srgb, var(--visp-muted) 45%, transparent);
 }
@@ -589,9 +595,28 @@
   line-height: 1.6;
 }
 
+/*
+ * Frontmatter is YAML, but the Markdown highlighter tokenises it anyway, so a bracketed value
+ * such as `tags: [research, active]` was painted as a link — purple and underlined, inviting a
+ * click that does nothing. The block is presented per line, so the line's own colour wins here.
+ */
+.is-live-mode .live-frontmatter-line span {
+  color: inherit;
+  font-style: normal;
+  text-decoration: none;
+}
+
 .is-live-mode .live-frontmatter-line.is-fence {
   /* Still text, so keep it legible rather than purely decorative. */
   color: color-mix(in srgb, var(--visp-muted) 82%, transparent);
+}
+
+/* The fenced block's language, kept as a label once the backticks are out of the way. */
+.is-live-mode .live-code-lang {
+  color: var(--visp-muted);
+  font-size: 0.85em;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
 }
 
 .is-live-mode .live-code-line {

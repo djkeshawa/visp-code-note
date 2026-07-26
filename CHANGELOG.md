@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+### Fixed — Markdown that still looked like Markdown
+
+- **A quote or callout repeated its `>` on every line.** The block already carries a left edge
+  and its own tone, so the marker only made the prose ragged. It is hidden now, and comes back
+  on whichever line the caret is on, like every other mark in Live mode.
+- **A fenced code block showed its own fences.** The block is already drawn as code; the
+  backticks were noise. The language stays as a quiet label above the code.
+- **A table showed every `|`.** Dimming them was not enough — a row of `| yes | yes |` still read
+  as source. The columns already hold their own width, so the pipes are hidden and the column
+  edge is the cell's own. Putting the caret on a row brings the full source back.
+- **Frontmatter was highlighted as Markdown**, so `tags: [research, active]` was painted as a
+  link, underlined and coloured, inviting a click that did nothing.
+
+### Added
+
+- README screenshots of the editor, the knowledge graph and the Tasks view, captured from the
+  real webviews rather than mocked up.
+
 ### Fixed — outlining plain lines, not just bullets
 
 - **A line of prose could not be collapsed.** Folding recognised headings and list items only,

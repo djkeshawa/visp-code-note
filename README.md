@@ -2,6 +2,8 @@
 
 Visp Notes turns ordinary workspace Markdown files into a connected note system inside VS Code. Markdown remains the source of truth: there is no proprietary note database and no network service.
 
+![The Visp Notes editor in Live mode: headings, nested outlines with fold controls, wiki links, and checkbox tasks](media/screenshots/editor.png)
+
 ## Features
 
 - Continuous Markdown editing with one natural CodeMirror document, Live/Markdown modes, undo history, search, bracket matching, list continuation, and explicit sync/conflict status
@@ -14,6 +16,21 @@ Visp Notes turns ordinary workspace Markdown files into a connected note system 
 - Safe note rename choices with a native before/after diff preview
 - Broken-link diagnostics
 - Note folders, smart views, tags, full-text search, and index status in the Activity Bar
+
+Headings, quotes, callouts, tables, and fenced code read as themselves while the caret is
+elsewhere, and the raw Markdown comes back on whichever line you are editing — the text never
+leaves the document.
+
+![A callout, an aligned table, and a fenced code block rendered in Live mode](media/screenshots/editor-blocks.png)
+
+Every note, tag, and unresolved link in the workspace, with the selected note's connections
+listed beside it.
+
+![The knowledge graph with a note selected, its links highlighted and its connections listed](media/screenshots/graph.png)
+
+Checkbox tasks from every note in one place, grouped by due date, note, or tag.
+
+![The Tasks view grouping open tasks by due date, with priorities and source notes](media/screenshots/tasks.png)
 
 ## Getting started
 
