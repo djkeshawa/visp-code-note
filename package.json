@@ -335,6 +335,12 @@
           "default": 1,
           "description": "Default link depth for the local knowledge graph."
         },
+        "vispNotes.editor.fontFamily": {
+          "type": "string",
+          "default": "",
+          "scope": "window",
+          "markdownDescription": "Font family for rendered note prose. Leave empty to follow VS Code's interface font. Fenced code and inline code always follow `#editor.fontFamily#`. Only font names, quotes, commas, spaces and hyphens are accepted."
+        },
         "vispNotes.editor.contentWidth": {
           "type": "string",
           "enum": [

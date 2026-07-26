@@ -110,6 +110,7 @@ tags: [engineering, architecture]
 
 - `vispNotes.notesFolder` — workspace-relative folder for new notes.
 - `vispNotes.exclude` — glob patterns kept out of the index.
+- `vispNotes.editor.fontFamily` — font for rendered note prose. Leave empty to follow VS Code's interface font. Fenced and inline code always follow `editor.fontFamily`.
 - `vispNotes.editor.contentWidth` — `readable`, `wide`, or `full` measure for note content. Also changeable from the editor's context strip, which writes this setting so every open note agrees.
 - `vispNotes.graph.defaultDepth` — default local-graph link depth.
 - `vispNotes.openRenderedAfterCreate` — open newly created notes in the Visp Notes editor.

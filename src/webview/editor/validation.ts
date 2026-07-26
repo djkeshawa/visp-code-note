@@ -8,6 +8,7 @@ export function isEditorState(value: unknown): value is EditorStateWire {
   return (
     typeof state.uri === "string" &&
     EDITOR_CONTENT_WIDTHS.some((width) => width === state.contentWidth) &&
+    (state.proseFont === undefined || typeof state.proseFont === "string") &&
     (state.recoveredDraft === undefined || (
       isRecord(state.recoveredDraft) &&
       typeof state.recoveredDraft.source === "string" &&

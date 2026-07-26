@@ -30,6 +30,7 @@ export interface EditorStateWire extends EditorDocumentStateWire {
   readonly uri: string;
   readonly noteSuggestions: readonly NoteSuggestionWire[];
   readonly contentWidth: EditorContentWidthWire;
+  readonly proseFont?: string;
   readonly recoveredDraft?: RecoveredDraftWire;
 }
 
@@ -56,6 +57,7 @@ export type HostToEditorWire =
   | { readonly type: "editor/insertLink"; readonly target: string }
   | { readonly type: "editor/insertTag"; readonly tag: string }
   | { readonly type: "editor/removeTag"; readonly tag: string }
+  | { readonly type: "editor/proseFont"; readonly fontFamily?: string }
   | { readonly type: "editor/contentWidth"; readonly contentWidth: EditorContentWidthWire }
   | {
       readonly type: "editor/indexState";

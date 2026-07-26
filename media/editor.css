@@ -240,7 +240,7 @@
 
 .editor-host.is-live-mode .cm-content {
   color: var(--visp-prose);
-  font-family: var(--visp-font);
+  font-family: var(--visp-prose-font, var(--visp-font));
   font-size: 14px;
   line-height: 1.72;
 }

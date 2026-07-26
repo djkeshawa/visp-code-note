@@ -2,6 +2,18 @@
 
 ## 0.3.0 - 2026-07-26
 
+### Added — prose font setting
+
+- `vispNotes.editor.fontFamily` sets the font for rendered note prose. Empty follows VS
+  Code's interface font, which is the default. Fenced code and inline code continue to follow
+  `editor.fontFamily`, so a font configured there was always already in use for code.
+- The value is validated against an allow-list on both the extension host and in the webview.
+  It is a window-scoped setting, which means workspace settings — a cloned repository — can
+  supply it, and it reaches a stylesheet; the extension declares support for untrusted
+  workspaces, so it is treated as attacker-controlled. Letters of any script are accepted so
+  a CJK or Cyrillic font name works, while semicolons, braces, brackets, slashes and the rest
+  are refused rather than escaped.
+
 ### Added — a colour scheme for rendered notes
 
 - **Fenced code blocks are syntax highlighted.** They previously rendered as flat monospace

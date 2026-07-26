@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { DraftRecoveryStore } from "../../application/draftRecoveryStore";
 import { parseEditorContentWidth } from "../../application/editorContentWidth";
+import { parseProseFont } from "../../application/proseFont";
 import type { EditorContentWidth } from "../../application/editorContentWidth";
 import type { EditorDocumentState, HostToEditorMessage } from "../../domain/protocol";
 import { parseMarkdown } from "../../markdown/parser";
@@ -41,6 +42,9 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
       vscode.workspace.onDidChangeConfiguration((event) => {
         if (event.affectsConfiguration(CONTENT_WIDTH_SETTING)) {
           this.publishContentWidth();
+        }
+        if (event.affectsConfiguration(PROSE_FONT_SETTING)) {
+          this.publishProseFont();
         }
       }),
     );
@@ -309,6 +313,7 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
         ...state,
         noteSuggestions: buildNoteSuggestions(this.index.snapshot.notes, document.uri.toString()),
         contentWidth: contentWidthSetting(),
+        ...(proseFontSetting() === undefined ? {} : { proseFont: proseFontSetting() }),
         ...(recoveredDraft === undefined ? {} : { recoveredDraft }),
       },
     } satisfies HostToEditorMessage);
@@ -402,6 +407,18 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
     return fileName.replace(/\.md$/i, "");
   }
 
+  private publishProseFont(): void {
+    const fontFamily = proseFontSetting();
+    for (const [, panels] of this.panels.entries()) {
+      for (const panel of panels) {
+        void panel.webview.postMessage({
+          type: "editor/proseFont",
+          ...(fontFamily === undefined ? {} : { fontFamily }),
+        } satisfies HostToEditorMessage);
+      }
+    }
+  }
+
   private publishContentWidth(): void {
     const contentWidth = contentWidthSetting();
     for (const [, panels] of this.panels.entries()) {
@@ -426,6 +443,12 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
 }
 
 const CONTENT_WIDTH_SETTING = "vispNotes.editor.contentWidth";
+
+const PROSE_FONT_SETTING = "vispNotes.editor.fontFamily";
+
+function proseFontSetting(): string | undefined {
+  return parseProseFont(vscode.workspace.getConfiguration().get<string>(PROSE_FONT_SETTING));
+}
 
 function contentWidthSetting(): EditorContentWidth {
   return parseEditorContentWidth(

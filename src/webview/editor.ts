@@ -27,6 +27,7 @@ import {
   isUnresolvedLinks,
 } from "./editor/validation.js";
 import { planTagAddition, planTagRemoval } from "../application/noteMetadataEdits.js";
+import { parseProseFont } from "../application/proseFont.js";
 import { codicon, isRecord, requireElement, setNotice, statChip } from "./shared/dom.js";
 import { acquireWebviewApi } from "./shared/vscodeApi.js";
 
@@ -83,6 +84,8 @@ function handleHostMessage(event: MessageEvent<unknown>): void {
     isEditorDocumentState(message.state)
   ) {
     acceptEditorDocumentState(message.state);
+  } else if (message.type === "editor/proseFont") {
+    setProseFont(message.fontFamily);
   } else if (message.type === "editor/contentWidth") {
     setContentWidth(parseEditorContentWidth(message.contentWidth));
   } else if (message.type === "editor/toggleMode") {
@@ -117,6 +120,7 @@ function handleHostMessage(event: MessageEvent<unknown>): void {
 function acceptEditorState(nextState: EditorStateWire): void {
   suggestions = nextState.noteSuggestions;
   setContentWidth(parseEditorContentWidth(nextState.contentWidth));
+  setProseFont(nextState.proseFont);
   acceptEditorDocumentState(nextState);
   if (nextState.recoveredDraft !== undefined) {
     runTransition(sync.recoverDraft(
@@ -233,6 +237,21 @@ function setMode(mode: MarkdownEditorMode): void {
   liveMode.setAttribute("aria-pressed", String(live));
   markdownMode.classList.toggle("is-active", !live);
   markdownMode.setAttribute("aria-pressed", String(!live));
+}
+
+/**
+ * Applies the configured prose font, or clears the override so the interface font shows
+ * through. The value is re-validated here even though the host already checked it: a
+ * window-scoped setting can come from workspace settings, which is to say from a cloned
+ * repository, and it ends up in a stylesheet.
+ */
+function setProseFont(fontFamily: unknown): void {
+  const font = parseProseFont(fontFamily);
+  if (font === undefined) {
+    editorHost.style.removeProperty("--visp-prose-font");
+  } else {
+    editorHost.style.setProperty("--visp-prose-font", font);
+  }
 }
 
 function setContentWidth(contentWidth: EditorContentWidth): void {

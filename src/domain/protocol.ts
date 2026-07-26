@@ -16,6 +16,8 @@ export interface EditorState extends EditorDocumentState {
   readonly uri: string;
   readonly noteSuggestions: readonly NoteSuggestion[];
   readonly contentWidth: EditorContentWidth;
+  /** Absent when rendered prose should follow the interface font. */
+  readonly proseFont?: string;
   readonly recoveredDraft?: RecoveredDraft;
 }
 
@@ -42,6 +44,7 @@ export type HostToEditorMessage =
   | { readonly type: "editor/insertLink"; readonly target: string }
   | { readonly type: "editor/insertTag"; readonly tag: string }
   | { readonly type: "editor/removeTag"; readonly tag: string }
+  | { readonly type: "editor/proseFont"; readonly fontFamily?: string }
   | { readonly type: "editor/contentWidth"; readonly contentWidth: EditorContentWidth }
   | {
       readonly type: "editor/indexState";
