@@ -147,9 +147,14 @@ export async function applyRenameTransaction(transaction: RenameTransaction): Pr
   }
 
   try {
-    if (!(await applyValidatedContentEdit(transaction))) {
+    const saveable = await applyValidatedContentEdit(transaction);
+    if (saveable === false) {
       throw new Error("VS Code rejected the link and title updates.");
     }
+    // The file rename is already on disk. Leaving the link and title updates unsaved would
+    // mean a crash or a "Don't Save" leaves the note renamed with every incoming link still
+    // pointing at the old name, so persist the halves together.
+    await persistRenameEdits(saveable);
   } catch (error) {
     if (fileRenamed) {
       await rollbackFileRename(
@@ -163,8 +168,15 @@ export async function applyRenameTransaction(transaction: RenameTransaction): Pr
   }
 }
 
-async function applyValidatedContentEdit(transaction: RenameTransaction): Promise<boolean> {
-  if (!transaction.hasContentEdits) return true;
+/**
+ * Applies the content edit and reports which documents this operation made dirty, so only
+ * those get saved. A document the user had already left unsaved is theirs: saving it would
+ * commit edits they never asked to write.
+ */
+async function applyValidatedContentEdit(
+  transaction: RenameTransaction,
+): Promise<readonly vscode.TextDocument[] | false> {
+  if (!transaction.hasContentEdits) return [];
   let openDocuments = new Map(
     vscode.workspace.textDocuments.map((document) => [document.uri.toString(), document]),
   );
@@ -177,12 +189,28 @@ async function applyValidatedContentEdit(transaction: RenameTransaction): Promis
       vscode.workspace.textDocuments.map((document) => [document.uri.toString(), document]),
     );
   }
+  const cleanBeforeEdit: vscode.TextDocument[] = [];
   for (const expected of transaction.expectedDocuments) {
-    if (openDocuments.get(expected.uri.toString())?.getText() !== expected.source) {
+    const document = openDocuments.get(expected.uri.toString());
+    if (document?.getText() !== expected.source) {
       throw new Error(`The file ${expected.uri.fsPath} changed after the preview.`);
     }
+    if (!document.isDirty) cleanBeforeEdit.push(document);
   }
-  return vscode.workspace.applyEdit(transaction.contentEdit);
+  return (await vscode.workspace.applyEdit(transaction.contentEdit)) && cleanBeforeEdit;
+}
+
+async function persistRenameEdits(documents: readonly vscode.TextDocument[]): Promise<void> {
+  const unsaved = documents.filter((document) => document.isDirty);
+  const failed = (await mapConcurrent(unsaved, 16, async (document) =>
+    (await document.save()) ? undefined : document.uri.fsPath))
+    .filter((path): path is string => path !== undefined);
+  if (failed.length > 0) {
+    throw new Error(
+      `The note was renamed but these files could not be saved: ${failed.join(", ")}. ` +
+      "Save them to finish updating the links.",
+    );
+  }
 }
 
 async function rollbackFileRename(

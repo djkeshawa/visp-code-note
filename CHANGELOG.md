@@ -2,6 +2,21 @@
 
 ## 0.3.0 - 2026-07-26
 
+### Fixed — rename durability
+
+- **A rename left its link and title updates unsaved while the file rename was already on
+  disk.** `applyEdit` writes a file rename straight to the filesystem but applies text edits
+  to in-memory buffers, so closing without saving — or a crash, or "Don't Save" — left the
+  note renamed with every incoming link still pointing at the old title. The two halves of
+  the transaction now persist together. Documents the user had already left dirty are not
+  saved, because those edits are theirs to commit.
+- `Visp Notes: Rename Note` accepts `{ uri, title, mode }` as a command argument, which
+  skips the title prompt, the mode picker, the diff preview and the confirmation modal. That
+  makes the rename usable from a keybinding or another extension, and is what let the
+  integration suite drive a path guarded by three interactive gates.
+- Fixed a crash reaching `Uri.parse(undefined)` when a rename request omitted `uri`, and
+  derived the new file name from the same trimmed title every other step uses.
+
 ### Added — integration tests
 
 - Added an extension-host suite (`npm run test:integration`) that drives a real VS Code
@@ -11,7 +26,8 @@
   broken for the commonest frontmatter shape.
 - Covers task toggling, tag add and remove across inline lists, block sequences and notes
   without frontmatter, CRLF and YAML-comment preservation, refusal of unsafe YAML, and the
-  boundary that a plain file rename never rewrites a user's links.
+  full rename transaction across all three modes — including renaming twice with aliases,
+  the shape that used to throw.
 - `Visp Notes: Add Tag` and `Remove Tag` now accept the tag as a command argument, which
   skips the picker. That makes them usable from a keybinding or another extension, and is
   what lets the suite drive them — an interactive quick pick cannot be answered from a test.

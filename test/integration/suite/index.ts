@@ -4,6 +4,7 @@ import { runRegisteredTests } from "../harness";
 export async function run(): Promise<void> {
   // Importing a suite registers its tests.
   await import("./fileWrites.test.js");
+  await import("./rename.test.js");
   const summary = await runRegisteredTests();
   // eslint-disable-next-line no-console
   console.log(`\nintegration: ${summary.passed} passed, ${summary.failed} failed`);

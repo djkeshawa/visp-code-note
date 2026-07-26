@@ -13,12 +13,41 @@ import {
   type RenameMode,
 } from "./renameTransaction";
 
+/**
+ * A fully specified rename, supplied as the command argument.
+ *
+ * Passing one skips the title prompt, the mode picker, the diff preview and the
+ * confirmation modal: the caller has already made every decision those ask about. This is
+ * what makes the rename path drivable from a keybinding, another extension, or the
+ * integration suite — three interactive gates cannot be answered from a test.
+ */
+export interface RenameNoteRequest {
+  readonly uri?: unknown;
+  readonly title: string;
+  readonly mode: RenameMode;
+}
+
+const RENAME_MODES: readonly RenameMode[] = ["updateLinks", "preserveAlias", "pathOnly"];
+
+function asRenameRequest(value: unknown): RenameNoteRequest | undefined {
+  if (typeof value !== "object" || value === null) return undefined;
+  const candidate = value as Partial<RenameNoteRequest>;
+  if (typeof candidate.title !== "string") return undefined;
+  return RENAME_MODES.some((mode) => mode === candidate.mode)
+    ? { uri: candidate.uri, title: candidate.title, mode: candidate.mode! }
+    : undefined;
+}
+
 export async function renameNote(
   index: CommandIndex,
   value?: unknown,
   showDiff?: (title: string, before: string, after: string) => Promise<void>,
 ): Promise<void> {
-  const uri = coerceUri(value) ?? activeMarkdownUri();
+  const request = asRenameRequest(value);
+  const requestedUri = request === undefined
+    ? coerceUri(value)
+    : request.uri === undefined ? undefined : coerceUri(request.uri);
+  const uri = requestedUri ?? activeMarkdownUri();
   if (uri) await index.rebuild();
   const note = uri ? index.findNote(uri) : undefined;
   if (!note) {
@@ -26,7 +55,7 @@ export async function renameNote(
     return;
   }
 
-  const nextTitle = await vscode.window.showInputBox({
+  const nextTitle = request?.title ?? await vscode.window.showInputBox({
     title: "Rename Visp Note",
     prompt: "Enter the new note title and file name",
     value: note.title,
@@ -38,24 +67,32 @@ export async function renameNote(
       return conflict ? `This title or alias is already used by ${conflict.path}.` : undefined;
     },
   });
-  if (
-    !nextTitle?.trim() ||
-    validateNoteTitle(nextTitle) ||
-    conflictingNote(index.snapshot.notes, nextTitle, note.uri)
-  ) {
+  if (nextTitle === undefined || nextTitle.trim() === "") {
+    if (request !== undefined) throw new Error("A note title is required.");
     return;
   }
+  const titleProblem = validateNoteTitle(nextTitle) ??
+    (conflictingNote(index.snapshot.notes, nextTitle, note.uri)
+      ? "This title or alias is already used by another note."
+      : undefined);
+  if (titleProblem !== undefined) {
+    // Interactively this means the prompt was dismissed or corrected; a caller that passed
+    // an explicit title needs to hear why nothing happened.
+    if (request !== undefined) throw new Error(titleProblem);
+    return;
+  }
+  const requestedTitle = nextTitle.trim();
 
-  const mode = await pickRenameMode();
+  const mode = request?.mode ?? await pickRenameMode();
   if (!mode) {
     return;
   }
 
-  if (mode !== "pathOnly" && nextTitle.trim() === note.title) {
+  if (mode !== "pathOnly" && requestedTitle === note.title) {
     return;
   }
 
-  const nextUri = siblingUri(vscode.Uri.parse(note.uri), titleToFileName(nextTitle));
+  const nextUri = siblingUri(vscode.Uri.parse(note.uri), titleToFileName(requestedTitle));
   const previousUri = vscode.Uri.parse(note.uri);
   const pathChanged = nextUri.toString() !== note.uri;
   if (!pathChanged && mode === "pathOnly") {
@@ -72,42 +109,44 @@ export async function renameNote(
     nextUri,
     (vscode.workspace.workspaceFolders?.length ?? 0) > 1,
   ).replace(/\\/g, "/");
-  const replacements = linkReplacements(index, note, nextTitle.trim(), nextPath, mode);
+  const replacements = linkReplacements(index, note, requestedTitle, nextPath, mode);
   const preview = await prepareRenameTransaction(
     note,
     nextUri,
-    nextTitle.trim(),
+    requestedTitle,
     mode,
     replacements,
     intermediateUri,
   );
-  if (preview.before !== undefined && preview.after !== undefined && showDiff) {
-    await showDiff("Visp Notes: Rename Preview", preview.before, preview.after);
-  }
-  if (!(await confirmRename(
-    note,
-    nextTitle.trim(),
-    nextUri,
-    mode,
-    replacements.map((item) => item.uri),
-  ))) {
-    return;
+  if (request === undefined) {
+    if (preview.before !== undefined && preview.after !== undefined && showDiff) {
+      await showDiff("Visp Notes: Rename Preview", preview.before, preview.after);
+    }
+    if (!(await confirmRename(
+      note,
+      requestedTitle,
+      nextUri,
+      mode,
+      replacements.map((item) => item.uri),
+    ))) {
+      return;
+    }
   }
 
   await index.rebuild();
   const currentNote = index.findNote(note.uri);
   if (!currentNote) throw new Error("The note moved or was deleted after the rename preview.");
-  if (conflictingNote(index.snapshot.notes, nextTitle, currentNote.uri)) {
+  if (conflictingNote(index.snapshot.notes, requestedTitle, currentNote.uri)) {
     throw new Error("The requested title now conflicts with another note.");
   }
   if (pathChanged && await destinationConflicts(previousUri, nextUri, caseOnlyRename)) {
     throw new Error(`The destination ${nextUri.fsPath} now exists.`);
   }
-  const currentReplacements = linkReplacements(index, currentNote, nextTitle.trim(), nextPath, mode);
+  const currentReplacements = linkReplacements(index, currentNote, requestedTitle, nextPath, mode);
   const transaction = await prepareRenameTransaction(
     currentNote,
     nextUri,
-    nextTitle.trim(),
+    requestedTitle,
     mode,
     currentReplacements,
     intermediateUri,
