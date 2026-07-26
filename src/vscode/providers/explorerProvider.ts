@@ -24,7 +24,7 @@ export class NotesExplorerProvider
 
   constructor(
     private readonly index: WorkspaceIndex,
-    private readonly toggleTask: (task: ExplorerTask) => Promise<void>,
+    private readonly toggleTask: (task: ExplorerTask, snapshotVersion: number) => Promise<void>,
   ) {
     this.subscriptions = [
       index.onDidChange(() => this.changeEmitter.fire(undefined)),
@@ -90,7 +90,7 @@ export class NotesExplorerProvider
       // The toggle is driven by the indexed state, so ignore events that ask for the
       // state the task is already in.
       if (requested === node.task.completed) continue;
-      await this.toggleTask(node.task);
+      await this.toggleTask(node.task, node.snapshotVersion);
     }
   }
 

@@ -53,6 +53,16 @@ test("a timestamped due date still counts as today", () => {
   );
 });
 
+test("each row carries the index version it was built from", () => {
+  // Toggling passes this back so a row rendered against a stale index is rejected rather
+  // than edited. Reading the live version at click time would make that check inert.
+  const versioned = buildSnapshot([PLANNING], 7);
+
+  for (const node of taskNodes(versioned, "all", TODAY)) {
+    assert.equal(node.kind === "task" ? node.snapshotVersion : undefined, 7);
+  }
+});
+
 test("today's stamp is a sortable ISO date", () => {
   assert.equal(todayStamp(new Date(Date.UTC(2026, 6, 4, 12))), "2026-07-04");
   assert.match(todayStamp(), /^\d{4}-\d{2}-\d{2}$/);

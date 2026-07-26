@@ -16,7 +16,15 @@ export type ExplorerNode =
       readonly label: string;
       readonly count?: number;
     }
-  | { readonly kind: "task"; readonly task: ExplorerTask }
+  | {
+      readonly kind: "task";
+      readonly task: ExplorerTask;
+      /**
+       * Index version this row was built from. Passed back on toggle so a row rendered
+       * against a stale index is rejected instead of edited.
+       */
+      readonly snapshotVersion: number;
+    }
   | { readonly kind: "tag"; readonly tag: string; readonly count: number }
   | { readonly kind: "status" };
 
@@ -106,7 +114,7 @@ export function taskNodes(
     : snapshot.tasks;
   return [...tasks]
     .sort(compareTasks)
-    .map((task) => ({ kind: "task" as const, task }));
+    .map((task) => ({ kind: "task" as const, task, snapshotVersion: snapshot.version }));
 }
 
 /**

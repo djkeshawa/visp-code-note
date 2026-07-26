@@ -4,7 +4,7 @@ export type TaskStatusFilter = "open" | "all" | "completed";
 export type TaskGrouping = "due" | "note" | "tag";
 export type DueGroupName = "Overdue" | "Today" | "Upcoming" | "No due date" | "Completed";
 
-export const TASK_GROUPINGS: readonly TaskGrouping[] = ["due", "note", "tag"];
+const TASK_GROUPINGS: readonly TaskGrouping[] = ["due", "note", "tag"];
 
 export interface TaskFilter {
   readonly query: string;

@@ -48,14 +48,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     draftRecoveries,
   );
   activeNoteEditor = noteEditor;
-  const explorer = new NotesExplorerProvider(index, (task) =>
+  const explorer = new NotesExplorerProvider(index, (task, snapshotVersion) =>
     toggleTask(
       index,
       task.noteUri,
       task.range.start,
       task.id,
       task.completed,
-      index.snapshot.version,
+      snapshotVersion,
     ));
   const explorerView = vscode.window.createTreeView("vispNotes.explorer", {
     treeDataProvider: explorer,
