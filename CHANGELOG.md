@@ -2,6 +2,26 @@
 
 ## 0.3.0 - 2026-07-26
 
+### Changed — rendered prose colour
+
+Saturation was being spent on decoration while structure got none: every bullet, every
+wiki link, and every blockquote carried the accent colour, while headings were rendered in
+exactly the same colour as body text. Colour now marks meaning, and structure relies on
+hierarchy.
+
+- Headings keep the theme's foreground; body prose sits at 88% of it. Hierarchy comes from
+  contrast rather than a heading colour of its own, so it holds in any theme instead of only
+  the one it was tuned in. Measured: heading 10.26:1 against prose 8.22:1 in Dark Modern,
+  11.2:1 against 7.69:1 in Light Modern — every value well clear of WCAG AA.
+- List markers are muted and no longer semi-bold. A long list read as a column of bright
+  dots competing with the words beside it.
+- Wiki links drop their standing background tint, keeping colour and a soft underline; the
+  tint now marks hover. Three simultaneous signals on an element that appears many times per
+  paragraph turned a well-linked note into a field of highlighted blocks. Unresolved links
+  keep a standing tint, because that one carries meaning.
+- Plain blockquotes take a neutral rule and no tint, so callouts are visibly the thing that
+  stands out rather than looking near-identical to an ordinary quotation.
+
 ### Fixed — rename durability
 
 - **A rename left its link and title updates unsaved while the file rename was already on

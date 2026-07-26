@@ -21,6 +21,14 @@
    * as secondary text.
    */
   --visp-muted-strong: color-mix(in srgb, var(--visp-muted) 72%, var(--visp-text));
+
+  /*
+   * Rendered prose sits a little below full strength so headings, which keep the theme's
+   * foreground exactly, gain hierarchy from contrast rather than from a colour of their
+   * own. Expressed against the theme token, so it holds in any theme instead of only the
+   * one it was tuned in. In Dark Modern this is roughly 8.5:1, well clear of AA.
+   */
+  --visp-prose: color-mix(in srgb, var(--visp-text) 88%, var(--visp-bg));
   --visp-accent: var(--vscode-textLink-foreground, LinkText);
   --visp-focus: var(--vscode-focusBorder, Highlight);
   --visp-danger: var(--vscode-errorForeground, #d64550);

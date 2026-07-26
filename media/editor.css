@@ -239,6 +239,7 @@
 }
 
 .editor-host.is-live-mode .cm-content {
+  color: var(--visp-prose);
   font-family: var(--visp-font);
   font-size: 14px;
   line-height: 1.72;
@@ -378,18 +379,21 @@
   line-height: 1.78;
 }
 
+/*
+ * Bullets are punctuation, repeated dozens of times per note and carrying no meaning. They
+ * used to be accent-coloured and semi-bold, which made a long list read as a column of
+ * bright dots competing with the words beside them.
+ */
 .is-live-mode .live-list-marker {
   display: inline-block;
   min-width: 1.25em;
-  color: var(--visp-accent);
-  font-weight: 650;
+  color: var(--visp-muted-strong);
   text-align: center;
 }
 
 .is-live-mode .live-quote-line {
-  border-left: 3px solid var(--visp-accent);
-  background: color-mix(in srgb, var(--visp-accent) 8%, transparent);
-  color: var(--vscode-textBlockQuote-foreground, var(--visp-muted));
+  border-left: 3px solid color-mix(in srgb, var(--visp-muted) 55%, transparent);
+  color: var(--vscode-textBlockQuote-foreground, var(--visp-muted-strong));
 }
 
 /* Callouts: `> [!note] Title`. Tone drives the accent; the block keeps one continuous edge. */
@@ -476,21 +480,27 @@
   font-size: var(--vscode-editor-font-size, 13px);
 }
 
+/*
+ * Colour and a soft underline are enough. A standing background tint was a third signal on
+ * an element this tool expects to appear many times per paragraph, which turned a
+ * well-linked note into a field of highlighted blocks. The tint now marks hover only.
+ */
 .is-live-mode .live-wiki-link {
   border-radius: 3px;
-  background: color-mix(in srgb, var(--visp-accent) 11%, transparent);
   color: var(--vscode-textLink-foreground, var(--visp-accent));
   text-decoration: underline;
-  text-decoration-color: color-mix(in srgb, currentColor 58%, transparent);
+  text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
   text-underline-offset: 2px;
+  transition: background-color 120ms ease;
 }
 
 .is-live-mode .live-wiki-link:hover {
-  background: color-mix(in srgb, var(--visp-accent) 20%, transparent);
+  background: color-mix(in srgb, var(--visp-accent) 18%, transparent);
+  text-decoration-color: currentColor;
 }
 
 .is-live-mode .live-wiki-link.is-unresolved {
-  background: color-mix(in srgb, var(--vscode-editorWarning-foreground, #ddb870) 11%, transparent);
+  background: color-mix(in srgb, var(--vscode-editorWarning-foreground, #ddb870) 13%, transparent);
   color: var(--vscode-editorWarning-foreground, #ddb870);
   text-decoration-line: underline;
   text-decoration-style: dashed;
@@ -660,7 +670,8 @@ body.vscode-high-contrast-light .live-wiki-link.is-unresolved {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .is-live-mode .live-reveal-line {
+  .is-live-mode .live-reveal-line,
+  .is-live-mode .live-wiki-link {
     transition: none;
   }
 }
