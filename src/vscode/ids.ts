@@ -17,6 +17,8 @@ export const COMMAND_IDS = {
   openTodayTasks: "vispNotes.openTodayTasks",
   search: "vispNotes.search",
   openNote: "vispNotes.openNote",
+  addTag: "vispNotes.addTag",
+  removeTag: "vispNotes.removeTag",
   useAsDefaultEditor: "vispNotes.useAsDefaultEditor",
   useTextEditorByDefault: "vispNotes.useTextEditorByDefault",
 } as const;

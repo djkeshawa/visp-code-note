@@ -9,6 +9,7 @@ export interface NoteContextWire {
   readonly folders: readonly string[];
   readonly fileName: string;
   readonly tags: readonly string[];
+  readonly frontmatterTags: readonly string[];
   readonly backlinkCount: number;
   readonly outgoingCount: number;
   readonly taskCount: number;
@@ -53,6 +54,8 @@ export type HostToEditorWire =
   | { readonly type: "editor/toggleMode" }
   | { readonly type: "editor/reveal"; readonly offset: number }
   | { readonly type: "editor/insertLink"; readonly target: string }
+  | { readonly type: "editor/insertTag"; readonly tag: string }
+  | { readonly type: "editor/removeTag"; readonly tag: string }
   | { readonly type: "editor/contentWidth"; readonly contentWidth: EditorContentWidthWire }
   | {
       readonly type: "editor/indexState";
@@ -85,6 +88,7 @@ export type EditorToHostWire =
     }
   | { readonly type: "editor/discardDraft"; readonly version: number }
   | { readonly type: "editor/requestLink" }
+  | { readonly type: "editor/requestTag" }
   | { readonly type: "editor/setContentWidth"; readonly contentWidth: EditorContentWidthWire }
   | { readonly type: "editor/ready" };
 

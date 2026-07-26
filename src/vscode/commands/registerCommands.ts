@@ -16,6 +16,7 @@ import { searchWorkspace } from "./searchWorkspace";
 import { createTask, toggleTaskAtEditor } from "./taskCommands";
 import { createMissingNote } from "./createMissingNote";
 import { useTextEditorByDefault, useVispNotesAsDefaultEditor } from "./editorAssociation";
+import { addTagToNote, removeTagFromNote } from "./tagCommands";
 import { COMMAND_IDS } from "../ids";
 
 export function registerCommands(
@@ -58,6 +59,8 @@ export function registerCommands(
   register(COMMAND_IDS.openTodayTasks, () => views.openTasks("today"));
   register(COMMAND_IDS.search, () => searchWorkspace(index));
   register(COMMAND_IDS.openNote, (value) => openNoteArgument(value));
+  register(COMMAND_IDS.addTag, () => addTagToNote(index, views));
+  register(COMMAND_IDS.removeTag, () => removeTagFromNote(index, views));
   register(COMMAND_IDS.useAsDefaultEditor, () => useVispNotesAsDefaultEditor());
   register(COMMAND_IDS.useTextEditorByDefault, () => useTextEditorByDefault());
 }

@@ -16,5 +16,7 @@ export interface FeatureViews {
   toggleEditor(uri?: vscode.Uri): Promise<void>;
   activeNoteUri(): vscode.Uri | undefined;
   insertLink(target: string): Promise<boolean>;
+  insertTag(tag: string): Promise<boolean>;
+  removeTag(tag: string): Promise<boolean>;
   showDiffPreview(title: string, before: string, after: string): Promise<void>;
 }

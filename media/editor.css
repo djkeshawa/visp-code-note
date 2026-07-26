@@ -81,12 +81,69 @@
 }
 
 .note-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
   padding: 0 6px;
   border-radius: 999px;
   background: color-mix(in srgb, var(--visp-accent) 14%, transparent);
   color: var(--visp-accent);
+  font-size: 11px;
   line-height: 17px;
   white-space: nowrap;
+}
+
+/* An inline `#tag` lives in the prose, so it reads as informational rather than editable. */
+.note-tag.is-inline {
+  background: color-mix(in srgb, var(--visp-muted) 16%, transparent);
+  color: var(--visp-muted-strong);
+}
+
+.note-tag.is-editable {
+  padding-right: 2px;
+}
+
+.note-tag-remove {
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  opacity: 0;
+}
+
+.note-tag-remove .codicon {
+  font-size: 10px;
+}
+
+/* Revealed on hover or keyboard focus so the strip stays quiet at rest. */
+.note-tag.is-editable:hover .note-tag-remove,
+.note-tag-remove:focus-visible {
+  opacity: 0.85;
+}
+
+.note-tag-remove:hover {
+  background: color-mix(in srgb, var(--visp-accent) 28%, transparent);
+  opacity: 1;
+}
+
+.note-tag-add {
+  padding: 0 5px;
+  background: transparent;
+  border: 1px dashed color-mix(in srgb, var(--visp-accent) 45%, transparent);
+  color: var(--visp-accent);
+}
+
+.note-tag-add .codicon {
+  font-size: 11px;
+}
+
+.note-tag-add:hover {
+  background: color-mix(in srgb, var(--visp-accent) 14%, transparent);
 }
 
 .note-stats {

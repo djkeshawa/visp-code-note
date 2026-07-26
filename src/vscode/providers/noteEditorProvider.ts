@@ -12,6 +12,7 @@ import { createMissingNote } from "../commands/createMissingNote";
 import { openNote } from "../commands/openNote";
 import { NOTE_EDITOR_VIEW_TYPE } from "../ids";
 import { isEditorMessage } from "./messageValidation";
+import { pickTag } from "./tagPicker";
 import { buildNoteSuggestions } from "./noteEditorSupport";
 import { NoteEditorEdits } from "./noteEditorEdits";
 import type { RecoverableNoteDraft } from "./noteEditorEdits";
@@ -104,6 +105,20 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
     return this.panels.activeUri;
   }
 
+  /** Asks the focused note editor to apply a frontmatter tag change to its own document. */
+  public async applyTag(tag: string, mode: "add" | "remove"): Promise<boolean> {
+    const panel = this.panels.active;
+    if (!panel?.active || !this.panels.isReady(panel)) {
+      return false;
+    }
+    await panel.webview.postMessage(
+      mode === "add"
+        ? ({ type: "editor/insertTag", tag } satisfies HostToEditorMessage)
+        : ({ type: "editor/removeTag", tag } satisfies HostToEditorMessage),
+    );
+    return true;
+  }
+
   public async insertLink(target: string): Promise<boolean> {
     const panel = this.panels.active;
     if (!panel?.active || !this.panels.isReady(panel)) {
@@ -183,6 +198,9 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
           break;
         case "editor/requestLink":
           await this.promptForLink(document, panel);
+          break;
+        case "editor/requestTag":
+          await this.promptForTag(document, panel);
           break;
         case "editor/openLink":
           await this.openWikiLink(document, message.target, message.beside ?? false);
@@ -357,6 +375,25 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
         type: "editor/insertLink",
         target: selected.target,
       } satisfies HostToEditorMessage);
+    }
+  }
+
+  /**
+   * Offers the workspace's tags, excluding those the note already declares in frontmatter.
+   * The webview applies the chosen tag to its own document, so the edit travels through the
+   * usual draft pipeline and stays undoable rather than arriving as an external change.
+   */
+  private async promptForTag(
+    document: vscode.TextDocument,
+    panel: vscode.WebviewPanel,
+  ): Promise<void> {
+    const context = buildNoteContext(this.index.snapshot, document.uri.toString());
+    const tag = await pickTag(this.index.snapshot, {
+      title: "Add a tag to this note",
+      exclude: new Set((context?.frontmatterTags ?? []).map((name) => name.toLocaleLowerCase())),
+    });
+    if (tag !== undefined) {
+      await panel.webview.postMessage({ type: "editor/insertTag", tag } satisfies HostToEditorMessage);
     }
   }
 

@@ -2,6 +2,32 @@
 
 ## 0.3.0 - 2026-07-26
 
+### Added — tag editing
+
+- Tags can now be added and removed from the note editor's context strip. Frontmatter tags
+  show a remove control on hover and a trailing `+` opens a picker over every tag in the
+  workspace, where typing a name that does not exist yet creates it.
+- `Visp Notes: Add Tag` and `Visp Notes: Remove Tag` do the same from the palette, and work
+  whether the note is open in the Visp Notes editor or in VS Code's own text editor.
+- Editing is deliberately frontmatter-only. An inline `#tag` lives in the author's prose, so
+  it is shown greyed with an explanation rather than being silently removed by rewriting the
+  sentence around it.
+- Changes are applied to the editor's own document, so they join the draft already in flight
+  and are undoable with a single Ctrl/Cmd+Z, rather than arriving as an external change and
+  raising a conflict prompt.
+- Frontmatter edits reuse the existing YAML safety layer: the file's line endings, BOM,
+  sequence indentation, quoting style and comments are preserved, a lone scalar is promoted
+  to a list rather than duplicating the key, and YAML shapes that cannot be edited safely are
+  refused with a message instead of half-edited.
+
+### Fixed
+
+- `planAliasAddition` failed on the most ordinary frontmatter shape — a block sequence as the
+  last property, such as `aliases:\n  - Old name\n---`. The slice to the closing fence left an
+  empty trailing line that the "no trivia between items" guard mistook for a blank line, so
+  "Rename Note and Update Links" refused to preserve the old title as an alias on those notes.
+  Genuine blank lines between items are still refused.
+
 ### Performance
 
 - **Replaced the graph's repulsion algorithm with Barnes–Hut quadtree repulsion.** Past 140 nodes the previous code stopped comparing each node with its actual neighbours and instead repelled it against a fixed 42 nodes picked by hash order, so large workspaces stopped separating and piled up. On a 3,342-node graph, overlapping node pairs fall from 1,345 to 156 and the median gap between neighbours rises from 19px to 48px, at an unchanged per-frame cost.

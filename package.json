@@ -149,6 +149,16 @@
         "category": "Visp Notes"
       },
       {
+        "command": "vispNotes.addTag",
+        "title": "Add Tag",
+        "category": "Visp Notes"
+      },
+      {
+        "command": "vispNotes.removeTag",
+        "title": "Remove Tag",
+        "category": "Visp Notes"
+      },
+      {
         "command": "vispNotes.useAsDefaultEditor",
         "title": "Use Visp Notes as the Default Markdown Editor",
         "category": "Visp Notes"

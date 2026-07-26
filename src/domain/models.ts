@@ -86,7 +86,13 @@ export interface NoteRecord extends ParsedNote {
 export interface NoteContext {
   readonly folders: readonly string[];
   readonly fileName: string;
+  /** Every tag on the note, from frontmatter and from inline `#tag` in the body. */
   readonly tags: readonly string[];
+  /**
+   * The subset declared in frontmatter. Only these can be edited from the UI: an inline
+   * tag lives in the author's prose, and removing it would rewrite their sentence.
+   */
+  readonly frontmatterTags: readonly string[];
   readonly backlinkCount: number;
   readonly outgoingCount: number;
   readonly taskCount: number;

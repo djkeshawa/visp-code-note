@@ -34,6 +34,7 @@ function isNoteContext(value: unknown): boolean {
     isStringArray(value.folders) &&
     typeof value.fileName === "string" &&
     isStringArray(value.tags) &&
+    isStringArray(value.frontmatterTags) &&
     isOffset(value.backlinkCount) &&
     isOffset(value.outgoingCount) &&
     isOffset(value.taskCount) &&

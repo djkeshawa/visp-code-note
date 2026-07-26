@@ -12,6 +12,7 @@ export function isEditorMessage(value: unknown): value is EditorToHostMessage {
     case "editor/ready":
     case "editor/save":
     case "editor/requestLink":
+    case "editor/requestTag":
       return true;
     case "editor/discardDraft":
       return isOffset(value.version);

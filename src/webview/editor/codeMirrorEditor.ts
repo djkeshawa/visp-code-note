@@ -32,11 +32,13 @@ import {
   placeholder,
   rectangularSelection,
 } from "@codemirror/view";
+import type { OffsetTextEdit } from "../../application/textEdits.js";
 import type { NoteSuggestionWire } from "../contracts.js";
 import { vispEditorTheme } from "./editorTheme.js";
 import {
   createEditorDocument,
   normalizeEditorInput,
+  serializeEditorDocument,
 } from "./editorDocument.js";
 import { createEditorPatch } from "./editorPatch.js";
 import { createLivePreview, refreshLivePreview, revealLiveLine } from "./livePreview.js";
@@ -163,6 +165,36 @@ export class CodeMirrorEditor {
     });
     this.view.focus();
     return undefined;
+  }
+
+  /**
+   * Applies a frontmatter edit planned against the document's current raw text.
+   *
+   * The planner runs on the same snapshot the offsets are mapped against, so a keystroke
+   * landing between planning and applying cannot shift the edit onto the wrong characters.
+   * `source` deliberately is not used here: it holds the last host-synced text, which lags
+   * the live document whenever the user has typed since the last acknowledgement.
+   */
+  public applyMetadataEdit(
+    plan: (source: string) => OffsetTextEdit | undefined,
+  ): { readonly applied: boolean; readonly reason?: string } {
+    if (this.readOnly) {
+      return { applied: false, reason: "Resolve the editor conflict before editing tags." };
+    }
+    const live = serializeEditorDocument(this.view.state.doc, this.lineSeparator);
+    const edit = plan(live);
+    if (edit === undefined) return { applied: false };
+    this.view.dispatch({
+      changes: {
+        from: rawOffsetToEditorOffset(live, edit.start),
+        to: rawOffsetToEditorOffset(live, edit.end),
+        // The document is newline-normalised; the patch layer restores the file's endings.
+        insert: normalizeEditorInput(edit.text),
+      },
+      userEvent: "input",
+      scrollIntoView: false,
+    });
+    return { applied: true };
   }
 
   public reveal(rawOffset: number): void {

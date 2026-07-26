@@ -26,7 +26,8 @@ import {
   isNoteSuggestions,
   isUnresolvedLinks,
 } from "./editor/validation.js";
-import { isRecord, requireElement, setNotice, statChip } from "./shared/dom.js";
+import { planTagAddition, planTagRemoval } from "../application/noteMetadataEdits.js";
+import { codicon, isRecord, requireElement, setNotice, statChip } from "./shared/dom.js";
 import { acquireWebviewApi } from "./shared/vscodeApi.js";
 
 const api = acquireWebviewApi<EditorToHostWire, unknown>();
@@ -92,6 +93,10 @@ function handleHostMessage(event: MessageEvent<unknown>): void {
     if (sync.snapshot.conflict === undefined && !sync.snapshot.failed) {
       setNotice(errorNotice, editor?.insertWikiLink(message.target));
     }
+  } else if (message.type === "editor/insertTag" && typeof message.tag === "string") {
+    applyTagEdit(message.tag, "add");
+  } else if (message.type === "editor/removeTag" && typeof message.tag === "string") {
+    applyTagEdit(message.tag, "remove");
   } else if (
     message.type === "editor/indexState" &&
     isNoteSuggestions(message.suggestions) &&
@@ -252,7 +257,11 @@ function renderNoteContext(context: NoteContextWire | undefined): void {
   crumbs.push(contextSpan("crumb is-current", context.fileName));
   breadcrumb.replaceChildren(...crumbs);
 
-  noteTags.replaceChildren(...context.tags.map((tag) => contextSpan("note-tag", `#${tag}`)));
+  const editable = new Set(context.frontmatterTags.map((tag) => tag.toLocaleLowerCase()));
+  noteTags.replaceChildren(
+    ...context.tags.map((tag) => tagChip(tag, editable.has(tag.toLocaleLowerCase()))),
+    addTagChip(),
+  );
 
   noteStats.replaceChildren(
     statChip("references", context.backlinkCount, "backlink", "backlinks"),
@@ -264,6 +273,61 @@ function renderNoteContext(context: NoteContextWire | undefined): void {
       `open tasks of ${context.taskCount}`,
     ),
   );
+}
+
+/**
+ * Frontmatter tags get a remove control; an inline `#tag` does not, because removing it
+ * would mean rewriting the author's sentence. The tooltip says which kind it is.
+ */
+function tagChip(tag: string, editable: boolean): HTMLElement {
+  if (!editable) {
+    const chip = contextSpan("note-tag is-inline", `#${tag}`);
+    chip.title = `#${tag} is written in the note body`;
+    return chip;
+  }
+  const chip = document.createElement("span");
+  chip.className = "note-tag is-editable";
+  chip.append(document.createTextNode(`#${tag}`));
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "note-tag-remove";
+  remove.title = `Remove #${tag} from this note`;
+  remove.setAttribute("aria-label", `Remove tag ${tag}`);
+  remove.append(codicon("close"));
+  remove.addEventListener("click", () => applyTagEdit(tag, "remove"));
+  chip.append(remove);
+  return chip;
+}
+
+function addTagChip(): HTMLElement {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "note-tag note-tag-add";
+  button.title = "Add a tag to this note";
+  button.setAttribute("aria-label", "Add a tag");
+  button.append(codicon("add"));
+  button.addEventListener("click", () => {
+    if (editor === undefined) return;
+    api.postMessage({ type: "editor/requestTag" });
+  });
+  return button;
+}
+
+function applyTagEdit(tag: string, mode: "add" | "remove"): void {
+  if (editor === undefined) return;
+  setNotice(errorNotice);
+  try {
+    const result = editor.applyMetadataEdit((source) =>
+      mode === "add" ? planTagAddition(source, tag) : planTagRemoval(source, tag));
+    if (result.applied) return;
+    setNotice(
+      errorNotice,
+      result.reason ?? `#${tag} is not in this note's frontmatter, so it cannot be removed here.`,
+    );
+  } catch (error) {
+    // The planner refuses YAML it cannot edit safely; surface that rather than guessing.
+    setNotice(errorNotice, error instanceof Error ? error.message : String(error));
+  }
 }
 
 function contextSpan(className: string, text: string): HTMLSpanElement {

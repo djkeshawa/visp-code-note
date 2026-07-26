@@ -14,6 +14,7 @@
   "include": [
     "src/webview/**/*.ts",
     "src/application/editorContentWidth.ts",
+    "src/application/noteMetadataEdits.ts",
     "src/application/textPatch.ts"
   ]
 }

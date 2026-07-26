@@ -49,6 +49,7 @@ export function planSimpleYamlSequenceAppend(
   bounds: FrontmatterBounds,
   property: YamlProperty,
   encodedValue: string,
+  label = "aliases sequence",
 ): OffsetTextEdit {
   const lines = propertyTailLines(source, bounds, property);
   const meaningful = lines.filter((line) => !isTrivia(line.text));
@@ -57,23 +58,79 @@ export function planSimpleYamlSequenceAppend(
     return insertion(property.lineEnd, `${eol}  - ${encodedValue}`);
   }
   if (meaningful.length !== lines.length) {
-    throw unsupportedYamlError("aliases sequence");
+    throw unsupportedYamlError(label);
   }
 
   let indentation: string | undefined;
   for (const line of meaningful) {
     const item = /^([ \t]*)-\s+(.+?)\s*$/.exec(line.text);
     if (!item || !isSimpleScalar(item[2] ?? "")) {
-      throw unsupportedYamlError("aliases sequence");
+      throw unsupportedYamlError(label);
     }
     indentation ??= item[1] ?? "";
     if (item[1] !== indentation) {
-      throw unsupportedYamlError("aliases sequence");
+      throw unsupportedYamlError(label);
     }
   }
 
   const last = meaningful.at(-1)!;
   return insertion(last.end, `${last.eol}${indentation ?? ""}- ${encodedValue}`);
+}
+
+/**
+ * Deletes one item from a simple block sequence, matching on the decoded scalar so the
+ * caller does not have to care how the value was quoted. Returns undefined when the item
+ * is absent. Refuses the same shapes the append refuses, so a file this cannot safely edit
+ * is never half-edited.
+ */
+export function planSimpleYamlSequenceRemoval(
+  source: string,
+  bounds: FrontmatterBounds,
+  property: YamlProperty,
+  matches: (decoded: string) => boolean,
+  label: string,
+): OffsetTextEdit | undefined {
+  const lines = propertyTailLines(source, bounds, property);
+  const meaningful = lines.filter((line) => !isTrivia(line.text));
+  if (meaningful.length === 0) return undefined;
+  if (meaningful.length !== lines.length) {
+    throw unsupportedYamlError(label);
+  }
+
+  let start = property.lineEnd;
+  for (const line of lines) {
+    const item = /^([ \t]*)-\s+(.+?)\s*$/.exec(line.text);
+    if (!item || !isSimpleScalar(item[2] ?? "")) {
+      throw unsupportedYamlError(label);
+    }
+    if (matches(decodeYamlScalar(item[2] ?? ""))) {
+      // Take the preceding line break with the item so no blank line is left behind.
+      return { start, end: line.end, text: "" };
+    }
+    start = line.end;
+  }
+  return undefined;
+}
+
+/** Reads a simple YAML scalar back to its string value. */
+export function decodeYamlScalar(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.startsWith('"')) {
+    try {
+      const parsed: unknown = JSON.parse(trimmed);
+      return typeof parsed === "string" ? parsed : trimmed;
+    } catch {
+      return trimmed;
+    }
+  }
+  if (trimmed.startsWith("'") && trimmed.endsWith("'") && trimmed.length >= 2) {
+    return trimmed.slice(1, -1).replaceAll("''", "'");
+  }
+  return trimmed;
+}
+
+export function readSimpleInlineSequence(value: string): readonly string[] | undefined {
+  return splitInlineSequence(value);
 }
 
 export function preferredLineEnding(source: string): "\n" | "\r\n" {
@@ -106,6 +163,15 @@ function propertyTailLines(
       end: property.lineEnd + relativeStart + match[0].length,
     });
   }
+  /*
+   * The slice stops at the closing fence, so when the property is the last one in the
+   * frontmatter the line break before that fence yields a final empty entry. It is an
+   * artifact of where the slice ends, not a blank line in the document, and leaving it in
+   * made the "no trivia between items" check reject an ordinary sequence such as
+   * `aliases:\n  - Old\n---`. A genuine interior blank line still leaves an empty entry
+   * behind and is still refused.
+   */
+  if (lines.at(-1)?.text === "") lines.pop();
   return lines;
 }
 

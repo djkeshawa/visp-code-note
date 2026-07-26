@@ -6,6 +6,7 @@ import type {
   ResolvedLink,
 } from "../domain/models";
 import { lineNumberAtOffset, scanLines } from "../markdown/lines";
+import { mergeTagNames } from "../markdown/tags";
 import { compareNotes, createNoteResolver } from "./noteResolver";
 import { createWikiReferenceResolver } from "./wikiReferenceResolver";
 
@@ -113,10 +114,14 @@ export function buildNoteContext(
     return undefined;
   }
   const segments = note.path.split("/").filter((segment) => segment.length > 0);
+  const declared = note.frontmatter?.tags;
   return Object.freeze({
     folders: Object.freeze(segments.slice(0, -1)),
     fileName: segments[segments.length - 1] ?? note.fileName,
     tags: note.tags,
+    frontmatterTags: mergeTagNames(
+      typeof declared === "string" ? [declared] : declared ?? [],
+    ),
     backlinkCount: snapshot.backlinks.filter((backlink) => backlink.targetUri === uri).length,
     outgoingCount: snapshot.links.filter((link) => link.sourceUri === uri).length,
     taskCount: note.tasks.length,

@@ -71,6 +71,12 @@ Tasks stay valid Markdown. Optional metadata is read without changing the line:
       <!-- task:stable-id -->
 ```
 
+Tags can also be managed from the editor's context strip: frontmatter tags carry a remove
+control, and the `+` chip opens a picker over every tag in the workspace. Tag editing only
+ever touches frontmatter — an inline `#tag` belongs to the sentence around it, so it is shown
+greyed rather than removed for you. `Visp Notes: Add Tag` and `Visp Notes: Remove Tag` do the
+same from the Command Palette.
+
 Frontmatter can supply a title, aliases, and tags:
 
 ```yaml
@@ -95,6 +101,8 @@ tags: [engineering, architecture]
 - `Visp Notes: Find Broken Links`
 - `Visp Notes: Rebuild Index`
 - `Visp Notes: Search Notes and Tasks`
+- `Visp Notes: Add Tag`
+- `Visp Notes: Remove Tag`
 - `Visp Notes: Use Visp Notes as the Default Markdown Editor`
 - `Visp Notes: Restore the Built-in Markdown Text Editor`
 

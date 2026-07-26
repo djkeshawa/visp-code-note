@@ -70,6 +70,22 @@ test("preserves indentationless YAML alias sequences", () => {
   );
 });
 
+test("appends to an alias sequence that is the last frontmatter property", () => {
+  // Regression: the slice to the closing fence left an empty trailing line, which the
+  // "no trivia between items" guard mistook for a blank line and refused.
+  const source = "---\naliases:\n  - Existing\n---\n# Note\n";
+
+  const result = applyTextEdits(source, [planAliasAddition(source, "Another")]);
+
+  assert.equal(result, "---\naliases:\n  - Existing\n  - \"Another\"\n---\n# Note\n");
+});
+
+test("still refuses a sequence with a real blank line between items", () => {
+  const source = "---\naliases:\n  - Existing\n\n  - Other\n---\n";
+
+  assert.throws(() => planAliasAddition(source, "Another"), /cannot safely edit/);
+});
+
 test("refuses unsupported YAML alias block scalars", () => {
   const source = "---\naliases: |\n  Existing\n---\n# New\n";
   assert.throws(
