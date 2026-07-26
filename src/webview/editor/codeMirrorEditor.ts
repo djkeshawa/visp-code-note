@@ -36,6 +36,7 @@ import type { OffsetTextEdit } from "../../application/textEdits.js";
 import type { NoteSuggestionWire } from "../contracts.js";
 import { codeLanguages } from "./codeLanguages.js";
 import { vispEditorTheme } from "./editorTheme.js";
+import { outlineFolding } from "./outlineFolding.js";
 import {
   createEditorDocument,
   normalizeEditorInput,
@@ -248,6 +249,7 @@ export class CodeMirrorEditor {
         spellcheck: "true",
       }),
       markdown({ base: markdownLanguage, completeHTMLTags: false, codeLanguages: [...codeLanguages] }),
+      outlineFolding,
       markdownContext,
       history(),
       closeBrackets(),
