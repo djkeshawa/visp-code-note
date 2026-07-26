@@ -57,11 +57,47 @@ test("a list item folds its nested children and stops at its sibling", () => {
   assert.equal(foldAt(document, 7), ["  - child", "    - grandchild"].join("\n"));
 });
 
-test("a leaf item and a plain paragraph have nothing to fold", () => {
-  assert.equal(foldAt(document, 8), undefined, "grandchild is a leaf");
-  assert.equal(foldAt(document, 9), undefined, "sibling has no children");
-  assert.equal(foldAt(document, 2), undefined, "a paragraph is not foldable");
-  assert.equal(foldAt(document, 15), undefined, "last line, nothing below");
+test("a leaf item and an unindented paragraph have nothing to fold", () => {
+  const lines = ["- leaf", "Just prose.", "More prose."];
+
+  assert.equal(outlineFoldAt(lines, 0), undefined);
+  assert.equal(outlineFoldAt(lines, 1), undefined);
+  assert.equal(outlineFoldAt(lines, 2), undefined);
+});
+
+test("a paragraph folds whatever is indented beneath it", () => {
+  // Pressing Tab on the following line nests it, and the parent must then be collapsible —
+  // a line does not need a bullet to be a block with children.
+  const lines = ["Parent line", "  nested detail", "  more detail", "Sibling line"];
+
+  assert.deepEqual(outlineFoldAt(lines, 0), { startLine: 0, endLine: 2 });
+  assert.equal(outlineFoldAt(lines, 1), undefined);
+  assert.equal(outlineFoldAt(lines, 3), undefined);
+});
+
+test("indented paragraphs nest to any depth", () => {
+  const lines = ["Top", "  second", "    third", "      fourth"];
+
+  assert.deepEqual(outlineFoldAt(lines, 0), { startLine: 0, endLine: 3 });
+  assert.deepEqual(outlineFoldAt(lines, 1), { startLine: 1, endLine: 3 });
+  assert.deepEqual(outlineFoldAt(lines, 2), { startLine: 2, endLine: 3 });
+  assert.equal(outlineFoldAt(lines, 3), undefined);
+});
+
+test("a paragraph indented under a bullet folds without stealing the bullet's children", () => {
+  const lines = ["- item", "  detail of item", "    detail of detail", "- next item"];
+
+  assert.deepEqual(outlineFoldAt(lines, 0), { startLine: 0, endLine: 2 });
+  assert.deepEqual(outlineFoldAt(lines, 1), { startLine: 1, endLine: 2 });
+  assert.equal(outlineFoldAt(lines, 3), undefined);
+});
+
+test("a line inside fenced code is never a fold start", () => {
+  // Indentation inside a code sample is content, not outline structure.
+  const lines = ["```", "def f():", "    return 1", "```", "After"];
+
+  assert.equal(outlineFoldAt(lines, 1), undefined);
+  assert.equal(outlineFoldAt(lines, 2), undefined);
 });
 
 test("trailing blank lines are left outside the fold", () => {

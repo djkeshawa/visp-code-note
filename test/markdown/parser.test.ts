@@ -228,3 +228,32 @@ test("a code block indented under a list is not mistaken for an item", () => {
   assert.ok(!note.blocks.some((block) =>
     block.kind === "list" && block.source.includes("plain indented text")));
 });
+
+test("an indented line under prose continues the paragraph instead of becoming code", () => {
+  // CommonMark: an indented code block cannot interrupt a paragraph. Nesting a line of prose
+  // with Tab must leave it prose, or it renders as a grey code block and loses its indentation
+  // and its fold control.
+  const note = parseMarkdown([
+    "Parent line",
+    "  nested detail",
+    "    deeper detail",
+  ].join("\n"));
+
+  assert.deepEqual(note.blocks.map((block) => block.kind), ["paragraph"]);
+  assert.equal(note.blocks[0]?.source, "Parent line\n  nested detail\n    deeper detail");
+});
+
+test("an indented block after a blank line is still code", () => {
+  // The paragraph rule must not cost us indented code blocks where they are genuinely allowed.
+  const note = parseMarkdown([
+    "Prose.",
+    "",
+    "    indented code",
+    "    still code",
+  ].join("\n"));
+
+  assert.deepEqual(
+    note.blocks.filter((block) => block.kind !== "blank").map((block) => block.kind),
+    ["paragraph", "code"],
+  );
+});

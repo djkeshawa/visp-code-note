@@ -282,6 +282,22 @@ function decorateTableLine(
   }
 }
 
+/**
+ * Gives leading whitespace a fixed width per nesting level. The spaces stay in the document so
+ * the caret still moves through them; only their painted width changes, which is what makes a
+ * step of indentation visible in a proportional face.
+ */
+function addIndentWidth(ranges: Range<Decoration>[], from: number, indent: number): void {
+  if (indent <= 0) return;
+  const depth = Math.max(1, Math.round(indent / 2));
+  ranges.push(
+    Decoration.mark({
+      class: "live-list-indent",
+      attributes: { style: `--live-indent-depth: ${depth}` },
+    }).range(from, from + indent),
+  );
+}
+
 function decorateLine(
   view: EditorView,
   from: number,
@@ -312,21 +328,7 @@ function decorateLine(
     if (list?.[2] !== undefined) {
       ranges.push(Decoration.line({ class: "live-list-line" }).range(from));
       const indent = list[1]?.length ?? 0;
-      /*
-       * Nesting was rendered as literal spaces in a proportional face, which came to about
-       * seven pixels a level — pressing Tab looked like it had done nothing. Giving the
-       * leading whitespace a fixed width per level makes each step unmistakable while leaving
-       * the characters in the document, so the caret still moves through them.
-       */
-      if (indent > 0) {
-        const depth = Math.max(1, Math.round(indent / 2));
-        ranges.push(
-          Decoration.mark({
-            class: "live-list-indent",
-            attributes: { style: `--live-indent-depth: ${depth}` },
-          }).range(from, from + indent),
-        );
-      }
+      addIndentWidth(ranges, from, indent);
       if (!active) {
         const markerFrom = from + indent;
         ranges.push(Decoration.replace({
@@ -334,6 +336,24 @@ function decorateLine(
         }).range(markerFrom, markerFrom + list[2].length));
       }
     }
+  }
+  /*
+   * An indented paragraph is nested too, and it used to keep its literal leading spaces, so
+   * pressing Tab on a line without a bullet moved the text about seven pixels and read as
+   * having done nothing at all. Frontmatter and table rows are decorated elsewhere and never
+   * arrive here, and an indented code block is its own kind, so this reaches only prose whose
+   * indentation really does mean nesting.
+   */
+  if (block?.kind === "paragraph") {
+    addIndentWidth(ranges, from, /^[ \t]*/.exec(text)?.[0]?.length ?? 0);
+  }
+  /*
+   * A line holding nothing but indentation is the one the caret sits on immediately after
+   * Enter then Tab. Widening it too means that gesture moves the caret a whole level at once
+   * instead of the width of two spaces, so the nesting is visible before anything is typed.
+   */
+  if (block?.kind === "blank" && text.length > 0 && text.trim() === "") {
+    addIndentWidth(ranges, from, text.length);
   }
   if (block?.kind === "blockquote") {
     const callout = parseCalloutBlock(block.source);

@@ -138,12 +138,18 @@ function buildChevrons(view: EditorView): DecorationSet {
         seen.add(line.number);
         if (foldRangeForLine(view.state, line.number) !== undefined) {
           const folded = foldedAt(view.state, line.to) !== undefined;
+          /*
+           * The chevron is anchored after the line's indentation, not at its start, so on a
+           * nested line it hangs beside the text it collapses instead of out at the left
+           * margin, several levels away from the block it belongs to.
+           */
+          const indent = /^[ \t]*/.exec(line.text)?.[0]?.length ?? 0;
           ranges.push(
             Decoration.line({ class: "live-foldable" }).range(line.from),
             Decoration.widget({
               widget: new FoldChevron(line.number, folded),
               side: -1,
-            }).range(line.from),
+            }).range(line.from + indent),
           );
         }
       }

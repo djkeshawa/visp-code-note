@@ -4,9 +4,9 @@
  * Expressed over plain lines rather than a syntax tree so the rules can be reasoned about
  * and tested directly. Two things fold:
  *
- *   a heading   — everything up to the next heading of the same or higher level
- *   a list item — its nested children, which is the outliner behaviour people mean when they
- *                 ask for collapsible bullets
+ *   a heading  — everything up to the next heading of the same or higher level
+ *   any line   — whatever is indented beneath it, so a bullet collapses its nested items and a
+ *                paragraph collapses its indented continuation
  *
  * `@codemirror/lang-markdown` already declares folds for every other block — fenced code,
  * blockquotes, tables — and deliberately excludes headings and lists, which is the gap this
@@ -25,7 +25,6 @@ export interface OutlineFold {
 }
 
 const HEADING = /^(\s{0,3})(#{1,6})(\s|$)/;
-const LIST_ITEM = /^(\s*)(?:[-+*]|\d+[.)])(\s+)/;
 const FENCE = /^(\s*)(```+|~~~+)/;
 
 /** Lines inside a fenced code block, so a `#` in a shell script is not read as a heading. */
@@ -53,12 +52,6 @@ function headingLevel(line: string, fenced: boolean): number | undefined {
   if (fenced) return undefined;
   const match = HEADING.exec(line);
   return match?.[2] === undefined ? undefined : match[2].length;
-}
-
-function listIndent(line: string, fenced: boolean): number | undefined {
-  if (fenced) return undefined;
-  const match = LIST_ITEM.exec(line);
-  return match?.[1] === undefined ? undefined : match[1].length;
 }
 
 function isBlank(line: string): boolean {
@@ -94,21 +87,24 @@ export function outlineFoldAt(
     return end > index ? { startLine: index, endLine: end } : undefined;
   }
 
-  const itemIndent = listIndent(line, fenced.has(index));
-  if (itemIndent !== undefined) {
-    let end = index;
-    for (let scan = index + 1; scan < lines.length; scan += 1) {
-      const next = lines[scan]!;
-      if (isBlank(next)) continue;
-      // A heading always closes a list, however it is indented.
-      if (headingLevel(next, fenced.has(scan)) !== undefined) break;
-      if (indentOf(next) <= itemIndent) break;
-      end = scan;
-    }
-    return end > index ? { startLine: index, endLine: end } : undefined;
+  /*
+   * Anything else folds on indentation alone: a list item collapses its nested items, and an
+   * ordinary paragraph collapses whatever is indented beneath it. Keying on indentation rather
+   * than on a list marker is what makes an outline of plain lines behave like an outline, which
+   * is what an outliner user expects after pressing Tab.
+   */
+  if (isBlank(line) || fenced.has(index)) return undefined;
+  const ownIndent = indentOf(line);
+  let end = index;
+  for (let scan = index + 1; scan < lines.length; scan += 1) {
+    const next = lines[scan]!;
+    if (isBlank(next)) continue;
+    // A heading closes an enclosing block however deeply it is indented.
+    if (headingLevel(next, fenced.has(scan)) !== undefined) break;
+    if (indentOf(next) <= ownIndent) break;
+    end = scan;
   }
-
-  return undefined;
+  return end > index ? { startLine: index, endLine: end } : undefined;
 }
 
 /** Every fold in the document, outermost first. Used for fold-all. */

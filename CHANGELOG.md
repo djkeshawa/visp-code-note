@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased
+
+### Fixed — outlining plain lines, not just bullets
+
+- **A line of prose could not be collapsed.** Folding recognised headings and list items only,
+  so nesting a line with `Tab` gave it no fold control and no outline at all. A fold now keys on
+  indentation: any line collapses whatever is indented beneath it, which is what an outliner
+  does, and a bullet is simply the case that already worked.
+- **Nesting a line of prose turned it into a grey code block.** Two presses of `Tab` make a
+  four-space indent, and that was read as an indented code block. CommonMark is explicit that an
+  indented code block cannot interrupt a paragraph, so the indented lines under prose are
+  continuations of it. Indented code after a blank line is still code.
+- **The fold chevron sat at the far-left margin** whatever the line's depth, several levels away
+  from the block it belonged to. It is now anchored after the line's indentation, so it hangs
+  beside the text it collapses. Measured at 1200px: a top-level chevron at -16px against its
+  text at 0, a nested one at 6px against its text at 22px.
+- **`Tab` on a line of prose moved it about seven pixels**, the width of two spaces in a
+  proportional face, because only list lines were given a per-level indent width. Prose now
+  steps by the same 22px as bullets — measured 22px and 44px for both — including on the empty
+  line the caret lands on after `Enter`, so the step is visible before anything is typed.
+
 ## 0.3.0 - 2026-07-26
 
 ### Fixed — nesting, and tables that actually line up

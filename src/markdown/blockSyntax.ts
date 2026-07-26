@@ -139,15 +139,29 @@ export function isNestedListContinuation(text: string): boolean {
   return /^[ \t]+(?:[-+*]|\d+[.)])(?:[ \t]+|$)/.test(text);
 }
 
+/**
+ * Whether a line ends the paragraph running into it.
+ *
+ * Indentation does not, which is the one case worth spelling out: an indented code block cannot
+ * interrupt a paragraph, so the indented lines under a line of prose are continuations of it.
+ * Treating them as code meant pressing Tab on a line of prose turned it into a grey code block
+ * and cost it the indentation and the fold control that nesting is supposed to give it.
+ */
 function isStructuralStart(lines: readonly SourceLine[], index: number): boolean {
   const line = lines[index];
   return (
     line !== undefined &&
-    (isStandaloneBlockStart(line.text) || matchSetextHeading(lines, index) !== undefined)
+    (
+      isStandaloneBlockStart(line.text, { indentedCodeInterrupts: false }) ||
+      matchSetextHeading(lines, index) !== undefined
+    )
   );
 }
 
-function isStandaloneBlockStart(text: string): boolean {
+function isStandaloneBlockStart(
+  text: string,
+  { indentedCodeInterrupts = true }: { indentedCodeInterrupts?: boolean } = {},
+): boolean {
   return (
     matchFenceStart(text) !== undefined ||
     /^ {0,3}#{1,6}(?:[ \t]+|$)/.test(text) ||
@@ -155,6 +169,6 @@ function isStandaloneBlockStart(text: string): boolean {
     matchTaskLine(text) !== undefined ||
     isBlockquote(text) ||
     isList(text) ||
-    isIndentedCode(text)
+    (indentedCodeInterrupts && isIndentedCode(text))
   );
 }
