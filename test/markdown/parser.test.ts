@@ -187,3 +187,44 @@ function assertContiguousBlocks(
   }
   assert.equal(offset, source.length);
 }
+
+test("a deeply indented bullet continues its list instead of becoming code", () => {
+  // Tab twice on a bullet produces a four-space indent. CommonMark reads that as an indented
+  // code block at the top level, but inside a list it is a third-level item — and reading it
+  // as code turned a nested bullet into a grey block.
+  const note = parseMarkdown([
+    "- parent",
+    "  - child",
+    "    - grandchild",
+    "      - great-grandchild",
+    "- sibling",
+    "",
+  ].join("\n"));
+
+  const kinds = note.blocks.filter((block) => block.kind !== "blank").map((block) => block.kind);
+  assert.deepEqual(kinds, ["list", "list", "list", "list", "list"]);
+});
+
+test("a deeply indented checkbox stays a task", () => {
+  const note = parseMarkdown(["- [ ] parent", "    - [ ] nested", ""].join("\n"));
+
+  assert.equal(note.tasks.length, 2);
+  assert.deepEqual(note.tasks.map((task) => task.text), ["parent", "nested"]);
+});
+
+test("an indented code block outside a list is still code", () => {
+  const note = parseMarkdown(["A paragraph.", "", "    indented code", ""].join("\n"));
+
+  assert.ok(
+    note.blocks.some((block) => block.kind === "code" && block.source.includes("indented code")),
+    "four spaces after a paragraph remains a code block",
+  );
+});
+
+test("a code block indented under a list is not mistaken for an item", () => {
+  const note = parseMarkdown(["- item", "", "      plain indented text", ""].join("\n"));
+
+  // No marker, so it must not become a list item however deeply it is indented.
+  assert.ok(!note.blocks.some((block) =>
+    block.kind === "list" && block.source.includes("plain indented text")));
+});

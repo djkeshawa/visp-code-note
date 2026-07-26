@@ -446,6 +446,20 @@
   text-align: center;
 }
 
+/*
+ * One clear step per nesting level. The leading whitespace stays in the document — the caret
+ * still moves through it — but its rendered width comes from the depth rather than from how
+ * wide two spaces happen to be in a proportional face.
+ */
+.is-live-mode .live-list-indent {
+  display: inline-block;
+  width: calc(var(--live-indent-depth, 1) * var(--live-indent-step));
+}
+
+.editor-host.is-live-mode .cm-content {
+  --live-indent-step: 22px;
+}
+
 .is-live-mode .live-quote-line {
   border-left: 3px solid color-mix(in srgb, var(--visp-muted) 55%, transparent);
   color: var(--vscode-textBlockQuote-foreground, var(--visp-muted-strong));
@@ -517,8 +531,13 @@
   overflow: hidden;
 }
 
+/* Each cell carries its column's width inline, which is what lines the columns up. */
+.is-live-mode .live-table-cell {
+  display: inline-block;
+}
+
 .is-live-mode .live-table-pipe {
-  color: color-mix(in srgb, var(--visp-muted) 60%, transparent);
+  color: color-mix(in srgb, var(--visp-muted) 45%, transparent);
 }
 
 /* A Markdown link shows its label; the brackets and target are hidden until edited. */

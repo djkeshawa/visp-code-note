@@ -2,6 +2,24 @@
 
 ## 0.3.0 - 2026-07-26
 
+### Fixed — nesting, and tables that actually line up
+
+- **A bullet indented three levels became a grey code block.** `Tab` twice produces a
+  four-space indent, which CommonMark reads as an indented code block — correct at the top
+  level, wrong inside a list, where indentation is measured from the parent item. A marker at
+  any depth now continues an open list. A checkbox drawn inside a genuine top-level indented
+  code block still stays code.
+- **A checkbox nested more than one level deep was not a task at all** — absent from the
+  Activity Bar, the Tasks view and the index, because the task pattern shared the same
+  three-space cap.
+- **Nesting was almost invisible.** Indentation rendered as literal spaces in a proportional
+  face, about seven pixels a level, so pressing `Tab` looked like it had done nothing. Each
+  level is now a clear 22px step, measured: 233, 255, 277, 299 across four levels. The
+  characters stay in the document, so the caret still moves through them.
+- **Table columns did not align.** Monospace alone aligns nothing, because the source is never
+  padded — the pipes landed at 233/318/458 on one row and 233/280/326 on the next. Each cell
+  now carries the width of the widest cell in its column, and every row lands on 241/365/504.
+
 ### Added — collapsible outline, tables, and Markdown links
 
 - **Headings and list items collapse.** `@codemirror/lang-markdown` folds every block except

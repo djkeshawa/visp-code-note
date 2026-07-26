@@ -7,6 +7,7 @@ import {
   isBlockquote,
   isIndentedCode,
   isList,
+  isNestedListContinuation,
   isThematicBreak,
   matchAtxHeading,
   matchFenceStart,
@@ -100,8 +101,15 @@ export function parseBlocks(
       continue;
     }
 
+    // Whether a list is currently open, ignoring blank lines that may sit inside one.
+    const openList = continuesList(blocks);
     const taskMatch = matchTaskLine(line.text);
-    if (taskMatch !== undefined) {
+    /*
+     * A checkbox indented four spaces or more is only a task when a list is already open. At
+     * the top level that indentation opens a code block, and a checkbox drawn inside one must
+     * stay code — otherwise a Markdown sample in a note becomes a real task.
+     */
+    if (taskMatch !== undefined && (openList || !isIndentedCode(line.text))) {
       let endIndex = index + 1;
       if (lines[endIndex] !== undefined && isTaskIdLine(lines[endIndex]?.text ?? "")) endIndex += 1;
       const end = lines[endIndex - 1]?.end ?? line.end;
@@ -134,7 +142,7 @@ export function parseBlocks(
       continue;
     }
 
-    if (isList(line.text)) {
+    if (isList(line.text) || (openList && isNestedListContinuation(line.text))) {
       const endIndex = consumeListItem(lines, index + 1, commentStarts);
       blocks.push(fromLines(source, "list", lines, index, endIndex));
       index = endIndex;
@@ -183,4 +191,18 @@ function consumeWhile(
   let index = start;
   while (lines[index] !== undefined && predicate(lines[index] as SourceLine, index)) index += 1;
   return index;
+}
+
+/**
+ * True when the most recent meaningful block belonged to a list, so a more deeply indented
+ * marker continues it rather than opening an indented code block. Blank blocks are skipped,
+ * because a list may contain them.
+ */
+function continuesList(blocks: readonly MarkdownBlock[]): boolean {
+  for (let index = blocks.length - 1; index >= 0; index -= 1) {
+    const kind = blocks[index]!.kind;
+    if (kind === "blank") continue;
+    return kind === "list" || kind === "task";
+  }
+  return false;
 }

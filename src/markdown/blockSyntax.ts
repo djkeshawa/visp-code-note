@@ -127,6 +127,18 @@ export function isIndentedCode(text: string): boolean {
   return indentedCodePattern.test(text);
 }
 
+/**
+ * A list marker at any indentation.
+ *
+ * `isList` caps indentation at three spaces, which is right at the top level: four spaces
+ * there opens an indented code block. Inside a list that cap is wrong, because indentation is
+ * measured from the parent item's content offset — so a third-level bullet, which Tab produces
+ * at four spaces, was being read as code. Only meaningful while a list is already open.
+ */
+export function isNestedListContinuation(text: string): boolean {
+  return /^[ \t]+(?:[-+*]|\d+[.)])(?:[ \t]+|$)/.test(text);
+}
+
 function isStructuralStart(lines: readonly SourceLine[], index: number): boolean {
   const line = lines[index];
   return (

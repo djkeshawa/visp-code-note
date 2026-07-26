@@ -9,7 +9,7 @@ import {
 import type { DecorationSet, ViewUpdate } from "@codemirror/view";
 import { parseCalloutBlock } from "../../markdown/callouts.js";
 import type { CalloutHeader } from "../../markdown/callouts.js";
-import { pipePositions, tableLines } from "../../markdown/tables.js";
+import { pipePositions, rowCells, tableBlocks } from "../../markdown/tables.js";
 import type { TableLineKind } from "../../markdown/tables.js";
 import {
   findRecognizedWikiLink,
@@ -166,7 +166,7 @@ function buildDecorations(
   const ranges: Range<Decoration>[] = [];
   const visitedLines = new Set<number>();
   const frontmatter = markdownFrontmatterRange(view.state);
-  const tables = tableRolesByLine(view);
+  const tables = tableLayout(view);
   for (const visible of view.visibleRanges) {
     let position = view.state.doc.lineAt(visible.from).from;
     while (position <= visible.to && position <= view.state.doc.length) {
@@ -207,17 +207,33 @@ function decorateFrontmatterLine(
   );
 }
 
+interface TableRowLayout {
+  readonly kind: TableLineKind;
+  /** Shared across the whole table, so every row's columns land in the same place. */
+  readonly columnWidths: readonly number[];
+}
+
 /**
- * Table roles keyed by 1-based line number. Computed for the whole document because a row's
- * role depends on the delimiter beneath the header, which a per-line pass cannot see.
+ * Table roles and column widths keyed by 1-based line number. Computed for the whole document
+ * because a row's role depends on the delimiter beneath the header, and its column widths
+ * depend on every other row in the same table — neither of which a per-line pass can see.
  */
-function tableRolesByLine(view: EditorView): ReadonlyMap<number, TableLineKind> {
+function tableLayout(view: EditorView): ReadonlyMap<number, TableRowLayout> {
   const document = view.state.doc;
   const lines: string[] = [];
   for (let number = 1; number <= document.lines; number += 1) {
     lines.push(document.line(number).text);
   }
-  return new Map(tableLines(lines).map((entry) => [entry.line + 1, entry.kind]));
+  const layout = new Map<number, TableRowLayout>();
+  for (const block of tableBlocks(lines)) {
+    for (let line = block.startLine; line <= block.endLine; line += 1) {
+      const kind: TableLineKind = line === block.startLine
+        ? "header"
+        : line === block.startLine + 1 ? "delimiter" : "body";
+      layout.set(line + 1, { kind, columnWidths: block.columnWidths });
+    }
+  }
+  return layout;
 }
 
 /**
@@ -231,18 +247,33 @@ function decorateTableLine(
   from: number,
   to: number,
   text: string,
-  kind: TableLineKind,
+  layout: TableRowLayout,
   ranges: Range<Decoration>[],
 ): void {
   const active = view.state.selection.ranges.some((selection) =>
     selection.from <= to && selection.to >= from);
   ranges.push(
-    Decoration.line({ class: `live-table-line is-${kind}` }).range(from),
+    Decoration.line({ class: `live-table-line is-${layout.kind}` }).range(from),
   );
-  if (kind === "delimiter" && !active) {
+  if (layout.kind === "delimiter" && !active) {
     // Hidden entirely; the header line's bottom border stands in for it.
     addHiddenMarkup(ranges, from, to - from, false);
     return;
+  }
+  /*
+   * Each cell is given the width of the widest cell in its column, in `ch` units against the
+   * monospace face. That is what actually aligns the columns: the source text is never padded,
+   * so a monospace font alone leaves the pipes ragged.
+   */
+  for (const cell of rowCells(text)) {
+    const width = layout.columnWidths[cell.column];
+    if (width === undefined || cell.end <= cell.start) continue;
+    ranges.push(
+      Decoration.mark({
+        class: "live-table-cell",
+        attributes: { style: `min-width: ${width + 2}ch` },
+      }).range(from + cell.start, from + cell.end),
+    );
   }
   for (const offset of pipePositions(text)) {
     ranges.push(
@@ -280,8 +311,24 @@ function decorateLine(
     const list = /^(\s*)((?:[-+*])|(?:\d+[.)]))(\s+)/.exec(text);
     if (list?.[2] !== undefined) {
       ranges.push(Decoration.line({ class: "live-list-line" }).range(from));
+      const indent = list[1]?.length ?? 0;
+      /*
+       * Nesting was rendered as literal spaces in a proportional face, which came to about
+       * seven pixels a level — pressing Tab looked like it had done nothing. Giving the
+       * leading whitespace a fixed width per level makes each step unmistakable while leaving
+       * the characters in the document, so the caret still moves through them.
+       */
+      if (indent > 0) {
+        const depth = Math.max(1, Math.round(indent / 2));
+        ranges.push(
+          Decoration.mark({
+            class: "live-list-indent",
+            attributes: { style: `--live-indent-depth: ${depth}` },
+          }).range(from, from + indent),
+        );
+      }
       if (!active) {
-        const markerFrom = from + (list[1]?.length ?? 0);
+        const markerFrom = from + indent;
         ranges.push(Decoration.replace({
           widget: new ListMarkerWidget(list[2]),
         }).range(markerFrom, markerFrom + list[2].length));

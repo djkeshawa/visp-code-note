@@ -3,7 +3,15 @@ import { containsOffset } from "./lines";
 import type { SourceLine } from "./lines";
 import { collectTagNames, removeTagTokens } from "./tags";
 
-const taskPattern = /^( {0,3}(?:[-+*]|\d+[.)])[ \t]+\[)([ xX])(\])(?=[ \t]+|$)/;
+/*
+ * Leading whitespace is unbounded rather than capped at three spaces. The cap follows
+ * CommonMark, where a fourth space opens an indented code block — but it meant a checkbox
+ * nested more than one level deep was not a task at all: absent from the Activity Bar, the
+ * Tasks view and the index. Fenced code is excluded separately through protected ranges, so
+ * the only thing this over-matches is a checkbox inside an indented code block, which is a
+ * far smaller cost than losing a real task.
+ */
+const taskPattern = /^([ \t]*(?:[-+*]|\d+[.)])[ \t]+\[)([ xX])(\])(?=[ \t]+|$)/;
 const taskIdPattern = /<!--\s*task:([A-Za-z0-9][\w.-]*)\s*-->/i;
 const duePattern = /@due\(\s*([^)]+?)\s*\)/i;
 const priorityPattern = /@priority\(\s*(low|medium|high)\s*\)/i;

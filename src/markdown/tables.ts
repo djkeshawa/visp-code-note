@@ -71,6 +71,67 @@ export function tableLines(lines: readonly string[]): readonly TableLine[] {
   return found;
 }
 
+export interface TableCell {
+  /** Offsets of the cell's content within the line, excluding the surrounding pipes. */
+  readonly start: number;
+  readonly end: number;
+  readonly column: number;
+}
+
+export interface TableBlock {
+  readonly startLine: number;
+  readonly endLine: number;
+  /** Widest content in each column, in characters, used to line the columns up. */
+  readonly columnWidths: readonly number[];
+}
+
+/**
+ * Cells of one row. Monospace alone does not align a table: the columns only line up if the
+ * author happened to pad the source, which nobody does. Knowing each cell's extent lets the
+ * renderer give it a width instead.
+ */
+export function rowCells(line: string): readonly TableCell[] {
+  const pipes = pipePositions(line);
+  if (pipes.length === 0) return [];
+  const cells: TableCell[] = [];
+  // A leading pipe opens the first cell; without one the row starts at the line beginning.
+  const bounds = line.slice(0, pipes[0]).trim() === "" ? pipes : [-1, ...pipes];
+  for (let index = 0; index < bounds.length - 1; index += 1) {
+    cells.push({ start: bounds[index]! + 1, end: bounds[index + 1]!, column: index });
+  }
+  const lastPipe = bounds[bounds.length - 1]!;
+  if (line.slice(lastPipe + 1).trim() !== "") {
+    cells.push({ start: lastPipe + 1, end: line.length, column: bounds.length - 1 });
+  }
+  return cells;
+}
+
+/** Tables grouped into blocks, each carrying the column widths its rows should share. */
+export function tableBlocks(lines: readonly string[]): readonly TableBlock[] {
+  const blocks: TableBlock[] = [];
+  const entries = tableLines(lines);
+  let index = 0;
+  while (index < entries.length) {
+    const start = entries[index]!.line;
+    let end = start;
+    const widths: number[] = [];
+    while (index < entries.length && entries[index]!.line === end) {
+      const entry = entries[index]!;
+      // The delimiter row is hidden, so its dashes must not set a column's width.
+      if (entry.kind !== "delimiter") {
+        for (const cell of rowCells(lines[entry.line]!)) {
+          const text = lines[entry.line]!.slice(cell.start, cell.end).trim();
+          widths[cell.column] = Math.max(widths[cell.column] ?? 0, text.length);
+        }
+      }
+      index += 1;
+      end += 1;
+    }
+    blocks.push({ startLine: start, endLine: end - 1, columnWidths: widths });
+  }
+  return blocks;
+}
+
 /** Offsets of every `|` in a row, so separators can be dimmed without touching the text. */
 export function pipePositions(line: string): readonly number[] {
   const positions: number[] = [];
