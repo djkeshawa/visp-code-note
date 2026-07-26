@@ -505,7 +505,12 @@
  */
 .is-live-mode .live-wiki-link {
   border-radius: 3px;
-  color: var(--vscode-textLink-foreground, var(--visp-accent));
+  /*
+   * The reference hue rather than the theme's link colour, because headings now hold the
+   * blue: two near-identical blues on a page would stop distinguishing structure from
+   * references. High contrast reverts this token to the theme's own accent.
+   */
+  color: var(--visp-hue-reference);
   text-decoration: underline;
   text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
   text-underline-offset: 2px;
