@@ -16,7 +16,12 @@ export class GraphPanel implements vscode.Disposable {
     private readonly getSnapshot: () => IndexSnapshot,
     private readonly onOpen: (uri: string) => Promise<void>,
   ) {
-    this.depth = vscode.workspace.getConfiguration("vispNotes").get<1 | 2>("graph.defaultDepth", 1);
+    // The type argument is a compile-time claim about a value a workspace supplies, so the
+    // value itself is checked: anything else falls back to the default rather than reaching
+    // the graph projection.
+    const configured: unknown = vscode.workspace.getConfiguration("vispNotes")
+      .get("graph.defaultDepth", 1);
+    this.depth = configured === 2 ? 2 : 1;
   }
 
   public show(focusUri?: string): void {

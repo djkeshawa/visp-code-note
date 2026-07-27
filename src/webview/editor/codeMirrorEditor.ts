@@ -60,6 +60,7 @@ export interface CodeMirrorEditorDependencies {
   readonly sourcePatched: (patch: TextPatch) => void;
   readonly saveRequested: () => void;
   readonly openLink: (target: string, beside: boolean) => void;
+  readonly openExternal: (url: string) => void;
 }
 
 const hostTransaction = Annotation.define<boolean>();
@@ -86,6 +87,7 @@ export class CodeMirrorEditor {
     this.previewExtension = createLivePreview({
       unresolvedLinks: dependencies.unresolvedLinks,
       openLink: dependencies.openLink,
+      openExternal: dependencies.openExternal,
     });
     this.host.classList.add("is-live-mode");
     this.view = new EditorView({

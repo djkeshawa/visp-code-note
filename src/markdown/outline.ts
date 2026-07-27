@@ -28,7 +28,7 @@ const HEADING = /^(\s{0,3})(#{1,6})(\s|$)/;
 const FENCE = /^(\s*)(```+|~~~+)/;
 
 /** Lines inside a fenced code block, so a `#` in a shell script is not read as a heading. */
-function fencedLines(lines: readonly string[]): ReadonlySet<number> {
+export function fencedLines(lines: readonly string[]): ReadonlySet<number> {
   const fenced = new Set<number>();
   let openMarker: string | undefined;
   for (const [index, line] of lines.entries()) {
@@ -58,8 +58,24 @@ function isBlank(line: string): boolean {
   return line.trim() === "";
 }
 
-function indentOf(line: string): number {
-  return line.length - line.trimStart().length;
+/**
+ * Leading whitespace measured in columns, counting a tab as the jump to the next tab stop.
+ *
+ * Counting characters instead made one tab shallower than two spaces, so a tab-indented child
+ * never registered as nested: it had an indent of 1 against a parent's 2, and folding decided
+ * there was nothing under the parent at all. CommonMark measures indentation in columns for the
+ * same reason, and Markdown written with tabs is ordinary.
+ */
+const TAB_WIDTH = 4;
+
+export function indentColumns(line: string): number {
+  let columns = 0;
+  for (const character of line) {
+    if (character === " ") columns += 1;
+    else if (character === "\t") columns += TAB_WIDTH - (columns % TAB_WIDTH);
+    else break;
+  }
+  return columns;
 }
 
 /**
@@ -94,14 +110,14 @@ export function outlineFoldAt(
    * is what an outliner user expects after pressing Tab.
    */
   if (isBlank(line) || fenced.has(index)) return undefined;
-  const ownIndent = indentOf(line);
+  const ownIndent = indentColumns(line);
   let end = index;
   for (let scan = index + 1; scan < lines.length; scan += 1) {
     const next = lines[scan]!;
     if (isBlank(next)) continue;
     // A heading closes an enclosing block however deeply it is indented.
     if (headingLevel(next, fenced.has(scan)) !== undefined) break;
-    if (indentOf(next) <= ownIndent) break;
+    if (indentColumns(next) <= ownIndent) break;
     end = scan;
   }
   return end > index ? { startLine: index, endLine: end } : undefined;

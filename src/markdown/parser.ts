@@ -3,6 +3,7 @@ import { parseBlocks } from "./blocks";
 import { parseBlockReferences } from "./blockReferences";
 import { findHtmlCommentRanges } from "./comments";
 import { parseFrontmatter } from "./frontmatter";
+import { escapeFlags } from "./escapes";
 import { collectProtectedRanges, parseInlineTags, parseWikiLinks } from "./inline";
 import { scanLines } from "./lines";
 import { mergeTagNames } from "./tags";
@@ -79,8 +80,9 @@ function analyzeMarkdownSource(source: string) {
   const structuralRanges = frontmatter.range === undefined
     ? codeRanges
     : [...codeRanges, frontmatter.range];
-  const protectedRanges = collectProtectedRanges(source, structuralRanges, commentRanges);
-  const links = parseWikiLinks(source, protectedRanges);
+  const escaped = escapeFlags(source);
+  const protectedRanges = collectProtectedRanges(source, structuralRanges, commentRanges, escaped);
+  const links = parseWikiLinks(source, protectedRanges, escaped);
   return { lines, frontmatter, commentRanges, parsedBlocks, protectedRanges, links };
 }
 

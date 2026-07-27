@@ -1,5 +1,5 @@
 import { StateEffect, StateField } from "@codemirror/state";
-import type { Extension, Range } from "@codemirror/state";
+import type { EditorState, Extension, Range } from "@codemirror/state";
 import {
   Decoration,
   EditorView,
@@ -8,6 +8,8 @@ import {
 } from "@codemirror/view";
 import type { DecorationSet, ViewUpdate } from "@codemirror/view";
 import { parseCalloutBlock } from "../../markdown/callouts.js";
+import { isExternalLink } from "../../application/externalLink.js";
+import { indentColumns } from "../../markdown/outline.js";
 import type { CalloutHeader } from "../../markdown/callouts.js";
 import type { MarkdownBlock } from "../../domain/models.js";
 import { pipePositions, rowCells, tableBlocks } from "../../markdown/tables.js";
@@ -20,6 +22,7 @@ import {
   markdownFrontmatterRange,
   markdownInlineCodeRanges,
   markdownInlineLinks,
+  markdownLinkDestinationAt,
 } from "./markdownContext.js";
 import { findWikiLinkAtPosition } from "./wikiLinkNavigation.js";
 import { wikiLinkDisplayRange } from "./wikiLinkPresentation.js";
@@ -27,6 +30,7 @@ import { wikiLinkDisplayRange } from "./wikiLinkPresentation.js";
 export interface LivePreviewOptions {
   readonly unresolvedLinks: () => ReadonlySet<string>;
   readonly openLink: (target: string, beside: boolean) => void;
+  readonly openExternal: (url: string) => void;
 }
 
 export const refreshLivePreview = StateEffect.define<void>();
@@ -58,17 +62,29 @@ export function createLivePreview(options: LivePreviewOptions): Extension {
         if (position === null) return false;
         const line = view.state.doc.lineAt(position);
         const link = findWikiLinkAtPosition(line.text, position - line.from);
-        if (link === undefined) return false;
-        if (!isRecognizedWikiLink(view.state, line.from + link.from, line.from + link.to)) {
-          return false;
+        if (link !== undefined) {
+          if (!isRecognizedWikiLink(view.state, line.from + link.from, line.from + link.to)) {
+            return false;
+          }
+          event.preventDefault();
+          options.openLink(link.target, true);
+          return true;
         }
+        /*
+         * A `[text](url)` was drawn as a link and underlined like one, but nothing opened it —
+         * the handler only ever looked for wiki links, so following one silently did nothing.
+         * The host decides what may actually be opened; this only avoids asking about the
+         * destinations that plainly are not external.
+         */
+        const destination = markdownLinkDestinationAt(view.state, position);
+        if (destination === undefined || !isExternalLink(destination)) return false;
         event.preventDefault();
-        options.openLink(link.target, true);
+        options.openExternal(destination);
         return true;
       },
     },
   });
-  return [plugin, revealLineField];
+  return [plugin, tableLayoutField, revealLineField];
 }
 
 class TaskWidget extends WidgetType {
@@ -167,7 +183,7 @@ function buildDecorations(
   const ranges: Range<Decoration>[] = [];
   const visitedLines = new Set<number>();
   const frontmatter = markdownFrontmatterRange(view.state);
-  const tables = tableLayout(view);
+  const tables = view.state.field(tableLayoutField, false) ?? tableLayout(view.state);
   for (const visible of view.visibleRanges) {
     let position = view.state.doc.lineAt(visible.from).from;
     while (position <= visible.to && position <= view.state.doc.length) {
@@ -219,8 +235,18 @@ interface TableRowLayout {
  * because a row's role depends on the delimiter beneath the header, and its column widths
  * depend on every other row in the same table — neither of which a per-line pass can see.
  */
-function tableLayout(view: EditorView): ReadonlyMap<number, TableRowLayout> {
-  const document = view.state.doc;
+/**
+ * Held in a field so it is worked out once per edit rather than once per repaint. The map
+ * depends only on the text, but decorations are rebuilt whenever the selection moves too, so
+ * recomputing it there re-split and re-scanned the whole document on every caret move.
+ */
+const tableLayoutField = StateField.define<ReadonlyMap<number, TableRowLayout>>({
+  create: (state) => tableLayout(state),
+  update: (value, transaction) => transaction.docChanged ? tableLayout(transaction.state) : value,
+});
+
+function tableLayout(state: EditorState): ReadonlyMap<number, TableRowLayout> {
+  const document = state.doc;
   const lines: string[] = [];
   for (let number = 1; number <= document.lines; number += 1) {
     lines.push(document.line(number).text);
@@ -297,14 +323,15 @@ function decorateTableLine(
  * the caret still moves through them; only their painted width changes, which is what makes a
  * step of indentation visible in a proportional face.
  */
-function addIndentWidth(ranges: Range<Decoration>[], from: number, indent: number): void {
-  if (indent <= 0) return;
-  const depth = Math.max(1, Math.round(indent / 2));
+function addIndentWidth(ranges: Range<Decoration>[], from: number, whitespace: string): void {
+  if (whitespace.length === 0) return;
+  // Depth comes from columns, not characters, so one tab is a step rather than half of one.
+  const depth = Math.max(1, Math.round(indentColumns(whitespace) / 2));
   ranges.push(
     Decoration.mark({
       class: "live-list-indent",
       attributes: { style: `--live-indent-depth: ${depth}` },
-    }).range(from, from + indent),
+    }).range(from, from + whitespace.length),
   );
 }
 
@@ -338,14 +365,21 @@ function decorateLine(
     const list = /^(\s*)((?:[-+*])|(?:\d+[.)]))(\s+)/.exec(text);
     if (list?.[2] !== undefined) {
       ranges.push(Decoration.line({ class: "live-list-line" }).range(from));
-      const indent = list[1]?.length ?? 0;
+      const indent = list[1] ?? "";
       addIndentWidth(ranges, from, indent);
       if (!active) {
-        const markerFrom = from + indent;
+        const markerFrom = from + indent.length;
         ranges.push(Decoration.replace({
           widget: new ListMarkerWidget(list[2]),
         }).range(markerFrom, markerFrom + list[2].length));
       }
+    } else {
+      /*
+       * A line of prose beneath a bullet belongs to the list block but carries no marker, so
+       * the branch above skipped it and it kept its literal indentation — about seven pixels,
+       * which is the gesture looking like it did nothing. It is nested like any other line.
+       */
+      addIndentWidth(ranges, from, /^[ \t]*/.exec(text)?.[0] ?? "");
     }
   }
   /*
@@ -356,7 +390,7 @@ function decorateLine(
    * indentation really does mean nesting.
    */
   if (block?.kind === "paragraph") {
-    addIndentWidth(ranges, from, /^[ \t]*/.exec(text)?.[0]?.length ?? 0);
+    addIndentWidth(ranges, from, /^[ \t]*/.exec(text)?.[0] ?? "");
   }
   /*
    * A line holding nothing but indentation is the one the caret sits on immediately after
@@ -364,7 +398,7 @@ function decorateLine(
    * instead of the width of two spaces, so the nesting is visible before anything is typed.
    */
   if (block?.kind === "blank" && text.length > 0 && text.trim() === "") {
-    addIndentWidth(ranges, from, text.length);
+    addIndentWidth(ranges, from, text);
   }
   if (block?.kind === "blockquote") {
     const callout = parseCalloutBlock(block.source);

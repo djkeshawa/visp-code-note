@@ -3,7 +3,7 @@
   "displayName": "Visp Notes",
   "icon": "media/icon.png",
   "description": "A Markdown-first connected notes, tasks, backlinks, and graph workspace for VS Code.",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "publisher": "visp-code-note",
   "license": "MIT",
   "repository": {
@@ -29,7 +29,11 @@
   "qna": "https://github.com/djkeshawa/visp-code-note/issues",
   "capabilities": {
     "untrustedWorkspaces": {
-      "supported": true
+      "supported": true,
+      "restrictedConfigurations": [
+        "vispNotes.exclude",
+        "vispNotes.notesFolder"
+      ]
     },
     "virtualWorkspaces": {
       "supported": false,

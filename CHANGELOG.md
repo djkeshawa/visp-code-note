@@ -1,5 +1,57 @@
 # Changelog
 
+## 0.5.0 - 2026-07-28
+
+### Fixed — scanning a note no longer costs more the longer it gets
+
+Several scans re-read the same text once per character, so their cost grew with the square of
+the note. Indexing parses every Markdown file in the workspace on the extension host, and the
+editor parses the open note on every keystroke, so a single large or awkward file could stall
+the whole window. All of these are measured before and after:
+
+- **Ordinary prose was the slowest case of all.** Extracting tags rebuilt the list of every
+  protected range and every link *for each tag*, so a note with a link and a tag on each line
+  compared them all against each other: 500KB took 2301ms, now 57ms. Overlap questions are
+  answered by binary search over merged ranges instead.
+- **Unclosed `[` scanned to the end of the line, then began again one character later.** A 1MB
+  note of them took around 24 minutes; it now takes 45ms. Brackets are paired off in one pass.
+- **Unclosed `[a](` did the same** — 78KB took 4669ms, now 11ms. Destinations pair off the same
+  way, except on a line containing a quote, where the older scan still runs but is bounded.
+- **Runs of backslashes made every escape check walk back over them**: 39KB took 1177ms, now
+  2ms, from a table of escape positions built once per parse.
+- **Fold controls re-scanned the document for fenced regions once per visible line, on every
+  repaint** — 25ms a keystroke on a 10,000-line note, now 0.1ms.
+- **Table layout was recomputed on every caret move**, not just on edits.
+
+A `vispNotes.exclude` pattern is also no longer able to hang the window: `{a,b}` doubles the
+work per group and the setting comes from the workspace, so 20 groups meant a million patterns
+and 12 seconds per file. Expansion is now capped, and that setting and `vispNotes.notesFolder`
+are declared restricted so an untrusted workspace cannot supply them at all.
+
+### Fixed — nesting with tabs, and prose under a bullet
+
+- **A tab counted as one column of indentation**, less than two spaces, so a tab-indented child
+  never registered as nested: it got no fold control, and one tab and two tabs drew at the same
+  depth. Indentation is measured in columns now, as CommonMark measures it.
+- **A line of prose under a bullet kept its literal indentation** — about seven pixels, so `Tab`
+  looked like it had done nothing. It belongs to the list block but carries no marker, which is
+  the branch that had been missing it.
+
+### Added
+
+- **`[text](url)` links open on Ctrl/Cmd-click.** They were drawn and underlined as links but
+  nothing followed them. Only `http`, `https` and `mailto` are opened, checked on the extension
+  side rather than in the webview: a note is workspace content, so `command:` in a link would
+  otherwise be an instruction to run a command.
+
+### Fixed
+
+- A note titled with a Windows device name — `con`, `aux`, `nul`, `com1` — could not be created
+  on Windows, because the file system refuses those whatever extension follows. The note keeps
+  its title and the file is nudged aside.
+- `vispNotes.graph.defaultDepth` was read as though its type were guaranteed; a workspace can
+  put anything there, so it is checked.
+
 ## 0.4.0 - 2026-07-27
 
 ### Fixed — Markdown that still looked like Markdown

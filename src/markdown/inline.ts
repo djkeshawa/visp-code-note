@@ -2,23 +2,24 @@ import type { OffsetRange, WikiLink } from "../domain/models";
 import type { Fence } from "./blockSyntax";
 import { matchFenceStart } from "./blockSyntax";
 import { findHtmlCommentRanges } from "./comments";
-import { isEscapedAt } from "./escapes";
+import { escapeFlags } from "./escapes";
 import { findHtmlTagRanges } from "./html";
 import { findMarkdownDestinationRanges } from "./destinations";
-import { rangesOverlap, scanLines } from "./lines";
+import { createRangeIndex, scanLines } from "./lines";
 import { findTags, mergeTagNames } from "./tags";
 
 export function collectProtectedRanges(
   source: string,
   structuralRanges: readonly OffsetRange[],
   commentRanges: readonly OffsetRange[] = findHtmlCommentRanges(source),
+  escaped: Uint8Array = escapeFlags(source),
 ): readonly OffsetRange[] {
   const ranges: OffsetRange[] = [
     ...structuralRanges,
     ...commentRanges,
     ...findQuotedFenceRanges(source),
-    ...findHtmlTagRanges(source),
-    ...findMarkdownDestinationRanges(source),
+    ...findHtmlTagRanges(source, escaped),
+    ...findMarkdownDestinationRanges(source, escaped),
   ];
 
   let offset = 0;
@@ -46,18 +47,20 @@ export function collectProtectedRanges(
 export function parseWikiLinks(
   source: string,
   protectedRanges: readonly OffsetRange[],
+  escaped: Uint8Array = escapeFlags(source),
 ): readonly WikiLink[] {
   const links: WikiLink[] = [];
+  const protection = createRangeIndex(protectedRanges);
   const pattern = /\[\[([^\]\r\n]+)\]\]/g;
   for (const match of source.matchAll(pattern)) {
     if (match.index === undefined) {
       continue;
     }
-    if (isEscapedAt(source, match.index)) {
+    if (escaped[match.index] === 1) {
       continue;
     }
     const range = { start: match.index, end: match.index + match[0].length };
-    if (protectedRanges.some((protectedRange) => rangesOverlap(range, protectedRange))) {
+    if (protection.covers(range.start, range.end)) {
       continue;
     }
     const parsed = parseWikiBody(match[1] ?? "");
@@ -74,13 +77,14 @@ export function parseInlineTags(
   protectedRanges: readonly OffsetRange[],
   links: readonly WikiLink[],
 ): readonly string[] {
+  /*
+   * Built once. Rebuilding the combined list inside the filter meant every tag walked every
+   * protected range and every link, so a note with a link and a tag on each line spent most of
+   * its parse here — 2.5s on half a megabyte of ordinary prose.
+   */
+  const excluded = createRangeIndex([...protectedRanges, ...links.map((link) => link.range)]);
   const tags = findTags(source)
-    .filter((tag) => {
-      const range = { start: tag.start, end: tag.end };
-      return ![...protectedRanges, ...links.map((link) => link.range)].some((candidate) =>
-        rangesOverlap(range, candidate),
-      );
-    })
+    .filter((tag) => !excluded.covers(tag.start, tag.end))
     .map((tag) => tag.name);
   return mergeTagNames(tags);
 }

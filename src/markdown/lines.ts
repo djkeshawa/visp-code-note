@@ -72,6 +72,53 @@ export function rangesOverlap(left: OffsetRange, right: OffsetRange): boolean {
   return left.start < right.end && right.start < left.end;
 }
 
+/**
+ * Ranges arranged so that "does anything cover this span?" costs a binary search.
+ *
+ * Asking that question by walking the whole list is fine once and ruinous per item: a note with
+ * a link and a tag on every line has thousands of each, and the walk turns tag extraction into
+ * work proportional to links times tags. Overlapping inputs are merged so the search only ever
+ * has to look at one candidate.
+ */
+export interface RangeIndex {
+  readonly covers: (start: number, end: number) => boolean;
+}
+
+export function createRangeIndex(ranges: readonly OffsetRange[]): RangeIndex {
+  const sorted = [...ranges].sort((left, right) => left.start - right.start);
+  const merged: OffsetRange[] = [];
+  for (const range of sorted) {
+    if (range.end <= range.start) continue;
+    const last = merged[merged.length - 1];
+    if (last !== undefined && range.start <= last.end) {
+      if (range.end > last.end) merged[merged.length - 1] = { start: last.start, end: range.end };
+      continue;
+    }
+    merged.push({ start: range.start, end: range.end });
+  }
+
+  return {
+    covers: (start, end) => {
+      // The first range that could reach past `start`; only it can overlap the span.
+      let low = 0;
+      let high = merged.length - 1;
+      let candidate = -1;
+      while (low <= high) {
+        const middle = (low + high) >> 1;
+        if (merged[middle]!.end > start) {
+          candidate = middle;
+          high = middle - 1;
+        } else {
+          low = middle + 1;
+        }
+      }
+      if (candidate === -1) return false;
+      const range = merged[candidate]!;
+      return start < range.end && range.start < end;
+    },
+  };
+}
+
 export function containsOffset(ranges: readonly OffsetRange[], offset: number): boolean {
   return ranges.some((range) => offset >= range.start && offset < range.end);
 }

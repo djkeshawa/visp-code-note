@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { parseExternalLink } from "../../application/externalLink";
 import { DraftRecoveryStore } from "../../application/draftRecoveryStore";
 import { parseEditorContentWidth } from "../../application/editorContentWidth";
 import { parseProseFont } from "../../application/proseFont";
@@ -209,6 +210,14 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
         case "editor/openLink":
           await this.openWikiLink(document, message.target, message.beside ?? false);
           break;
+        case "editor/openExternal": {
+          const url = parseExternalLink(message.url);
+          if (url === undefined) {
+            throw new Error("That link does not point anywhere Visp Notes will open.");
+          }
+          await vscode.env.openExternal(vscode.Uri.parse(url));
+          break;
+        }
       }
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);

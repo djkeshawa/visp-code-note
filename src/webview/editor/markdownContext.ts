@@ -186,3 +186,24 @@ export function markdownBlockAtPosition(
 function contextFor(state: EditorState): MarkdownWikiAnalysis {
   return state.field(markdownContext, false) ?? analyzeMarkdownWikiSyntax(state.sliceDoc());
 }
+
+/**
+ * The destination of the Markdown link covering `position`, when there is one.
+ *
+ * The label is what the reader clicks, so only a position inside the whole construct counts —
+ * the destination text itself is hidden in Live mode.
+ */
+export function markdownLinkDestinationAt(
+  state: EditorState,
+  position: number,
+): string | undefined {
+  const line = state.doc.lineAt(position);
+  const link = markdownInlineLinks(state, line.from, line.to)
+    .find((candidate) => candidate.start <= position && position <= candidate.end);
+  if (link === undefined || link.image) return undefined;
+  const text = state.sliceDoc(link.labelEnd + 1, link.end);
+  const inside = /^\((.*)\)$/s.exec(text)?.[1];
+  if (inside === undefined) return undefined;
+  // A destination may carry a title after it: `(https://example.com "Title")`.
+  return inside.trim().split(/\s+/)[0];
+}

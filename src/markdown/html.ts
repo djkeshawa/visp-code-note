@@ -1,5 +1,5 @@
 import type { OffsetRange } from "../domain/models";
-import { isEscapedAt } from "./escapes";
+import { escapeFlags } from "./escapes";
 
 const rawTextElements = new Set(["pre", "script", "style", "textarea"]);
 
@@ -8,13 +8,16 @@ interface TagStart {
   readonly closing: boolean;
 }
 
-export function findHtmlTagRanges(source: string): readonly OffsetRange[] {
+export function findHtmlTagRanges(
+  source: string,
+  escaped: Uint8Array = escapeFlags(source),
+): readonly OffsetRange[] {
   const ranges: OffsetRange[] = [];
   let cursor = 0;
   while (cursor < source.length) {
     const start = source.indexOf("<", cursor);
     if (start === -1) break;
-    const tag = isEscapedAt(source, start) ? undefined : parseTagStart(source, start);
+    const tag = escaped[start] === 1 ? undefined : parseTagStart(source, start);
     const end = tag === undefined ? undefined : findTagEnd(source, start + 1);
     if (tag === undefined || end === undefined) {
       cursor = start + 1;

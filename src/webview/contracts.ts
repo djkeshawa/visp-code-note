@@ -82,6 +82,7 @@ export type EditorToHostWire =
       readonly save?: boolean;
     }
   | { readonly type: "editor/openLink"; readonly target: string; readonly beside?: boolean }
+  | { readonly type: "editor/openExternal"; readonly url: string }
   | { readonly type: "editor/save" }
   | {
       readonly type: "editor/stashDraft";

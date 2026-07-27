@@ -78,6 +78,7 @@ export type EditorToHostMessage =
   | { readonly type: "editor/requestLink" }
   | { readonly type: "editor/requestTag" }
   | { readonly type: "editor/openLink"; readonly target: string; readonly beside?: boolean }
+  | { readonly type: "editor/openExternal"; readonly url: string }
   | { readonly type: "editor/setContentWidth"; readonly contentWidth: EditorContentWidth }
   | { readonly type: "editor/ready" };
 

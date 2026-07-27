@@ -12,7 +12,7 @@ import type { EditorState, Extension, Range } from "@codemirror/state";
 import { Decoration, ViewPlugin, WidgetType, keymap } from "@codemirror/view";
 import type { EditorView } from "@codemirror/view";
 import type { DecorationSet, ViewUpdate } from "@codemirror/view";
-import { outlineFoldAt } from "../../markdown/outline.js";
+import { fencedLines, outlineFoldAt } from "../../markdown/outline.js";
 
 /**
  * Collapsible headings and list items.
@@ -40,17 +40,23 @@ import { outlineFoldAt } from "../../markdown/outline.js";
  * service is consulted per line, so splitting the document inside it would make painting a
  * screen cost O(visible × lines).
  */
-const documentLines = StateField.define<readonly string[]>({
-  create: (state) => splitLines(state),
-  update: (value, transaction) => transaction.docChanged ? splitLines(transaction.state) : value,
+interface DocumentOutline {
+  readonly lines: readonly string[];
+  /** Which of those lines sit inside a fenced block, worked out once per document. */
+  readonly fenced: ReadonlySet<number>;
+}
+
+const documentLines = StateField.define<DocumentOutline>({
+  create: (state) => readOutline(state),
+  update: (value, transaction) => transaction.docChanged ? readOutline(transaction.state) : value,
 });
 
-function splitLines(state: EditorState): readonly string[] {
+function readOutline(state: EditorState): DocumentOutline {
   const lines: string[] = [];
   for (let number = 1; number <= state.doc.lines; number += 1) {
     lines.push(state.doc.line(number).text);
   }
-  return lines;
+  return { lines, fenced: fencedLines(lines) };
 }
 
 interface FoldRange {
@@ -61,8 +67,13 @@ interface FoldRange {
 /** The range a line would collapse, hidden from the end of that line so it stays visible. */
 function foldRangeForLine(state: EditorState, lineNumber: number): FoldRange | undefined {
   if (lineNumber < 1 || lineNumber > state.doc.lines) return undefined;
-  const lines = state.field(documentLines, false) ?? splitLines(state);
-  const fold = outlineFoldAt(lines, lineNumber - 1);
+  /*
+   * The fenced-line set comes from the field rather than being recomputed here. This runs once
+   * per visible line on every repaint, and working the set out each time made painting a screen
+   * cost the whole document over again — 25ms a keystroke on a ten-thousand-line note.
+   */
+  const outline = state.field(documentLines, false) ?? readOutline(state);
+  const fold = outlineFoldAt(outline.lines, lineNumber - 1, outline.fenced);
   if (fold === undefined) return undefined;
   const start = state.doc.line(lineNumber);
   const end = state.doc.line(Math.min(fold.endLine + 1, state.doc.lines));

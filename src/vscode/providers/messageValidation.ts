@@ -1,3 +1,4 @@
+import { isExternalLink } from "../../application/externalLink";
 import { EDITOR_CONTENT_WIDTHS } from "../../application/editorContentWidth";
 import type {
   BacklinksToHostMessage,
@@ -20,6 +21,9 @@ export function isEditorMessage(value: unknown): value is EditorToHostMessage {
       return EDITOR_CONTENT_WIDTHS.some((width) => width === value.contentWidth);
     case "editor/stashDraft":
       return isSource(value.source) && typeof value.saveRequested === "boolean";
+    case "editor/openExternal":
+      // Re-checked here because the webview's own filter is a convenience, not the gate.
+      return isExternalLink(value.url);
     case "editor/openLink":
       return isShortString(value.target) && !/[\r\n]/.test(value.target)
         && (value.beside === undefined || typeof value.beside === "boolean");

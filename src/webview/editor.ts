@@ -201,6 +201,7 @@ function mountOrReplaceEditor(source: string): void {
       target,
       ...(beside ? { beside: true } : {}),
     }),
+    openExternal: (url) => api.postMessage({ type: "editor/openExternal", url }),
   });
   insertLink.disabled = false;
   if (pendingReveal !== undefined) {

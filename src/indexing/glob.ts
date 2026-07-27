@@ -65,21 +65,43 @@ function normalizePath(value: string): string {
   return value.replace(/\\/g, "/");
 }
 
+/**
+ * How many patterns one exclude entry may expand into.
+ *
+ * `{a,b}` doubles the result for every group, so a pattern is free to ask for two to the power
+ * of however many groups it contains. `vispNotes.exclude` is workspace-scoped, which means a
+ * cloned repository supplies these, and twenty groups was already a million patterns and twelve
+ * seconds of work per file. Beyond the ceiling the entry is refused rather than expanded: an
+ * exclude nobody could have written by hand should not be able to stall opening a folder.
+ */
+const MAX_BRACE_EXPANSIONS = 1024;
+
 function expandBraces(pattern: string): readonly string[] {
+  const expanded = expandBracesWithin(pattern, { remaining: MAX_BRACE_EXPANSIONS });
+  return expanded ?? [];
+}
+
+function expandBracesWithin(
+  pattern: string,
+  budget: { remaining: number },
+): readonly string[] | undefined {
   const opening = pattern.indexOf("{");
-  if (opening === -1) {
-    return [pattern];
-  }
-  const closing = matchingBrace(pattern, opening);
-  if (closing === -1) {
+  const closing = opening === -1 ? -1 : matchingBrace(pattern, opening);
+  if (opening === -1 || closing === -1) {
+    if (budget.remaining <= 0) return undefined;
+    budget.remaining -= 1;
     return [pattern];
   }
 
   const prefix = pattern.slice(0, opening);
   const suffix = pattern.slice(closing + 1);
-  return splitAlternatives(pattern.slice(opening + 1, closing)).flatMap((alternative) =>
-    expandBraces(`${prefix}${alternative}${suffix}`),
-  );
+  const results: string[] = [];
+  for (const alternative of splitAlternatives(pattern.slice(opening + 1, closing))) {
+    const branch = expandBracesWithin(`${prefix}${alternative}${suffix}`, budget);
+    if (branch === undefined) return undefined;
+    results.push(...branch);
+  }
+  return results;
 }
 
 function matchingBrace(pattern: string, opening: number): number {
