@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased
+
+### Fixed — dropdown lists were invisible when the theme and the desktop disagreed
+
+The webviews declared `color-scheme: light dark`, which defers to the operating system rather
+than to the VS Code theme, and the `<select>` controls were transparent so the browser could
+see no colour of their own. A native dropdown paints its popup list from the control, not from
+the field around it, so the list came back in the desktop's polarity while the option text
+inherited the theme's — white on white for a dark theme on a light desktop, and the reverse.
+The colour scheme now follows the theme class, and the dropdowns and their options name the
+theme's own dropdown colours. This affected the task status and grouping dropdowns and the note
+content width dropdown.
+
+The same deferral also applied to the `Canvas` and `CanvasText` fallbacks the palette uses when
+a theme omits a token, which were chosen to hold the theme's polarity and until now followed
+the desktop instead.
+
+### Changed — the note editor's footer bar gave its height back to the document
+
+A permanent bar across the bottom of every note carried a short sync phrase on the left and a
+fixed keyboard hint on the right, with dead space between them, and the hint offered to open
+links in notes that had none. Sync state now sits beside the note title in the toolbar, left of
+the spacer so the buttons on the right keep still as the text changes length, and the save
+shortcut is a tooltip on it. Notes are about 30 pixels taller.
+
 ## 0.5.0 - 2026-07-28
 
 ### Fixed — scanning a note no longer costs more the longer it gets

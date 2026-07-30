@@ -10,6 +10,10 @@ export function createEditorHtml(options: WebviewTemplateOptions): string {
       <div class="visp-shell editor-shell">
         <header class="view-toolbar editor-toolbar">
           <h1 id="note-title" class="toolbar-title">Loading note…</h1>
+          <span id="sync-status" class="sync-status" role="status" aria-live="polite" aria-atomic="true" title="Ctrl/Cmd+S saves">
+            <span id="sync-status-icon" class="codicon codicon-circle-large-outline" aria-hidden="true"></span>
+            <span id="sync-status-text">Loading note…</span>
+          </span>
           <div class="toolbar-spacer"></div>
           <button id="insert-link" class="secondary-button editor-link-button" type="button" title="Insert a wiki link (Ctrl/Cmd+Shift+L)" disabled>
             <span class="codicon codicon-link" aria-hidden="true"></span> Link
@@ -39,15 +43,8 @@ export function createEditorHtml(options: WebviewTemplateOptions): string {
         <div id="editor-error" class="notice notice-error" role="alert" hidden></div>
         <div id="editor-conflict" class="notice notice-warning draft-conflict" role="alert" aria-atomic="true" hidden></div>
         <main class="editor-content">
-          <div id="editor-host" class="editor-host is-live-mode" aria-describedby="editor-hint sync-status"></div>
+          <div id="editor-host" class="editor-host is-live-mode" aria-describedby="sync-status"></div>
         </main>
-        <footer class="view-footer">
-          <span id="sync-status" class="sync-status" role="status" aria-live="polite" aria-atomic="true">
-            <span id="sync-status-icon" class="codicon codicon-circle-large-outline" aria-hidden="true"></span>
-            <span id="sync-status-text">Loading note…</span>
-          </span>
-          <span id="editor-hint" class="footer-hint">Ctrl/Cmd+S saves · Ctrl/Cmd-click opens a link</span>
-        </footer>
       </div>`,
   });
 }

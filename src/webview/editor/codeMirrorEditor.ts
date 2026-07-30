@@ -247,7 +247,7 @@ export class CodeMirrorEditor {
       EditorView.lineWrapping,
       EditorView.contentAttributes.of({
         "aria-label": "Markdown note editor",
-        "aria-describedby": "editor-hint sync-status",
+        "aria-describedby": "sync-status",
         spellcheck: "true",
       }),
       markdown({ base: markdownLanguage, completeHTMLTags: false, codeLanguages: [...codeLanguages] }),

@@ -1,11 +1,13 @@
 .editor-shell {
   display: grid;
-  grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto auto auto minmax(0, 1fr);
 }
 
 /*
  * The tab bar already names the document and the status bar already reports state, so
- * the editor's own chrome stays to one compact row plus a context strip.
+ * the editor's own chrome stays to one compact row plus a context strip. Sync state rides
+ * in that row beside the title rather than in a footer of its own: a permanent bar cost
+ * the document ~30px to carry one short phrase and a fixed keyboard hint.
  */
 .editor-toolbar {
   min-height: 34px;
@@ -693,13 +695,19 @@
   transition: background-color 180ms ease, box-shadow 180ms ease;
 }
 
+/*
+ * Placed left of the toolbar spacer so the buttons on the right keep still while the
+ * status text changes length between "Saved", "Syncing…" and a conflict message.
+ */
 .sync-status {
   min-width: 0;
+  flex: 0 1 auto;
   display: inline-flex;
   align-items: center;
   gap: 5px;
   overflow: hidden;
   color: var(--visp-muted);
+  font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: default;
@@ -780,7 +788,8 @@
     --editor-inline-gutter: 12px;
   }
 
-  .footer-hint {
+  /* The icon alone still reports state once the row is too narrow for the phrase. */
+  #sync-status-text {
     display: none;
   }
 }
