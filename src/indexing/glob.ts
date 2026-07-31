@@ -26,7 +26,7 @@ function globToRegExp(pattern: string): RegExp {
         index += 1;
       }
       if (normalized[index + 1] === "/") {
-        index += 1;
+        index = skipRedundantGlobStars(normalized, index + 1);
         source += "(?:.*/)?";
       } else {
         source += ".*";
@@ -59,6 +59,35 @@ function globToRegExp(pattern: string): RegExp {
   }
 
   return new RegExp(`${source}$`);
+}
+
+/**
+ * Consumes any further globstar directory segments chained onto the one just read, and returns
+ * the offset of the slash that ends the run.
+ *
+ * A globstar directory segment already means "any run of directories, including none", so a
+ * chain of them matches exactly what a single one matches. Emitting a group apiece instead
+ * leaves optional `.*` groups that can each match the same text, and the engine then tries every
+ * way of dividing the path between them. That is exponential in the length of the chain: twelve
+ * segments took fifteen seconds against one ordinary path and fourteen took a hundred. This
+ * setting is workspace-scoped, so a cloned repository writes these, and the match runs on the
+ * extension host for every keystroke in a Markdown file — so the chain collapses to the one
+ * group it is equivalent to. Changing how the group itself is written does not help; only
+ * collapsing the run removes the ambiguity.
+ */
+function skipRedundantGlobStars(pattern: string, slashIndex: number): number {
+  let cursor = slashIndex;
+  while (pattern[cursor + 1] === "*" && pattern[cursor + 2] === "*") {
+    let next = cursor + 1;
+    while (pattern[next] === "*") {
+      next += 1;
+    }
+    if (pattern[next] !== "/") {
+      break;
+    }
+    cursor = next;
+  }
+  return cursor;
 }
 
 function normalizePath(value: string): string {
