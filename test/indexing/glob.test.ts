@@ -32,6 +32,34 @@ test("refuses a pattern that would expand beyond any hand-written exclude", () =
   assert.ok(elapsed < 500, `a brace bomb took ${elapsed.toFixed(0)}ms`);
 });
 
+test("a chain of globstars matches what a single one matches", () => {
+  assert.equal(matchesAnyGlob("a/deep/nested/c.md", ["a/**/**/**/c.md"]), true);
+  assert.equal(matchesAnyGlob("a/c.md", ["a/**/**/c.md"]), true);
+  assert.equal(matchesAnyGlob("a/deep/d.md", ["a/**/**/c.md"]), false);
+  assert.equal(matchesAnyGlob("node_modules/pkg/readme.md", ["**/**/node_modules/**"]), true);
+  assert.equal(matchesAnyGlob("notes/a.md", ["**/**/node_modules/**"]), false);
+  // A trailing globstar still means "and everything below", with no slash to chain onto.
+  assert.equal(matchesAnyGlob("a/b/c.md", ["a/**/**"]), true);
+});
+
+test("refuses to backtrack exponentially over a chain of globstars", () => {
+  /*
+   * Each globstar segment used to emit its own optional group, and those groups can all match
+   * the same text, so the engine tried every division of the path between them: twelve segments
+   * cost fifteen seconds and fourteen cost a hundred. The setting is workspace-scoped like the
+   * brace bomb above, and this match runs on the extension host for every keystroke in a
+   * Markdown file, so one cloned repository could freeze the window on the first character
+   * typed. Collapsing the chain is what keeps this linear; the brace budget never fires here
+   * because the pattern contains no braces.
+   */
+  const bomb = `${"**/".repeat(14)}q`;
+  const path = `${Array.from({ length: 20 }, (_, index) => `dir${index}`).join("/")}/readme.md`;
+  const started = process.hrtime.bigint();
+  assert.equal(matchesAnyGlob(path, [bomb]), false);
+  const elapsed = Number(process.hrtime.bigint() - started) / 1e6;
+  assert.ok(elapsed < 500, `a globstar chain took ${elapsed.toFixed(0)}ms`);
+});
+
 test("a refused pattern does not disable the others beside it", () => {
   const patterns = [`${"{a,b}".repeat(30)}/**`, "**/node_modules/**"];
   assert.equal(matchesAnyGlob("node_modules/a.md", patterns), true);
