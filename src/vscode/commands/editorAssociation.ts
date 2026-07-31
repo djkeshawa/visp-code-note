@@ -1,10 +1,13 @@
 import * as vscode from "vscode";
 import {
+  BUILT_IN_EDITOR_VIEW_TYPE,
   MARKDOWN_ASSOCIATION_GLOB,
   isDefaultEditorFor,
   readEditorAssociations,
   withDefaultEditor,
   withoutDefaultEditor,
+  workspaceAssociationFor,
+  workspacePinContradicts,
 } from "../../application/editorAssociation";
 import { NOTE_EDITOR_VIEW_TYPE } from "../ids";
 
@@ -25,7 +28,7 @@ export async function useVispNotesAsDefaultEditor(): Promise<void> {
     vscode.ConfigurationTarget.Global,
   );
   void vscode.window.showInformationMessage(
-    workspaceStillOverrides()
+    workspaceContradicts(NOTE_EDITOR_VIEW_TYPE)
       ? "Markdown files now open in Visp Notes everywhere except this workspace, which sets its own workbench.editorAssociations."
       : "Markdown files now open in Visp Notes. Use “Restore the Built-in Markdown Text Editor” to undo this.",
   );
@@ -45,7 +48,7 @@ export async function useTextEditorByDefault(): Promise<void> {
     vscode.ConfigurationTarget.Global,
   );
   void vscode.window.showInformationMessage(
-    workspaceStillOverrides()
+    workspaceContradicts(BUILT_IN_EDITOR_VIEW_TYPE)
       ? "Markdown files now open in the built-in text editor, except in this workspace, which sets its own workbench.editorAssociations."
       : "Markdown files now open in the built-in text editor. Visp Notes stays available through “Reopen Editor With…”.",
   );
@@ -65,13 +68,18 @@ function currentAssociations(): Readonly<Record<string, string>> {
 }
 
 /**
- * Whether a workspace-level association still decides which editor opens Markdown. The global
+ * Whether the open workspace pins an editor that disagrees with the one just chosen. The global
  * setting these commands write is the weaker of the two, so without this the command reports
  * success while the workspace goes on overriding it.
  */
-function workspaceStillOverrides(): boolean {
+function workspaceContradicts(chosenViewType: string): boolean {
   const scopes = vscode.workspace.getConfiguration(SECTION).inspect<unknown>(KEY);
-  return [scopes?.workspaceValue, scopes?.workspaceFolderValue].some(
-    (value) => value !== undefined && readEditorAssociations(value)[MARKDOWN_ASSOCIATION_GLOB] !== undefined,
+  return workspacePinContradicts(
+    workspaceAssociationFor(
+      MARKDOWN_ASSOCIATION_GLOB,
+      scopes?.workspaceFolderValue,
+      scopes?.workspaceValue,
+    ),
+    chosenViewType,
   );
 }

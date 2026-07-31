@@ -62,6 +62,14 @@ function parseTagStart(source: string, start: number): TagStart | undefined {
  * CommonMark already refuses a tag containing a blank line, which is the bound that matters for
  * prose, and this is the backstop for a run with no blank line in it at all. Real markup is far
  * inside it: the longest tag a note plausibly carries is an anchor or an image with a long URL.
+ *
+ * It is a deliberate trade rather than a free win. A tag longer than this is no longer treated
+ * as markup, so `[[...]]` or `#...` written inside its attributes is read as a wiki link or a
+ * tag. That needs an oversized single tag which also contains link-like text — an inline image
+ * with a base64 `data:` URI is the realistic oversized case, and base64 carries neither — and it
+ * produces one link too many rather than losing any. Without the bound, prose using `<` as
+ * "less than" parsed in quadratic time. A spurious link in a rare shape of tag is much the
+ * smaller cost.
  */
 const MAX_TAG_LENGTH = 1024;
 

@@ -152,3 +152,25 @@ test("a real HTML tag still protects what it contains", () => {
   const parsed = parseMarkdown("Before <span title=\"[[Not A Link]]\">text</span> after [[Real]].\n");
   assert.deepEqual(parsed.links.map((link) => link.target), ["Real"]);
 });
+
+test("an oversized tag stops protecting its contents, but ordinary markup does not", () => {
+  /*
+   * Bounding the search for a tag's closing `>` is what keeps the parse linear, and the price is
+   * that a tag longer than the bound is no longer markup. These pin which cases pay it. The
+   * realistic oversized tag is an inline image with a base64 data: URI, and base64 carries
+   * nothing that could be read as a link or a tag, so it costs nothing there.
+   */
+  const base64 = `iVBORw0KGgoAAAANSUhEUg${"A".repeat(4000)}`;
+
+  const markdownImage = parseMarkdown(`![alt](data:image/png;base64,${base64})\n\nSee [[Real]] and #real.\n`);
+  assert.deepEqual(markdownImage.links.map((link) => link.target), ["Real"]);
+  assert.deepEqual([...markdownImage.tags], ["real"]);
+
+  const htmlImage = parseMarkdown(`<img src="data:image/png;base64,${base64}">\n\nSee [[Real]] and #real.\n`);
+  assert.deepEqual(htmlImage.links.map((link) => link.target), ["Real"]);
+  assert.deepEqual([...htmlImage.tags], ["real"]);
+
+  // A tag that legally spans lines is still markup, and still protects what it holds.
+  const multiline = parseMarkdown('<a\n  href="https://example.com"\n  title="[[Hidden]]">t</a> [[Real]]\n');
+  assert.deepEqual(multiline.links.map((link) => link.target), ["Real"]);
+});
