@@ -33,6 +33,13 @@ export class GraphNodeDragController {
   private positions: ReadonlyMap<string, GraphPoint> = new Map();
   private drag: DragState | undefined;
   private suppressClick = false;
+  /**
+   * Where a node's label flips to its other side, kept in step with the layout the way
+   * `GraphPositionUpdater` keeps it. This was written into `positionNode` as a literal, which is
+   * the midpoint of the smallest layout only, so in any larger graph a dragged node's label
+   * jumped to the wrong side partway across and stayed there once the drag ended.
+   */
+  private midX = 480;
 
   public constructor(
     private readonly svg: SVGSVGElement,
@@ -48,6 +55,10 @@ export class GraphNodeDragController {
 
   public setPositions(positions: ReadonlyMap<string, GraphPoint>): void {
     this.positions = positions;
+  }
+
+  public setMidX(midX: number): void {
+    this.midX = midX;
   }
 
   public dispose(): void {
@@ -93,7 +104,7 @@ export class GraphNodeDragController {
     event.preventDefault();
     const pointer = clientPointToSvg(this.svg, event.clientX, event.clientY);
     drag.point = { x: pointer.x + drag.offset.x, y: pointer.y + drag.offset.y };
-    positionNode(drag, drag.point);
+    positionNode(drag, drag.point, this.midX);
     this.positions = movedGraphPositions(this.positions, drag.nodeId, drag.point);
     this.callbacks.onMove(drag.nodeId, drag.point);
   };
@@ -119,9 +130,9 @@ export class GraphNodeDragController {
   };
 }
 
-function positionNode(drag: DragState, point: GraphPoint): void {
+function positionNode(drag: DragState, point: GraphPoint, midX: number): void {
   drag.element.setAttribute("transform", `translate(${point.x} ${point.y})`);
-  positionLabel(drag.element, point.x > 480);
+  positionLabel(drag.element, point.x > midX);
   for (const edge of drag.edges) {
     const suffix = edge.endpoint === "source" ? "1" : "2";
     edge.element.setAttribute(`x${suffix}`, String(point.x));

@@ -6,10 +6,21 @@ export type SmartViewId = "tasks" | "due" | "graph" | "broken" | "orphans";
 
 export type ExplorerTask = IndexSnapshot["tasks"][number];
 
+/**
+ * Which branch of the tree a row was produced for.
+ *
+ * A note reaches the tree from the folder listing, from any tag it carries and from Orphan
+ * Notes, and a task from both Tasks and Due Today, so the same note or task is several distinct
+ * rows. `TreeItem.id` has to be unique across the whole tree, and keying it on the URI alone
+ * meant the later row displaced the earlier one — the first row lost the click command that
+ * opens the note, and the tree could not tell the two apart when revealing or selecting.
+ */
+export type ExplorerOrigin = string;
+
 export type ExplorerNode =
   | { readonly kind: "section"; readonly id: SectionId; readonly label: string }
   | { readonly kind: "folder"; readonly path: string; readonly label: string }
-  | { readonly kind: "note"; readonly note: NoteRecord }
+  | { readonly kind: "note"; readonly note: NoteRecord; readonly origin?: ExplorerOrigin }
   | {
       readonly kind: "smart";
       readonly id: SmartViewId;
@@ -24,6 +35,7 @@ export type ExplorerNode =
        * against a stale index is rejected instead of edited.
        */
       readonly snapshotVersion: number;
+      readonly origin?: ExplorerOrigin;
     }
   | { readonly kind: "tag"; readonly tag: string; readonly count: number }
   | { readonly kind: "status" };
@@ -164,4 +176,43 @@ function compareNoteNodes(left: ExplorerNode, right: ExplorerNode): number {
     return 0;
   }
   return compareText(left.note.title, right.note.title);
+}
+
+/**
+ * Stamps which branch produced these rows, so the same note or task appearing under more than
+ * one of them stays distinguishable.
+ */
+export function fromBranch(
+  nodes: readonly ExplorerNode[],
+  origin: ExplorerOrigin,
+): ExplorerNode[] {
+  return nodes.map((node) =>
+    node.kind === "note" || node.kind === "task" ? { ...node, origin } : node,
+  );
+}
+
+/**
+ * The `TreeItem.id` for a row, or undefined for a row that needs none.
+ *
+ * VS Code requires these to be unique across the whole tree. Keying a note on its URI alone was
+ * not: the same note is a row under its folder, under each of its tags and under Orphan Notes,
+ * and the same task is a row under both Tasks and Due Today. Whichever row VS Code saw last
+ * displaced the earlier one, which lost the command that opens it on click.
+ */
+export function explorerRowId(node: ExplorerNode): string | undefined {
+  switch (node.kind) {
+    case "folder":
+      return `folder:${node.path}`;
+    case "note":
+      return `${node.origin ?? "notes"}:note:${node.note.uri}`;
+    case "task":
+      return `${node.origin ?? "tasks"}:task:${node.task.noteUri}:${node.task.id ?? node.task.range.start}`;
+    case "smart":
+      return `smart:${node.id}`;
+    case "tag":
+      return `tag:${node.tag.toLocaleLowerCase()}`;
+    case "section":
+    case "status":
+      return undefined;
+  }
 }

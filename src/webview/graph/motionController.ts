@@ -37,8 +37,10 @@ export class GraphMotionController {
   ): RenderedGraph {
     this.simulation.stop();
     this.rendered = renderGraphSvg(this.svg, graph, selectedId, retainedPositions);
-    this.positionUpdater.setMidX(graphLayoutBounds(graph.nodes.length).width / 2);
+    const midX = graphLayoutBounds(graph.nodes.length).width / 2;
+    this.positionUpdater.setMidX(midX);
     this.positionUpdater.refresh();
+    this.nodeDrag.setMidX(midX);
     this.nodeDrag.setPositions(this.rendered.positions);
     this.simulation.start(graph, this.rendered.positions);
     return this.rendered;

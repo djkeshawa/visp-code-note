@@ -150,14 +150,35 @@ export class WorkspaceIndex implements vscode.Disposable {
   private async applyChanges(changes: readonly PendingChange[]): Promise<void> {
     const next = new Map(this.notes);
     let changed = false;
-    for (const change of changes) {
+    for (let index = 0; index < changes.length; index += 1) {
+      const change = changes[index];
+      if (change === undefined) continue;
       const key = uriKey(change.uri);
       if (change.kind === "remove" || !isIndexableMarkdown(change.uri)) {
         changed = next.delete(key) || changed;
         continue;
       }
 
-      const record = await this.readIfPresent(change.uri);
+      let record: NoteRecord | undefined;
+      try {
+        record = await this.readIfPresent(change.uri);
+      } catch (error) {
+        /*
+         * One unreadable file used to cost the whole batch. A watcher burst is coalesced into a
+         * single drain, `pendingChanges` is emptied before it starts, and the new map was only
+         * committed after the last change — so a read that threw part-way discarded every change
+         * beside it, including removals, which cannot fail. Nothing retried them, and the error
+         * status was cleared by the next unrelated change, so a note deleted from disk stayed in
+         * the index and a note already re-read stayed stale until a full rebuild.
+         *
+         * The work that succeeded is committed, the entries never attempted go back on the queue
+         * for the reschedule to pick up, and only the one that failed is dropped — putting that
+         * back would spin the drain against a file that keeps failing.
+         */
+        if (changed) this.commit(next);
+        this.requeueUnattempted(changes.slice(index + 1));
+        throw error;
+      }
       if (record) {
         const current = next.get(key);
         if (
@@ -175,6 +196,17 @@ export class WorkspaceIndex implements vscode.Disposable {
     }
     if (changed) {
       this.commit(next);
+    }
+  }
+
+  /** Returns changes a failed drain never reached, without displacing newer events for them. */
+  private requeueUnattempted(changes: readonly PendingChange[]): void {
+    if (this.disposed) return;
+    for (const change of changes) {
+      const key = uriKey(change.uri);
+      if (!this.pendingChanges.has(key)) {
+        this.pendingChanges.set(key, change);
+      }
     }
   }
 
