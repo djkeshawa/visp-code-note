@@ -128,3 +128,27 @@ test("ignores wiki-looking text inside Markdown destinations and bare URLs", () 
   ].join("\n"));
   assert.deepEqual(parsed.links.map((link) => link.target), ["Real"]);
 });
+
+test("an inequality in prose does not swallow the rest of the note", () => {
+  /*
+   * `a<b` parses as a tag start, and the search for the closing `>` used to run to the end of
+   * the document, protecting everything in between. Wiki links, tags and block references are
+   * all skipped inside protected ranges, so one inequality silently emptied the rest of the
+   * note out of the index, backlinks and graph. CommonMark ends a raw HTML tag at a blank line.
+   */
+  const parsed = parseMarkdown(
+    "The invariant is that a<b holds.\n\n" +
+    "See [[Design Notes]] and [[Benchmarks]]. Tagged #algorithms.\n\n" +
+    "Key paragraph ^invariant\n\n" +
+    "```js\nconst f = () => 1;\n```\n",
+  );
+
+  assert.deepEqual(parsed.links.map((link) => link.target), ["Design Notes", "Benchmarks"]);
+  assert.deepEqual([...parsed.tags], ["algorithms"]);
+  assert.deepEqual(parsed.blockReferences.map((reference) => reference.id), ["invariant"]);
+});
+
+test("a real HTML tag still protects what it contains", () => {
+  const parsed = parseMarkdown("Before <span title=\"[[Not A Link]]\">text</span> after [[Real]].\n");
+  assert.deepEqual(parsed.links.map((link) => link.target), ["Real"]);
+});

@@ -5,6 +5,8 @@ import {
   type ExplorerNode,
   type ExplorerTask,
   ROOT_NODES,
+  explorerRowId,
+  fromBranch,
   noteChildren,
   notesWithTag,
   orphanNotes,
@@ -57,22 +59,22 @@ export class NotesExplorerProvider
     }
     if (node.kind === "section") {
       if (node.id === "notes") {
-        return [...noteChildren(this.index.snapshot)];
+        return fromBranch(noteChildren(this.index.snapshot), "notes");
       }
       return node.id === "smart"
         ? [...smartViews(this.index.snapshot)]
         : [...tagNodes(this.index.snapshot)];
     }
     if (node.kind === "folder") {
-      return [...noteChildren(this.index.snapshot, node.path)];
+      return fromBranch(noteChildren(this.index.snapshot, node.path), "notes");
     }
     if (node.kind === "tag") {
-      return [...notesWithTag(this.index.snapshot, node.tag)];
+      return fromBranch(notesWithTag(this.index.snapshot, node.tag), `tag:${node.tag}`);
     }
     if (node.kind === "smart") {
-      if (node.id === "orphans") return [...orphanNotes(this.index.snapshot)];
-      if (node.id === "tasks") return [...taskNodes(this.index.snapshot, "all")];
-      if (node.id === "due") return [...taskNodes(this.index.snapshot, "due")];
+      if (node.id === "orphans") return fromBranch(orphanNotes(this.index.snapshot), "orphans");
+      if (node.id === "tasks") return fromBranch(taskNodes(this.index.snapshot, "all"), "tasks");
+      if (node.id === "due") return fromBranch(taskNodes(this.index.snapshot, "due"), "due");
     }
     return [];
   }
@@ -90,7 +92,21 @@ export class NotesExplorerProvider
       // The toggle is driven by the indexed state, so ignore events that ask for the
       // state the task is already in.
       if (requested === node.task.completed) continue;
-      await this.toggleTask(node.task, node.snapshotVersion);
+      try {
+        await this.toggleTask(node.task, node.snapshotVersion);
+      } catch (error) {
+        /*
+         * The TreeView has already drawn the box in the state the user clicked, so a failed
+         * toggle leaves the row disagreeing with the file. Redrawing from the index puts it
+         * back. This used to reject out of a `void`-ed call, which surfaced as an unhandled
+         * rejection in the extension host and told the user nothing.
+         */
+        this.changeEmitter.fire(undefined);
+        void vscode.window.showErrorMessage(
+          error instanceof Error ? error.message : String(error),
+        );
+        return;
+      }
     }
   }
 
@@ -110,7 +126,7 @@ export class NotesExplorerProvider
 
   private folderItem(node: Extract<ExplorerNode, { kind: "folder" }>): vscode.TreeItem {
     const item = new vscode.TreeItem(node.label, vscode.TreeItemCollapsibleState.Collapsed);
-    item.id = `folder:${node.path}`;
+    item.id = explorerRowId(node);
     item.contextValue = "vispNotes.folder";
     item.iconPath = vscode.ThemeIcon.Folder;
     return item;
@@ -119,7 +135,7 @@ export class NotesExplorerProvider
   private noteItem(node: Extract<ExplorerNode, { kind: "note" }>): vscode.TreeItem {
     const uri = vscode.Uri.parse(node.note.uri);
     const item = new vscode.TreeItem(node.note.title, vscode.TreeItemCollapsibleState.None);
-    item.id = `note:${node.note.uri}`;
+    item.id = explorerRowId(node);
     item.contextValue = "vispNotes.note";
     item.description = node.note.fileName === `${node.note.title}.md` ? undefined : node.note.fileName;
     item.iconPath = new vscode.ThemeIcon("note");
@@ -135,7 +151,7 @@ export class NotesExplorerProvider
       task.text.length > 0 ? task.text : "Untitled task",
       vscode.TreeItemCollapsibleState.None,
     );
-    item.id = `task:${task.noteUri}:${task.id ?? task.range.start}`;
+    item.id = explorerRowId(node);
     item.contextValue = "vispNotes.task";
     item.checkboxState = task.completed
       ? vscode.TreeItemCheckboxState.Checked
@@ -166,7 +182,7 @@ export class NotesExplorerProvider
       node.label,
       expandable ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None,
     );
-    item.id = `smart:${node.id}`;
+    item.id = explorerRowId(node);
     item.contextValue = `vispNotes.smart.${node.id}`;
     item.description = node.count === undefined ? undefined : String(node.count);
     item.iconPath = new vscode.ThemeIcon(SMART_ICONS[node.id]);
@@ -176,7 +192,7 @@ export class NotesExplorerProvider
 
   private tagItem(node: Extract<ExplorerNode, { kind: "tag" }>): vscode.TreeItem {
     const item = new vscode.TreeItem(`#${node.tag}`, vscode.TreeItemCollapsibleState.Collapsed);
-    item.id = `tag:${node.tag.toLocaleLowerCase()}`;
+    item.id = explorerRowId(node);
     item.contextValue = "vispNotes.tag";
     item.description = String(node.count);
     item.iconPath = new vscode.ThemeIcon("tag");

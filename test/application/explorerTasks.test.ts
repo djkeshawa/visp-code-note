@@ -1,7 +1,15 @@
 import assert = require("node:assert/strict");
 import { test } from "node:test";
 import { buildSnapshot } from "../../src/indexing/projections";
-import { taskNodes, todayStamp } from "../../src/vscode/providers/explorerModel";
+import {
+  explorerRowId,
+  fromBranch,
+  noteChildren,
+  notesWithTag,
+  orphanNotes,
+  taskNodes,
+  todayStamp,
+} from "../../src/vscode/providers/explorerModel";
 import { makeNote } from "../indexing/fixtures";
 
 const TODAY = "2026-07-26";
@@ -66,4 +74,37 @@ test("each row carries the index version it was built from", () => {
 test("today's stamp is a sortable ISO date", () => {
   assert.equal(todayStamp(new Date(Date.UTC(2026, 6, 4, 12))), "2026-07-04");
   assert.match(todayStamp(), /^\d{4}-\d{2}-\d{2}$/);
+});
+
+test("a note reachable from several branches gets a distinct row id in each", () => {
+  /*
+   * The same note is a row under its folder, under every tag it carries and under Orphan Notes,
+   * and VS Code requires TreeItem.id to be unique across the whole tree. Keying on the URI alone
+   * meant the last row registered displaced the earlier ones, and the displaced row lost the
+   * command that opens the note when clicked.
+   */
+  const note = makeNote({ path: "ideas.md", title: "Ideas", content: "# Ideas\n\n#research\n" });
+  const snapshot = buildSnapshot([note], 1, 0);
+  assert.deepEqual([...note.tags], ["research"]);
+
+  const ids = [
+    ...fromBranch(noteChildren(snapshot), "notes"),
+    ...fromBranch(notesWithTag(snapshot, "research"), "tag:research"),
+    ...fromBranch(orphanNotes(snapshot), "orphans"),
+  ].map(explorerRowId);
+
+  assert.equal(ids.length, 3, "the note should appear under notes, its tag and orphans");
+  assert.equal(new Set(ids).size, 3, `row ids collided: ${JSON.stringify(ids)}`);
+});
+
+test("the same task under Tasks and Due Today gets a distinct row id in each", () => {
+  const note = makeNote({ path: "today.md", title: "Today", content: `- [ ] ship it @due(${TODAY})\n` });
+  const snapshot = buildSnapshot([note], 1, 0);
+
+  const all = fromBranch(taskNodes(snapshot, "all", TODAY), "tasks").map(explorerRowId);
+  const due = fromBranch(taskNodes(snapshot, "due", TODAY), "due").map(explorerRowId);
+
+  assert.equal(all.length, 1);
+  assert.equal(due.length, 1);
+  assert.notEqual(all[0], due[0]);
 });

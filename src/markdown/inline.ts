@@ -51,23 +51,53 @@ export function parseWikiLinks(
 ): readonly WikiLink[] {
   const links: WikiLink[] = [];
   const protection = createRangeIndex(protectedRanges);
-  const pattern = /\[\[([^\]\r\n]+)\]\]/g;
-  for (const match of source.matchAll(pattern)) {
-    if (match.index === undefined) {
+  /*
+   * Paired off in one forward pass rather than matched with `/\[\[([^\]\r\n]+)\]\]/g`.
+   *
+   * That pattern consumed the rest of the line after every `[[` and then gave it all back when
+   * no `]]` followed, and the scan began again one character later, so a line carrying many
+   * unclosed `[[` was quadratic: eight thousand of them took 161ms and the cost quadrupled with
+   * every doubling. This is the same shape `bracketPairs` in destinations.ts already pairs off
+   * in a single pass, and the same one test/markdown/parserScaling.test.ts pins elsewhere.
+   *
+   * A body holds no `]` and never spans a line break, so the earliest `[[` since the last of
+   * either is the one a `]]` closes — which is the leftmost match the pattern took.
+   */
+  let opening: number | undefined;
+  for (let index = 0; index < source.length; index += 1) {
+    const character = source[index];
+    if (character === "\n" || character === "\r") {
+      opening = undefined;
       continue;
     }
-    if (escaped[match.index] === 1) {
+    if (character === "[" && source[index + 1] === "[") {
+      if (opening === undefined) opening = index;
+      index += 1;
       continue;
     }
-    const range = { start: match.index, end: match.index + match[0].length };
+    if (character !== "]") continue;
+
+    // Either this closes the pending opening or it ends it: a body cannot hold a `]`.
+    if (source[index + 1] !== "]" || opening === undefined || index <= opening + 2) {
+      opening = undefined;
+      continue;
+    }
+    const start = opening;
+    const body = source.slice(start + 2, index);
+    opening = undefined;
+    index += 1;
+    if (escaped[start] === 1) {
+      continue;
+    }
+    const range = { start, end: index + 1 };
     if (protection.covers(range.start, range.end)) {
       continue;
     }
-    const parsed = parseWikiBody(match[1] ?? "");
+    const parsed = parseWikiBody(body);
     if (parsed === undefined) {
       continue;
     }
-    links.push({ raw: match[0], ...parsed, range });
+    links.push({ raw: source.slice(range.start, range.end), ...parsed, range });
   }
   return Object.freeze(links);
 }

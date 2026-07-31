@@ -146,17 +146,27 @@ export async function applyRenameTransaction(transaction: RenameTransaction): Pr
     }
   }
 
+  /*
+   * Rolling the file back is only safe while nothing has been rewritten to point at the new
+   * name. `applyEdit` returning true applies every link and title edit at once, and
+   * `persistRenameEdits` may already have written some of them to disk, so undoing the file
+   * rename after that point moved the note back under links that now name where it used to be
+   * going — every one of them broken — and said "no content updates were applied" while doing
+   * it. Past that point the rename stands and the error describes what is left to finish.
+   */
+  let contentApplied = false;
   try {
     const saveable = await applyValidatedContentEdit(transaction);
     if (saveable === false) {
       throw new Error("VS Code rejected the link and title updates.");
     }
+    contentApplied = transaction.hasContentEdits;
     // The file rename is already on disk. Leaving the link and title updates unsaved would
     // mean a crash or a "Don't Save" leaves the note renamed with every incoming link still
     // pointing at the old name, so persist the halves together.
     await persistRenameEdits(saveable);
   } catch (error) {
-    if (fileRenamed) {
+    if (fileRenamed && !contentApplied) {
       await rollbackFileRename(
         transaction.nextUri,
         transaction.previousUri,

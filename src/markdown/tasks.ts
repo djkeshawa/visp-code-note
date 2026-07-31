@@ -1,5 +1,5 @@
 import type { NoteTask, OffsetRange, TaskPriority } from "../domain/models";
-import { containsOffset } from "./lines";
+import { createRangeIndex } from "./lines";
 import type { SourceLine } from "./lines";
 import { collectTagNames, removeTagTokens } from "./tags";
 
@@ -42,9 +42,16 @@ export function parseTasks(
   excludedRanges: readonly OffsetRange[],
 ): readonly NoteTask[] {
   const tasks: NoteTask[] = [];
+  /*
+   * Built once, the way parseInlineTags and parseBlockReferences already build theirs. Asking
+   * `containsOffset` per line walked the whole excluded list every time, so a note's lines and
+   * its fenced blocks multiplied: 375KB of alternating fences and tasks took 1.5s, and the cost
+   * kept climbing faster than the note did.
+   */
+  const excluded = createRangeIndex(excludedRanges);
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
-    if (line === undefined || containsOffset(excludedRanges, line.start)) {
+    if (line === undefined || excluded.covers(line.start, line.start + 1)) {
       continue;
     }
     const match = matchTaskLine(line.text);
