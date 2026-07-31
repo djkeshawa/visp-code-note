@@ -10,10 +10,11 @@ export async function mapConcurrent<T, R>(
     while (cursor < values.length) {
       const index = cursor;
       cursor += 1;
-      const value = values[index];
-      if (value !== undefined) {
-        results[index] = await mapper(value);
-      }
+      // `index` came from the bound above, so the element is there. Skipping the call when it
+      // reads as undefined — which `noUncheckedIndexedAccess` invites — would leave a hole in
+      // an array whose type promises an `R` at every position, and a caller that indexes or
+      // destructures the result would read undefined without a type error to warn it.
+      results[index] = await mapper(values[index] as T);
     }
   }
 
