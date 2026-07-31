@@ -80,3 +80,29 @@ test("the scan limit only applies where a destination cannot be paired off", () 
     "a quoted destination past the bound is left unprotected rather than rescanned",
   );
 });
+
+test("prose using `<` as less-than parses in linear time", () => {
+  /*
+   * `findTagEnd` ran to the end of the document, and `findHtmlTagRanges` retries from the next
+   * `<` after a failure, so every tag-like `<` with no `>` after it rescanned the remainder.
+   * 672KB of this took 11.4s, quadrupling with each doubling.
+   */
+  const elapsed = millisecondsToParse("when a<b then something else happens here.\n".repeat(24_000));
+  assert.ok(elapsed < 4_000, `1MB of inequalities took ${elapsed.toFixed(0)}ms`);
+});
+
+test("a note of unclosed wiki links parses in linear time", () => {
+  // Took 161ms at a sixth of this size before `[[` was paired off in a single pass.
+  const elapsed = millisecondsToParse("[[".repeat(500_000));
+  assert.ok(elapsed < 4_000, `1MB of unclosed wiki links took ${elapsed.toFixed(0)}ms`);
+});
+
+test("tasks below many fenced blocks parse in linear time", () => {
+  /*
+   * Every line asked the whole excluded-range list whether it was covered, so a note's lines
+   * and its fenced blocks multiplied. 375KB took 1.5s.
+   */
+  const source = `${"```\nx\n```\n\n".repeat(30_000)}${"- [ ] a task\n".repeat(30_000)}`;
+  const elapsed = millisecondsToParse(source);
+  assert.ok(elapsed < 4_000, `a fence-heavy note took ${elapsed.toFixed(0)}ms`);
+});
