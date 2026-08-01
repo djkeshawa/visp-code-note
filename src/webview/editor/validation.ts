@@ -1,5 +1,9 @@
 import { EDITOR_CONTENT_WIDTHS } from "../../application/editorContentWidth.js";
-import type { EditorDocumentStateWire, EditorStateWire } from "../contracts.js";
+import type {
+  EditorDocumentStateWire,
+  EditorStateWire,
+  NoteContextWire,
+} from "../contracts.js";
 import { isRecord } from "../shared/dom.js";
 
 export function isEditorState(value: unknown): value is EditorStateWire {
@@ -14,6 +18,8 @@ export function isEditorState(value: unknown): value is EditorStateWire {
       typeof state.recoveredDraft.source === "string" &&
       typeof state.recoveredDraft.saveRequested === "boolean"
     )) &&
+    isOffset(state.brokenLinkCount) &&
+    typeof state.showInspector === "boolean" &&
     isNoteSuggestions(state.noteSuggestions)
   );
 }
@@ -29,7 +35,7 @@ export function isEditorDocumentState(value: unknown): value is EditorDocumentSt
     (value.context === undefined || isNoteContext(value.context));
 }
 
-function isNoteContext(value: unknown): boolean {
+export function isNoteContext(value: unknown): value is NoteContextWire {
   return (
     isRecord(value) &&
     isStringArray(value.folders) &&
@@ -39,7 +45,31 @@ function isNoteContext(value: unknown): boolean {
     isOffset(value.backlinkCount) &&
     isOffset(value.outgoingCount) &&
     isOffset(value.taskCount) &&
-    isOffset(value.openTaskCount)
+    isOffset(value.openTaskCount) &&
+    Array.isArray(value.backlinks) &&
+    value.backlinks.every(isNoteBacklinkContext) &&
+    Array.isArray(value.linksOut) &&
+    value.linksOut.every(isNoteOutgoingLinkContext)
+  );
+}
+
+function isNoteBacklinkContext(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.uri === "string" &&
+    typeof value.title === "string" &&
+    typeof value.context === "string" &&
+    isOffset(value.line) &&
+    isOffset(value.start)
+  );
+}
+
+function isNoteOutgoingLinkContext(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.label === "string" &&
+    typeof value.target === "string" &&
+    typeof value.resolved === "boolean"
   );
 }
 

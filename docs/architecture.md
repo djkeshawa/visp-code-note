@@ -8,9 +8,9 @@ Visp Notes is split around a dependency rule: the domain and Markdown parser kno
 - `src/markdown`: dependency-free parsing of blocks, wiki links, headings, and explicit block references with exact UTF-16 offsets.
 - `src/indexing`: workspace discovery, serialized incremental updates, note/heading/block reference resolution, backlinks, and graph projections.
 - `src/application`: pure edit planning, draft buffering, text patches, and suggestion ranking for links, note metadata, and tasks.
-- `src/vscode`: commands and adapters for documents, trees, diagnostics, custom editors, and panels.
+- `src/vscode`: commands and adapters for documents, diagnostics, custom editors, and webview panels.
 - `src/ui`: CSP-safe host-side HTML templates.
-- `src/webview`: browser-side TypeScript for the continuous Markdown editor, task dashboard, graph, and backlinks.
+- `src/webview`: browser-side TypeScript for the continuous Markdown editor, task dashboard, graph, and workspace panel.
 - `test`: pure unit and projection tests using Node's built-in test runner.
 
 ## Runtime flow

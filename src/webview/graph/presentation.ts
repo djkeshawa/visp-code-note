@@ -4,7 +4,9 @@ import {
   NODE_CLASSES,
   SELECTED,
   TAB_STOP,
+  UNKNOWN_EMPHASIS,
   buildAdjacency,
+  changedEmphasisBits,
   edgeEmphasisMask,
   nodeEmphasisMask,
 } from "./emphasisModel.js";
@@ -45,15 +47,15 @@ export class GraphEmphasis {
     this.nodes = [];
     for (const element of Array.from(this.svg.querySelectorAll<SVGGElement>(".graph-node"))) {
       const nodeId = element.dataset.nodeId;
-      // -1 matches no real mask, so the first apply always writes.
-      if (nodeId !== undefined) this.nodes.push({ element, nodeId, mask: -1 });
+      // Freshly rendered, so what it currently shows is not known: the next apply writes all.
+      if (nodeId !== undefined) this.nodes.push({ element, nodeId, mask: UNKNOWN_EMPHASIS });
     }
     this.edges = Array.from(this.svg.querySelectorAll<SVGLineElement>(".graph-edge")).map(
       (element) => ({
         element,
         sourceId: element.dataset.sourceId,
         targetId: element.dataset.targetId,
-        mask: -1,
+        mask: UNKNOWN_EMPHASIS,
       }),
     );
     this.adjacency = buildAdjacency(graph);
@@ -80,7 +82,7 @@ export class GraphEmphasis {
     for (const node of this.nodes) {
       const mask = nodeEmphasisMask(node.nodeId, input);
       if (mask === node.mask) continue;
-      const changed = mask ^ node.mask;
+      const changed = changedEmphasisBits(mask, node.mask);
       for (const [bit, className] of NODE_CLASSES) {
         if ((changed & bit) !== 0) node.element.classList.toggle(className, (mask & bit) !== 0);
       }
@@ -97,7 +99,7 @@ export class GraphEmphasis {
     for (const edge of this.edges) {
       const mask = edgeEmphasisMask(edge.sourceId, edge.targetId, input);
       if (mask === edge.mask) continue;
-      const changed = mask ^ edge.mask;
+      const changed = changedEmphasisBits(mask, edge.mask);
       for (const [bit, className] of EDGE_CLASSES) {
         if ((changed & bit) !== 0) edge.element.classList.toggle(className, (mask & bit) !== 0);
       }

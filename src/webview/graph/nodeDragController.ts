@@ -39,7 +39,6 @@ export class GraphNodeDragController {
    * the midpoint of the smallest layout only, so in any larger graph a dragged node's label
    * jumped to the wrong side partway across and stayed there once the drag ended.
    */
-  private midX = 480;
 
   public constructor(
     private readonly svg: SVGSVGElement,
@@ -55,10 +54,6 @@ export class GraphNodeDragController {
 
   public setPositions(positions: ReadonlyMap<string, GraphPoint>): void {
     this.positions = positions;
-  }
-
-  public setMidX(midX: number): void {
-    this.midX = midX;
   }
 
   public dispose(): void {
@@ -104,7 +99,7 @@ export class GraphNodeDragController {
     event.preventDefault();
     const pointer = clientPointToSvg(this.svg, event.clientX, event.clientY);
     drag.point = { x: pointer.x + drag.offset.x, y: pointer.y + drag.offset.y };
-    positionNode(drag, drag.point, this.midX);
+    positionNode(drag, drag.point);
     this.positions = movedGraphPositions(this.positions, drag.nodeId, drag.point);
     this.callbacks.onMove(drag.nodeId, drag.point);
   };
@@ -130,9 +125,8 @@ export class GraphNodeDragController {
   };
 }
 
-function positionNode(drag: DragState, point: GraphPoint, midX: number): void {
+function positionNode(drag: DragState, point: GraphPoint): void {
   drag.element.setAttribute("transform", `translate(${point.x} ${point.y})`);
-  positionLabel(drag.element, point.x > midX);
   for (const edge of drag.edges) {
     const suffix = edge.endpoint === "source" ? "1" : "2";
     edge.element.setAttribute(`x${suffix}`, String(point.x));
@@ -140,13 +134,6 @@ function positionNode(drag: DragState, point: GraphPoint, midX: number): void {
   }
 }
 
-function positionLabel(element: SVGGElement, onLeft: boolean): void {
-  const label = element.querySelector<SVGTextElement>(".node-label");
-  const offset = Number(element.dataset.labelOffset);
-  if (label === null || !Number.isFinite(offset)) return;
-  label.setAttribute("x", String(offset * (onLeft ? -1 : 1)));
-  label.setAttribute("text-anchor", onLeft ? "end" : "start");
-}
 
 function connectedEdges(svg: SVGSVGElement, nodeId: string): readonly ConnectedEdge[] {
   const result: ConnectedEdge[] = [];

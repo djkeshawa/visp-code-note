@@ -6,8 +6,14 @@ import { createWikiTargetPlanner } from "../../indexing/noteResolver";
 export function buildNoteSuggestions(
   notes: readonly NoteRecord[],
   sourceUri?: string,
+  /**
+   * Reused across the open notes of one index change. Building it scans every note in the
+   * workspace and does not depend on `sourceUri`, so doing it per open editor cost the same
+   * work several times over for the same answer.
+   */
+  sharedPlanner?: ReturnType<typeof createWikiTargetPlanner>,
 ): readonly NoteSuggestion[] {
-  const planner = createWikiTargetPlanner(notes);
+  const planner = sharedPlanner ?? createWikiTargetPlanner(notes);
   return notes.map((note) => {
     const target = planner.targetFor(sourceUri, note);
     return {

@@ -57,7 +57,8 @@ export function registerCommands(
   register(COMMAND_IDS.rebuildIndex, () => rebuildIndex(index));
   register(COMMAND_IDS.openTasks, (filter) => views.openTasks(filter === "today" ? "today" : "all"));
   register(COMMAND_IDS.openTodayTasks, () => views.openTasks("today"));
-  register(COMMAND_IDS.search, () => searchWorkspace(index));
+  register(COMMAND_IDS.search, (query) =>
+    searchWorkspace(index, typeof query === "string" ? query : undefined));
   register(COMMAND_IDS.openNote, (value) => openNoteArgument(value));
   register(COMMAND_IDS.addTag, (tag) => addTagToNote(index, views, tag));
   register(COMMAND_IDS.removeTag, (tag) => removeTagFromNote(index, views, tag));

@@ -11,12 +11,25 @@ interface SearchQuickPickItem extends vscode.QuickPickItem {
   readonly result: WorkspaceSearchResult;
 }
 
-export async function searchWorkspace(index: CommandIndex): Promise<void> {
+/**
+ * Opens the workspace search, optionally on a query.
+ *
+ * The query matters: the workspace panel's tag chips open this on the tag they name. Without
+ * it, clicking a chip showed an arbitrary slice of the whole workspace and the reader had to
+ * retype what they had just clicked.
+ */
+export async function searchWorkspace(
+  index: CommandIndex,
+  initialQuery?: string,
+): Promise<void> {
   const picker = vscode.window.createQuickPick<SearchQuickPickItem>();
   picker.title = "Search Visp Notes";
   picker.placeholder = "Search titles, paths, aliases, tags, note text, and tasks";
   picker.matchOnDescription = true;
   picker.matchOnDetail = true;
+  if (initialQuery !== undefined && initialQuery.length > 0) {
+    picker.value = initialQuery;
+  }
 
   const updateItems = (): void => {
     picker.items = buildWorkspaceSearchResults(index.snapshot, picker.value).map(toQuickPickItem);

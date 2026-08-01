@@ -10,19 +10,23 @@ export function nodeDegrees(graph: GraphDataWire): ReadonlyMap<string, number> {
   return degrees;
 }
 
-export function nodeRadius(node: GraphNodeWire, degree: number, focused: boolean): number {
-  const baseRadius = node.kind === "note" ? 5.5 : node.kind === "task" ? 5 : 4.5;
-  const connectionGrowth = Math.min(7, Math.log2(degree + 1) * 2.1);
-  const radius = baseRadius + connectionGrowth;
-  return focused ? Math.max(12, radius) : radius;
+/**
+ * How big a node is drawn, in the 960×640 space the canvas is laid out in.
+ *
+ * The design's own curve: 4.5 plus 0.7 per link, capped at 10, drawn at 0.85 of that — so a
+ * node with one link is 4.4 units across the radius and one with eight or more is 8.5. The
+ * previous curve started at 7.6 and reached 12.5, half again as large, which turned a
+ * moderately connected workspace into a field of touching discs.
+ *
+ * Degree decides size and nothing else. The focused note is told apart by its halo and its
+ * label, not by being inflated past every neighbour it is meant to be compared with.
+ */
+export function nodeRadius(node: GraphNodeWire, degree: number, _focused: boolean): number {
+  return Math.min(10, 4.5 + degree * 0.7) * 0.85;
 }
 
 export function nodeHitRadius(radius: number): number {
   return Math.max(20, radius + 7);
-}
-
-export function isHubNode(degree: number): boolean {
-  return degree >= 4;
 }
 
 /**

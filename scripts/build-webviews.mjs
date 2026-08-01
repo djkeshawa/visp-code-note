@@ -16,7 +16,7 @@ await build({
     "src/webview/editor.ts",
     "src/webview/graph.ts",
     "src/webview/tasks.ts",
-    "src/webview/backlinks.ts",
+    "src/webview/workspace.ts",
   ],
   bundle: true,
   entryNames: "[name]",

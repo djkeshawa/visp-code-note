@@ -12,6 +12,7 @@ export interface CommandIndex {
 export interface FeatureViews {
   openTasks(filter?: "all" | "today"): void;
   openGraph(focusUri?: string): void;
+  /** Opens the note in its rendered editor with the inspector showing. */
   showBacklinks(uri?: string): Promise<void>;
   toggleEditor(uri?: vscode.Uri): Promise<void>;
   activeNoteUri(): vscode.Uri | undefined;

@@ -5,6 +5,20 @@ export interface OffsetRangeWire {
 
 export type EditorContentWidthWire = "readable" | "wide" | "full";
 
+export interface NoteBacklinkContextWire {
+  readonly uri: string;
+  readonly title: string;
+  readonly line: number;
+  readonly start: number;
+  readonly context: string;
+}
+
+export interface NoteOutgoingLinkContextWire {
+  readonly label: string;
+  readonly target: string;
+  readonly resolved: boolean;
+}
+
 export interface NoteContextWire {
   readonly folders: readonly string[];
   readonly fileName: string;
@@ -14,6 +28,8 @@ export interface NoteContextWire {
   readonly outgoingCount: number;
   readonly taskCount: number;
   readonly openTaskCount: number;
+  readonly backlinks: readonly NoteBacklinkContextWire[];
+  readonly linksOut: readonly NoteOutgoingLinkContextWire[];
 }
 
 export interface EditorDocumentStateWire {
@@ -32,7 +48,16 @@ export interface EditorStateWire extends EditorDocumentStateWire {
   readonly contentWidth: EditorContentWidthWire;
   readonly proseFont?: string;
   readonly recoveredDraft?: RecoveredDraftWire;
+  readonly brokenLinkCount: number;
+  readonly showInspector: boolean;
 }
+
+export type EditorMenuCommandWire =
+  | "newTask"
+  | "renameNote"
+  | "findBrokenLinks"
+  | "openLocalGraph"
+  | "rebuildIndex";
 
 export interface RecoveredDraftWire {
   readonly source: string;
@@ -59,10 +84,13 @@ export type HostToEditorWire =
   | { readonly type: "editor/removeTag"; readonly tag: string }
   | { readonly type: "editor/proseFont"; readonly fontFamily?: string }
   | { readonly type: "editor/contentWidth"; readonly contentWidth: EditorContentWidthWire }
+  | { readonly type: "editor/showInspector"; readonly showInspector: boolean }
   | {
       readonly type: "editor/indexState";
       readonly suggestions: readonly NoteSuggestionWire[];
       readonly unresolvedLinks: readonly string[];
+      readonly brokenLinkCount: number;
+      readonly context?: NoteContextWire;
     }
   | {
       readonly type: "editor/error";
@@ -83,6 +111,9 @@ export type EditorToHostWire =
     }
   | { readonly type: "editor/openLink"; readonly target: string; readonly beside?: boolean }
   | { readonly type: "editor/openExternal"; readonly url: string }
+  | { readonly type: "editor/openBacklink"; readonly uri: string; readonly start: number }
+  | { readonly type: "editor/runCommand"; readonly command: EditorMenuCommandWire }
+  | { readonly type: "editor/compareDraft"; readonly source: string }
   | { readonly type: "editor/save" }
   | {
       readonly type: "editor/stashDraft";
@@ -93,6 +124,7 @@ export type EditorToHostWire =
   | { readonly type: "editor/requestLink" }
   | { readonly type: "editor/requestTag" }
   | { readonly type: "editor/setContentWidth"; readonly contentWidth: EditorContentWidthWire }
+  | { readonly type: "editor/setInspectorVisible"; readonly showInspector: boolean }
   | { readonly type: "editor/ready" };
 
 interface NoteTaskWire {
@@ -166,34 +198,95 @@ export type HostToGraphWire = {
   readonly local: boolean;
 };
 
+export type GraphMenuCommandWire = "openWorkspaceGraph" | "rebuildIndex";
+
 export type GraphToHostWire =
   | { readonly type: "graph/open"; readonly uri: string }
   | { readonly type: "graph/depth"; readonly depth: 1 | 2 }
+  | { readonly type: "graph/runCommand"; readonly command: GraphMenuCommandWire }
   | { readonly type: "graph/ready" };
 
-export interface BacklinkWire {
-  readonly sourceUri: string;
-  readonly sourceTitle: string;
-  readonly sourcePath: string;
-  readonly targetUri: string;
-  readonly range: OffsetRangeWire;
-  readonly context: string;
-  readonly line: number;
+export type WorkspaceViewToneWire = "default" | "brand" | "warning";
+
+export interface WorkspaceViewRowWire {
+  readonly id: "tasks" | "due" | "graph" | "broken" | "orphans";
+  readonly label: string;
+  readonly icon: string;
+  readonly count?: number;
+  readonly tone: WorkspaceViewToneWire;
 }
 
-export interface BacklinksStateWire {
-  readonly noteUri?: string;
-  readonly noteTitle?: string;
-  readonly backlinks: readonly BacklinkWire[];
-  readonly outgoingCount: number;
+export interface WorkspaceTaskRowWire {
+  readonly noteUri: string;
+  readonly noteTitle: string;
+  readonly start: number;
+  readonly id?: string;
+  readonly text: string;
+  readonly completed: boolean;
+  readonly due?: string;
+  readonly priority?: "low" | "medium" | "high";
+}
+
+export interface WorkspaceNoteRowWire {
+  readonly uri: string;
+  readonly title: string;
+  readonly path: string;
+  readonly folder: string;
+  readonly links: number;
+}
+
+export interface WorkspaceFolderRowWire {
+  readonly path: string;
+  readonly label: string;
+  readonly count: number;
+}
+
+export interface WorkspaceTagRowWire {
+  readonly name: string;
+  readonly count: number;
+}
+
+export type WorkspaceDensityWire = "comfortable" | "compact";
+
+export interface WorkspacePanelStateWire {
+  readonly density: WorkspaceDensityWire;
+  readonly views: readonly WorkspaceViewRowWire[];
+  readonly dueToday: readonly WorkspaceTaskRowWire[];
+  readonly folders: readonly WorkspaceFolderRowWire[];
+  readonly notes: readonly WorkspaceNoteRowWire[];
+  readonly tags: readonly WorkspaceTagRowWire[];
+  readonly noteCount: number;
   readonly taskCount: number;
+  readonly indexedAt: number;
+  readonly status: "idle" | "indexing" | "error";
+  readonly version: number;
+  readonly activeNoteUri?: string;
 }
 
-export type HostToBacklinksWire = {
-  readonly type: "backlinks/state";
-  readonly state: BacklinksStateWire;
-};
+export type HostToWorkspaceWire =
+  | { readonly type: "workspace/state"; readonly state: WorkspacePanelStateWire }
+  | { readonly type: "workspace/activeNote"; readonly uri?: string }
+  | { readonly type: "workspace/error"; readonly message: string };
 
-export type BacklinksToHostWire =
-  | { readonly type: "backlinks/open"; readonly uri: string; readonly start: number }
-  | { readonly type: "backlinks/ready" };
+export type WorkspaceMenuCommandWire = "search";
+
+export type WorkspaceToHostWire =
+  | { readonly type: "workspace/ready" }
+  | { readonly type: "workspace/openNote"; readonly uri: string }
+  | { readonly type: "workspace/openView"; readonly id: WorkspaceViewRowWire["id"] }
+  | { readonly type: "workspace/openTag"; readonly tag: string }
+  | {
+      readonly type: "workspace/toggleTask";
+      readonly noteUri: string;
+      readonly start: number;
+      readonly taskId?: string;
+      readonly completed: boolean;
+      readonly version: number;
+    }
+  | { readonly type: "workspace/revealTask"; readonly noteUri: string; readonly start: number }
+  | { readonly type: "workspace/runCommand"; readonly command: WorkspaceMenuCommandWire }
+  | {
+      readonly type: "workspace/noteAction";
+      readonly action: "rename" | "graph";
+      readonly uri: string;
+    };

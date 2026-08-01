@@ -2,7 +2,7 @@ import type { TaskWire } from "../contracts.js";
 
 export type TaskStatusFilter = "open" | "all" | "completed";
 export type TaskGrouping = "due" | "note" | "tag";
-export type DueGroupName = "Overdue" | "Today" | "Upcoming" | "No due date" | "Completed";
+export type DueGroupName = "Overdue" | "Today" | "This week" | "Later" | "No due date" | "Completed";
 
 const TASK_GROUPINGS: readonly TaskGrouping[] = ["due", "note", "tag"];
 
@@ -21,10 +21,15 @@ export interface TaskGroup {
 
 const NO_TAG = "No tag";
 
+/*
+ * The buckets the design names, in the order it reads them. "This week" is the horizon a task
+ * list is actually read against; everything beyond it is "Later" rather than one long tail.
+ */
 const dueGroupOrder: readonly DueGroupName[] = [
   "Overdue",
   "Today",
-  "Upcoming",
+  "This week",
+  "Later",
   "No due date",
   "Completed",
 ];
@@ -91,6 +96,33 @@ function groupByKeys(
     .map(([name, groupedTasks]) => ({ name, tasks: groupedTasks.sort(compareTasks) }));
 }
 
+export type DueUrgency = "overdue" | "soon" | "later" | "none";
+
+/** How near a due date is, in the three steps a list needs to colour it by. */
+export function dueUrgency(
+  due: string | undefined,
+  today = localDateKey(new Date()),
+): DueUrgency {
+  const key = due?.slice(0, 10);
+  if (key === undefined || !/^\d{4}-\d{2}-\d{2}$/.test(key)) {
+    return "none";
+  }
+  if (key < today) {
+    return "overdue";
+  }
+  // A week, because that is the horizon a task list is read against.
+  return daysBetween(today, key) <= 7 ? "soon" : "later";
+}
+
+function daysBetween(from: string, to: string): number {
+  const start = Date.parse(`${from}T00:00:00Z`);
+  const end = Date.parse(`${to}T00:00:00Z`);
+  if (Number.isNaN(start) || Number.isNaN(end)) {
+    return Number.POSITIVE_INFINITY;
+  }
+  return Math.round((end - start) / 86_400_000);
+}
+
 export function formatDueDate(due: string | undefined): string | undefined {
   if (due === undefined) {
     return undefined;
@@ -135,7 +167,10 @@ function classifyTask(task: TaskWire, today: string): DueGroupName {
   if (due < today) {
     return "Overdue";
   }
-  return due === today ? "Today" : "Upcoming";
+  if (due === today) {
+    return "Today";
+  }
+  return dueUrgency(due, today) === "soon" ? "This week" : "Later";
 }
 
 function compareTasks(left: TaskWire, right: TaskWire): number {

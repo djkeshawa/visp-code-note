@@ -4,21 +4,32 @@ import { DraftRecoveryStore } from "../../application/draftRecoveryStore";
 import { parseEditorContentWidth } from "../../application/editorContentWidth";
 import { parseProseFont } from "../../application/proseFont";
 import type { EditorContentWidth } from "../../application/editorContentWidth";
-import type { EditorDocumentState, HostToEditorMessage } from "../../domain/protocol";
+import type {
+  EditorDocumentState,
+  EditorMenuCommand,
+  HostToEditorMessage,
+} from "../../domain/protocol";
 import { parseMarkdown } from "../../markdown/parser";
-import { buildNoteContext } from "../../indexing/projections";
+import { buildNoteContext, getBrokenLinks } from "../../indexing/projections";
 import { createWikiReferenceResolver } from "../../indexing/wikiReferenceResolver";
+import { createWikiTargetPlanner } from "../../indexing/noteResolver";
 import { createEditorHtml } from "../../ui";
 import type { CommandIndex } from "../commands/contracts";
 import { createMissingNote } from "../commands/createMissingNote";
 import { openNote } from "../commands/openNote";
-import { NOTE_EDITOR_VIEW_TYPE } from "../ids";
+import { COMMAND_IDS, NOTE_EDITOR_VIEW_TYPE } from "../ids";
 import { isEditorMessage } from "./messageValidation";
 import { pickTag } from "./tagPicker";
 import { buildNoteSuggestions } from "./noteEditorSupport";
 import { NoteEditorEdits } from "./noteEditorEdits";
 import type { RecoverableNoteDraft } from "./noteEditorEdits";
 import { NoteEditorPanelRegistry } from "./noteEditorPanelRegistry";
+
+/**
+ * Shows a read-only side-by-side comparison. Supplied by the host rather than created here,
+ * because the content provider backing the diff has to be registered for its life.
+ */
+export type DiffPreview = (title: string, before: string, after: string) => Promise<void>;
 
 export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vscode.Disposable {
   private readonly disposables: vscode.Disposable[] = [];
@@ -30,6 +41,7 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
     private readonly extensionUri: vscode.Uri,
     private readonly index: CommandIndex,
     onDidActivateNote: (uri: string) => void,
+    private readonly showDiffPreview: DiffPreview,
     recoveryStore = new DraftRecoveryStore(),
   ) {
     this.edits = new NoteEditorEdits(recoveryStore);
@@ -46,6 +58,9 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
         }
         if (event.affectsConfiguration(PROSE_FONT_SETTING)) {
           this.publishProseFont();
+        }
+        if (event.affectsConfiguration(SHOW_INSPECTOR_SETTING)) {
+          this.publishInspectorVisibility();
         }
       }),
     );
@@ -91,16 +106,32 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
     const openDocuments = new Map(
       vscode.workspace.textDocuments.map((document) => [document.uri.toString(), document]),
     );
+    /*
+     * Workspace-wide, so it is resolved once here rather than once per open note. Finding
+     * broken links re-resolves every reference in the workspace, which is not something to
+     * repeat per panel on every index change.
+     */
+    const brokenLinkCount = getBrokenLinks(this.index.snapshot).length;
+    // Both of these scan the whole workspace to build and are the same for every open note.
+    const planner = createWikiTargetPlanner(this.index.snapshot.notes);
+    const resolver = createWikiReferenceResolver(this.index.snapshot.notes);
     for (const [uri, panels] of this.panels.entries()) {
       const document = openDocuments.get(uri);
       if (!document) continue;
-      const suggestions = buildNoteSuggestions(this.index.snapshot.notes, uri);
-      const unresolvedLinks = this.unresolvedLinks(document, parseMarkdown(document.getText()).links);
+      const suggestions = buildNoteSuggestions(this.index.snapshot.notes, uri, planner);
+      const unresolvedLinks = this.unresolvedLinks(
+        document,
+        parseMarkdown(document.getText()).links,
+        resolver,
+      );
+      const context = buildNoteContext(this.index.snapshot, uri);
       for (const panel of panels) {
         void panel.webview.postMessage({
           type: "editor/indexState",
           suggestions,
           unresolvedLinks,
+          brokenLinkCount,
+          ...(context === undefined ? {} : { context }),
         } satisfies HostToEditorMessage);
       }
     }
@@ -195,11 +226,14 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
           });
           break;
         case "editor/setContentWidth":
-          await vscode.workspace.getConfiguration().update(
-            CONTENT_WIDTH_SETTING,
-            message.contentWidth,
-            vscode.ConfigurationTarget.Global,
-          );
+          await updateSetting(CONTENT_WIDTH_SETTING, message.contentWidth);
+          break;
+        case "editor/setInspectorVisible":
+          /*
+           * Written to settings rather than kept per panel, so opening the next note does not
+           * bring back a column that was deliberately closed.
+           */
+          await updateSetting(SHOW_INSPECTOR_SETTING, message.showInspector);
           break;
         case "editor/requestLink":
           await this.promptForLink(document, panel);
@@ -218,6 +252,19 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
           await vscode.env.openExternal(vscode.Uri.parse(url));
           break;
         }
+        case "editor/openBacklink":
+          await this.openBacklink(message.uri, message.start);
+          break;
+        case "editor/runCommand":
+          await vscode.commands.executeCommand(MENU_COMMANDS[message.command]);
+          break;
+        case "editor/compareDraft":
+          await this.showDiffPreview(
+            `${this.noteTitle(document)} — file ↔ draft`,
+            document.getText(),
+            message.source,
+          );
+          break;
       }
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
@@ -239,6 +286,24 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
         message.type === "editor/discardDraft"
       ) {
         await this.publishDocumentState(document, panel);
+      }
+    }
+  }
+
+  /**
+   * Opens the note a mention lives in, at the mention. Routed through the same pending-reveal
+   * path as following a wiki link, so a backlink and a link behave the same on arrival.
+   */
+  private async openBacklink(uri: string, start: number): Promise<void> {
+    const known = this.index.snapshot.backlinks.some(
+      (backlink) => backlink.sourceUri === uri && backlink.range.start === start,
+    );
+    if (!known) return;
+    this.pendingReveals.set(uri, start);
+    await openNote(vscode.Uri.parse(uri), true);
+    for (const panel of this.panels.forDocument(uri) ?? []) {
+      if (this.panels.isReady(panel)) {
+        await this.publishPendingReveal(uri, panel);
       }
     }
   }
@@ -322,6 +387,8 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
         ...state,
         noteSuggestions: buildNoteSuggestions(this.index.snapshot.notes, document.uri.toString()),
         contentWidth: contentWidthSetting(),
+        showInspector: showInspectorSetting(),
+        brokenLinkCount: getBrokenLinks(this.index.snapshot).length,
         ...(proseFontSetting() === undefined ? {} : { proseFont: proseFontSetting() }),
         ...(recoveredDraft === undefined ? {} : { recoveredDraft }),
       },
@@ -362,8 +429,9 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
   private unresolvedLinks(
     document: vscode.TextDocument,
     links: ReturnType<typeof parseMarkdown>["links"],
+    sharedResolver?: ReturnType<typeof createWikiReferenceResolver>,
   ): readonly string[] {
-    const resolver = createWikiReferenceResolver(this.index.snapshot.notes);
+    const resolver = sharedResolver ?? createWikiReferenceResolver(this.index.snapshot.notes);
     return links
       .filter((link) => resolver.resolve(document.uri.toString(), link).status !== "resolved")
       .map((link) => link.raw);
@@ -428,6 +496,34 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
     }
   }
 
+  /**
+   * Opens a note and shows the inspector beside it. Backlinks live there now, so "Show
+   * Backlinks" means "put the note in front of me with its connections showing".
+   */
+  public async revealInspector(uri?: string): Promise<void> {
+    const target = uri ?? this.panels.activeUri?.toString();
+    if (target === undefined) {
+      void vscode.window.showInformationMessage("Open a note to see what links to it.");
+      return;
+    }
+    if (!showInspectorSetting()) {
+      await updateSetting(SHOW_INSPECTOR_SETTING, true);
+    }
+    await openNote(vscode.Uri.parse(target), true);
+  }
+
+  private publishInspectorVisibility(): void {
+    const showInspector = showInspectorSetting();
+    for (const [, panels] of this.panels.entries()) {
+      for (const panel of panels) {
+        void panel.webview.postMessage({
+          type: "editor/showInspector",
+          showInspector,
+        } satisfies HostToEditorMessage);
+      }
+    }
+  }
+
   private publishContentWidth(): void {
     const contentWidth = contentWidthSetting();
     for (const [, panels] of this.panels.entries()) {
@@ -451,12 +547,45 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
 
 }
 
+/** What the note's overflow menu can ask for, resolved to the commands the palette offers. */
+const MENU_COMMANDS: Readonly<Record<EditorMenuCommand, string>> = {
+  newTask: COMMAND_IDS.newTask,
+  renameNote: COMMAND_IDS.renameNote,
+  findBrokenLinks: COMMAND_IDS.findBrokenLinks,
+  openLocalGraph: COMMAND_IDS.openLocalGraph,
+  rebuildIndex: COMMAND_IDS.rebuildIndex,
+};
+
 const CONTENT_WIDTH_SETTING = "vispNotes.editor.contentWidth";
 
 const PROSE_FONT_SETTING = "vispNotes.editor.fontFamily";
 
 function proseFontSetting(): string | undefined {
   return parseProseFont(vscode.workspace.getConfiguration().get<string>(PROSE_FONT_SETTING));
+}
+
+const SHOW_INSPECTOR_SETTING = "vispNotes.editor.showInspector";
+
+/**
+ * Writes a setting to the scope that currently decides its value.
+ *
+ * Always writing Global looked right until a workspace set the same key: the write landed in
+ * User settings, the effective value did not move, and the change event bounced the control
+ * straight back to where it had been. Writing where the value actually comes from means the
+ * control does what it says.
+ */
+async function updateSetting(section: string, value: unknown): Promise<void> {
+  const scopes = vscode.workspace.getConfiguration().inspect(section);
+  const target = scopes?.workspaceFolderValue !== undefined
+    ? vscode.ConfigurationTarget.WorkspaceFolder
+    : scopes?.workspaceValue !== undefined
+      ? vscode.ConfigurationTarget.Workspace
+      : vscode.ConfigurationTarget.Global;
+  await vscode.workspace.getConfiguration().update(section, value, target);
+}
+
+function showInspectorSetting(): boolean {
+  return vscode.workspace.getConfiguration().get<boolean>(SHOW_INSPECTOR_SETTING) !== false;
 }
 
 function contentWidthSetting(): EditorContentWidth {

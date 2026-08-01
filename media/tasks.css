@@ -1,164 +1,224 @@
-.tasks-shell {
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+.tasks-shell .view-toolbar {
+  height: 44px;
 }
 
-.tasks-toolbar .search-field {
-  width: min(250px, 30vw);
+.tasks-search {
+  flex: 0 1 190px;
 }
 
+/*
+ * The grouping control reads as a toolbar button rather than as a form field — it changes
+ * how the list is shaped, not what is in it — but stays a native select so it keeps the
+ * platform's keyboard handling and its own popup.
+ */
+.toolbar-select {
+  height: 26px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  padding: 0 9px;
+  border-radius: 5px;
+  color: var(--visp-muted-strong);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+.toolbar-select:hover {
+  background: var(--visp-surface-hover);
+  color: var(--visp-text);
+}
+
+.toolbar-select .codicon {
+  flex: 0 0 auto;
+  font-size: 13px;
+}
+
+.toolbar-select .codicon-chevron-down {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.toolbar-select select {
+  appearance: none;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 11.5px;
+}
+
+/* The popup is painted from the control, so it names the theme's dropdown colours itself. */
+.toolbar-select select option {
+  background-color: var(--vscode-dropdown-background, var(--visp-surface));
+  color: var(--vscode-dropdown-foreground, var(--visp-text));
+}
+
+/*
+ * The list is centred on a fixed measure rather than filling the pane: a task row is one
+ * short line, and stretching it across a wide window puts its due date a screen away from
+ * its text.
+ */
 .task-groups {
   min-height: 0;
   overflow: auto;
-  padding: 20px max(20px, calc((100% - 880px) / 2)) 90px;
+  padding: 18px max(24px, calc((100% - 860px) / 2)) 80px;
 }
 
 .task-group {
-  margin-bottom: 24px;
+  margin-bottom: 26px;
 }
 
 .task-group-title {
   display: flex;
   align-items: center;
-  gap: 7px;
-  margin: 0 0 8px;
+  gap: 9px;
+  margin: 0 0 4px;
   color: var(--visp-text);
-  font-size: 12px;
-  font-weight: 650;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
 }
 
-.count-badge {
-  min-width: 19px;
-  padding: 2px 6px;
-  border-radius: 10px;
-  background: var(--vscode-badge-background, var(--visp-surface));
-  color: var(--vscode-badge-foreground, var(--visp-muted));
-  font-size: 10px;
-  font-weight: 500;
-  text-align: center;
+/* Work that is already late is the one group that says so in its own colour. */
+.task-group-title.is-overdue {
+  color: var(--visp-danger);
 }
 
-.task-card {
-  min-height: 63px;
+.task-group-count {
+  color: var(--visp-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.task-group-rule {
+  flex: 1;
+  height: 1px;
+  background: var(--visp-hairline);
+}
+
+.task-row {
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) auto;
-  gap: 8px;
-  margin-bottom: 7px;
-  padding: 10px;
-  border: 1px solid var(--visp-border);
-  border-radius: var(--visp-radius);
-  background: color-mix(in srgb, var(--visp-surface) 72%, transparent);
+  grid-template-columns: 3px 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0 10px;
+  height: 34px;
+  padding-right: 6px;
+  border-bottom: 1px solid var(--visp-hairline);
+  cursor: pointer;
 }
 
-.task-card:hover,
-.task-card:focus-within {
-  border-color: color-mix(in srgb, var(--visp-accent) 35%, var(--visp-border));
-  background: var(--visp-surface);
+.task-row:hover,
+.task-row:focus-within {
+  background: var(--visp-surface-hover);
 }
 
-.task-card-checkbox {
-  width: 16px;
+/*
+ * Priority is a bar in the margin, not a badge in the row. It has to be readable in
+ * peripheral vision while scanning the text column, and it must not cost the row any
+ * horizontal space, because the row is mostly the words.
+ */
+.task-priority {
+  width: 3px;
   height: 16px;
-  margin: 2px 0 0;
+  border-radius: 2px;
+  background: transparent;
+}
+
+.task-priority.is-high {
+  background: var(--visp-danger);
+}
+
+.task-priority.is-medium {
+  background: var(--visp-warning);
+}
+
+.task-row input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  margin: 0;
   accent-color: var(--visp-accent);
 }
 
-.task-card-body {
+.task-text {
   min-width: 0;
-}
-
-.task-title-button {
-  width: 100%;
   padding: 0;
   overflow: hidden;
   background: transparent;
   color: var(--visp-text);
-  line-height: 1.45;
+  font-size: 13px;
   text-align: left;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.task-title-button:hover {
-  color: var(--visp-accent);
-}
-
-.is-completed .task-title-button {
+.is-completed .task-text {
   color: var(--visp-muted);
   text-decoration: line-through;
 }
 
-.task-card-metadata {
+.task-meta {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 7px;
-  margin-top: 6px;
-  color: var(--visp-muted-strong);
-  font-size: 10px;
+  gap: 12px;
+  color: var(--visp-muted);
+  font-size: 11px;
+  white-space: nowrap;
 }
 
-.note-reference {
+.task-meta-tag {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  color: var(--visp-accent);
+  gap: 5px;
 }
 
-.task-card-metadata .codicon {
-  font-size: 12px;
+.task-meta-tag .tag-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--tag-hue, var(--visp-brand));
 }
 
-.task-tag {
-  opacity: 0.8;
+.task-meta-note {
+  width: 150px;
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
 }
 
-.task-card-side {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 7px;
-  color: var(--visp-muted-strong);
-  font-size: 10px;
+.task-meta-due {
+  width: 52px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
-.priority-badge {
-  padding: 2px 6px;
-  border-radius: 9px;
-  background: var(--visp-surface-hover);
-  text-transform: capitalize;
-}
-
-.priority-high {
+.task-meta-due.is-overdue {
   color: var(--visp-danger);
 }
 
-.priority-medium {
-  color: var(--vscode-editorWarning-foreground, #ddb870);
+.task-meta-due.is-soon {
+  color: var(--visp-warning);
 }
 
-@media (max-width: 680px) {
+@media (max-width: 760px) {
   .tasks-toolbar {
-    flex-wrap: wrap;
-  }
-
-  .tasks-toolbar .title-stack {
-    width: 100%;
-  }
-
-  .tasks-toolbar .toolbar-spacer {
-    display: none;
-  }
-
-  .tasks-toolbar .search-field {
-    flex: 1;
-    width: auto;
+    gap: 8px;
+    padding-inline: 12px;
   }
 
   .task-groups {
-    padding: 16px 12px 60px;
+    padding: 16px 14px 60px;
   }
 
-  .task-card-side {
-    max-width: 72px;
+  .task-meta-note {
+    width: 96px;
+  }
+}
+
+@media (max-width: 560px) {
+  .toolbar-select,
+  .task-meta-note,
+  .task-meta-tag {
+    display: none;
   }
 }

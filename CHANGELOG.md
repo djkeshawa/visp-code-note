@@ -2,6 +2,268 @@
 
 ## Unreleased
 
+### Changed — every view rebuilt to one design
+
+The four webviews, the workspace tree and the status bar were drawn against a single redesign,
+so a note, a task and a node now look like parts of the same tool rather than three tools that
+happen to ship together.
+
+**The note editor is one header row.** The title, the folder it lives in, its tags, its
+backlink count, the Live/Markdown switch and the save state used to occupy a toolbar and a
+second context strip beneath it; they now share one 38px row, and the note is that much taller.
+Actions that are not keyboard-first — Insert Link, New Task, Rename, Find Broken Links, Open
+Local Graph, Rebuild Index — moved into an overflow menu, together with the content-width
+control that had been a dropdown in the strip. Below about 820px the tag chips collapse to a
+single pill carrying a colour per tag, so the controls on the right keep their place.
+
+**Notes gained an inspector.** A 300px column beside the note lists its outline, what links to
+it with the sentence each mention sits in, the tasks it still owes, and what it links out to —
+the outline and the tasks read from the draft in the editor, so they follow what is being
+typed, and the rest from the index. It is toggled from the header and stands down under 900px.
+
+**The task list is a list.** Each task was a bordered card about 63px tall; it is now a 34px
+row — priority as a bar in the margin, then the checkbox, the text, its tag, its note and its
+due date in fixed columns, so a week of work fits on one screen and scans down as well as
+across. Status moved from a dropdown to Open/All/Done, and the header reports how much is open
+and how much is due today.
+
+**The graph is the whole pane.** Two side columns of filters and details cost the drawing about
+a third of its width; the filters are now chips over the top-left corner with a count each, the
+viewport controls a cluster bottom-left, and the selected node a card bottom-right that is
+absent when nothing is selected.
+
+**Colour means something everywhere.** A tag's hue is derived from its name, so the same tag is
+the same colour in the tree, in a note's header, on a task row and in the graph. Six of those
+hues are contributed as theme colours, so a theme can override them.
+
+### Added — a note in the panel has a menu, rather than one hidden action
+
+Right-clicking a note renamed it on the spot: no menu, no confirmation that the pointer was on
+the row you meant, and no way to reach the note's other action. A webview gets no say in VS
+Code's own context menu — `contributes.menus` reaches tree items and editor tabs, not the inside
+of a panel — so the panel draws one: the note's name, then Rename Note and Open Local Graph, in
+the same language as the note editor's overflow menu.
+
+It opens at the pointer, flipping rather than overhanging when the panel's edge is close, and
+from the keyboard's own menu key it falls back to the row it was raised from. Escape hands focus
+back to that row; the arrow keys walk the items; a click elsewhere, a scroll, or the list being
+redrawn underneath it all dismiss it.
+
+### Fixed — a tag chip opened a search that ignored the tag
+
+`vispNotes.search` was registered as a zero-argument callback, so the query the workspace
+panel's tag chips passed it was silently dropped. Clicking `#project` opened the picker empty
+and showed an arbitrary slice of the whole workspace; the reader had to retype what they had
+just clicked. The command takes a query now. Orphan Notes had the same shape of bug — it
+advertised an exact count and then opened the generic search, which has no notion of an orphan;
+it opens that list.
+
+### Fixed — the panel and the note editor did the same work repeatedly
+
+Measured on a 570-note workspace with 2,850 links:
+
+- **The panel rebuilt everything on every publish.** `getBrokenLinks` alone is 30ms because it
+  re-resolves every reference in the workspace, and the panel publishes on far more than an
+  index change — switching notes and changing a setting both paid it. Everything derived from
+  the snapshot is cached against it now, so only an index change pays; a setting change is free.
+- **Switching notes shipped the whole workspace.** It re-sent all 570 note rows, about 75KB, to
+  move one highlight. It sends the note's URI.
+- **Filtering redrew 570 rows per keystroke** with no debounce or cap. It waits for a pause, and
+  draws at most 200 rows with a line saying how many are left.
+- **Every open editor rebuilt the same two whole-workspace resolvers** on every index change —
+  about 22ms each, so roughly 130ms with six notes open, about once per typing pause. They are
+  built once per change and shared.
+- **The inspector rebuilt its backlink and link lists on every character**, twice, though both
+  come from the index and cannot move while you type. Only the outline and task list follow the
+  draft now.
+- **A hidden panel was still being rebuilt and posted to.** It is redrawn when it comes back.
+
+### Fixed — the inspector toggle could be defeated by a workspace setting
+
+The toggle wrote to User settings but read the effective value, so a workspace-scoped
+`vispNotes.editor.showInspector` made the column reopen the instant it was closed. Settings are
+now written to the scope that actually decides them. The content-width control had the same bug.
+
+### Fixed — one webview message acted on a URI it had not checked
+
+`workspace/revealTask` opened whatever URI the panel named. Every comparable handler checks
+against the index first; it does too now, as does the rename/graph row action.
+
+### Removed — the Backlinks side-bar view
+
+The design has no such panel: backlinks belong to the note, and the note's own inspector lists
+them beside it. Keeping both meant the same four mentions were drawn twice, a few hundred pixels
+apart, and it cost the side bar a second title bar — a container with one view shows only the
+container's own header, which is what the design draws.
+
+"Show Backlinks" and its shortcut still work: they now open the note with its inspector showing,
+which is where its backlinks are.
+
+### Added — the note inspector can be put away, and stays that way
+
+The inspector is toggled from the note's header, and the choice is a setting
+(`vispNotes.editor.showInspector`) rather than per-panel state, so a column that was
+deliberately closed does not come back with the next note. An editor pane too narrow to hold
+both the note and a 300px column beside it still closes the column, and the toggle reports
+itself closed and says why rather than claiming a column that is not there.
+
+### Changed — the side bar is the panel the design draws, not a tree
+
+The prototype's side bar puts a search field inside itself, divides its sections with a labelled
+rule, gives every tag a colour and every note a dot for how connected it is, and closes with a
+status line. A `TreeView` offers a label, an icon, a description and a checkbox, and no way to
+draw any of that — so the panel is now a webview view: 30px rows, Due Today expanding in place
+with a checkbox and a coloured due dot, folders and notes beneath one Notes count, tags as
+pills, and a footer reporting what the index holds and how fresh it is. A `vispNotes.density`
+setting switches every row to the design's compact 26px.
+
+Right-clicking a note still renames it, and completing a task from the panel still edits the
+Markdown; both now travel as messages rather than through the tree APIs they used to use.
+
+### Fixed — an icon default outranked every icon size
+
+`.codicon[class*="codicon-"] { font-size: inherit }` is an attribute selector, which beats any
+single-class rule. Every deliberate icon size in the codebase therefore lost to it silently:
+the note icon asked for 15px, the overflow ellipsis for 16px, the inspector toggle for 14px,
+and all three drew at the inherited 13px. Both codicon defaults are wrapped in `:where()` now,
+so a rule that states a size on purpose wins.
+
+### Changed — the rendered note matches the prototype's blocks
+
+Frontmatter is the property card the design draws — one rounded block, a 76px key column, and
+the `---` fences, the `:` and a list's `[ ]` out of the way until the caret lands on them.
+Fenced code is a box the code sits inside rather than text running to the measure. A callout is
+padded and capped as one block instead of per line. Headings take the prototype's 34px and 30px
+approach, task lines its baseline-aligned checkbox, and the block anchor its 18px chip.
+
+The wiki-link suggestion popup gained the design's three glyphs in their three hues — CodeMirror
+has no rule for the completion types this source emits, so it had been drawing an empty box
+beside every note — and the path moved into a right-aligned column of its own.
+
+### Changed — a node's name stays on one side of it
+
+The graph mirrored a label to the left of its dot once the node drifted past the middle of the
+canvas, and truncated anything over 24 characters. A note crossing the centre therefore flipped
+its own name to the other side mid-drag, which reads as the drawing rearranging itself rather
+than moving, and the notes hardest to recognise from 23 characters were exactly the ones being
+abbreviated. Labels now sit 7px to the right of their dot, whole, wherever the node is.
+
+### Changed — the actions the design puts inside the views left VS Code's chrome
+
+Live/Markdown and Open Local Graph were contributed to the editor title bar as well as living
+in the note's own header and overflow menu, where the design puts them. The workspace panel's
+title bar is down to the one glyph the design draws, with the rest under its overflow. The
+status bar entry moved to the left cluster, beside the branch and problem counts it belongs
+with. The status bar entry also lost the icon set it did not need.
+
+### Changed — the graph is painted by the prototype's own rules
+
+Node size follows the design's curve (4.5 plus 0.7 a link, capped) rather than one that started
+half again as large and turned a moderately linked workspace into touching discs. The selection
+wears a flat 5px ring instead of a bloom. The per-degree "hub" glow is gone — it lit most of the
+canvas, and the design has exactly one glow. An orphan is the solid muted disc its own filter
+chip advertises, rather than borrowing the dashed outline that means unresolved. Tags take the
+hue their name gives them, as they do in every other view, instead of all being one green.
+
+### Fixed — every view was inset by a margin nothing asked for
+
+VS Code injects `body { padding: 0 20px }` into every webview it hosts. That is right for a
+webview that is a document and wrong for one that is a view: the reset here only zeroed margin,
+so the workspace panel — and the note inspector, and the task list, and the graph — carried a
+20px inset on both edges before any of their own gutters. In a side-bar panel that is about a
+sixth of the width, and the prototype's own reset zeroes it.
+
+### Added — the integration suite checks that the design was actually built
+
+The suite proved the extension wrote the right bytes to the right files, and nothing more, which
+is how an entire interface redesign shipped green — including the inset above. It now also
+checks the interface itself, in the extension host, where the real thing exists:
+
+- every view is generated with the parts the design gives it, against a real `Webview`
+- every view loads the stylesheets that carry the design
+- the measurements the prototype fixes are the ones the stylesheets declare — the 38px note
+  header, the 300px inspector, the 34px task row, the 290px graph card, the 720px measure
+- the prose palette is the specified one, in both polarities
+- no view inherits VS Code's injected body padding
+- the workspace tree is the design's sections in the design's order, with the design's icons
+- a note row reports how connected it is, counting neighbours rather than mentions
+- the tree footer and the status bar report the same two figures
+
+The design is written down as checkable facts in `test/integration/designSpec.ts`, so drifting
+from it is a failing test rather than something somebody has to notice in a screenshot.
+
+### Fixed — a note counted itself as a connection
+
+`[[#Heading]]` and `[[^block]]` point inside the note being read, and the resolver answers them
+with that same note. Every count built on that answer was wrong: the note appeared in its own
+backlinks list once per anchor, a note that linked only to its own headings was not listed as an
+orphan, and the workspace tree painted it as its best-connected note. Backlinks are now mentions
+from somewhere else, orphan means connected to no *other* note, and the tree counts neighbours
+rather than link occurrences — so linking the same note three times is one connection, which is
+also what the note inspector already meant by it.
+
+The same anchors reached the inspector's "Links out" as a chip with no label, which reported
+"the wiki-link target is invalid" when clicked, because there is no note name to open. They are
+not links out of the note and are no longer listed as such. The count above that list now counts
+destinations, matching the list it heads rather than the raw number of mentions.
+
+### Fixed — the note inspector never noticed a new backlink
+
+A note gains a backlink when some *other* note is edited, and the only message its editor
+receives when that happens carried no index data — so the outline's neighbours, the backlinks
+list and every count beside them stayed as they were until that note's own text changed. They
+now travel with the index update. Finding the workspace's broken links is also resolved once per
+update instead of once per open note.
+
+### Fixed — a due date the parser did not recognise vanished from the note
+
+The rendered view replaces `@due(...)` with the date it holds. A value it could not parse —
+`@due(2026-08-10T09:00)`, `@due(2026-8-3)`, `@due(tomorrow)` — was replaced with nothing at all,
+so the note showed an undated task while the task list showed the due date, and the text only
+came back if the author happened to click that line. The marker is now always replaced by
+something that still shows its value, and the editor and the task list share one formatter
+rather than each having their own.
+
+### Fixed — the status bar flickered while typing
+
+Editing a note re-indexes that one file in a few milliseconds, and the status item swapped to a
+spinner and back for each of them, shifting every status entry to its left several times a
+second. Only work that outlasts 400ms is announced now, so a real rebuild is visible and typing
+is not. The item also prints the same two figures as the workspace panel's footer, which said
+"7 tasks" beside a status bar saying "6 tasks" — the same words for two different questions.
+How many are still open is in the tooltip.
+
+### Fixed — selecting a node in the graph highlighted nothing until you moved the mouse
+
+Emphasis classes are written by diffing the classes an element should have against the ones it
+already has, and a freshly rendered element records "not known" as `-1`. XOR-ing against that
+sentinel reports every class that *should* be added as unchanged, so the first pass after a
+render could only ever remove classes. Opening a note's local graph therefore drew no
+neighbourhood, no dimming and no highlighted edges until a hover forced a second pass. This
+also affected the workspace graph, which selects its focused note on open.
+
+### Fixed — a view's footer took a quarter of the pane
+
+Each view was laid out as a grid with a row per element, but the error and conflict notices are
+`hidden` most of the time, and an element with `display: none` is not placed in a grid. The row
+meant for the view itself went to whichever element landed there instead, which in the task
+list left the footer 281px tall and the list scrolling inside 471px. The views are laid out as
+columns now, with the one growing region named rather than inferred from a row index.
+
+### Changed — an unresolved link reads as a promise, not as an error
+
+A link to a note that has not been written yet was painted warning-yellow on a tinted block,
+which made a note full of intentions look like a note full of mistakes. It now keeps the same
+colour as any other link and says what it is with a dashed underline.
+
+### Changed — task metadata reads as metadata
+
+`@due(2026-08-03)` and `@priority(high)` are how a task records itself, not how it should read.
+In the rendered view the due date is now the date, coloured by how near it is, and the priority
+marker steps out of the sentence — both come back the moment the caret lands on the line, like
+every other mark this editor hides. A trailing `^block-id` is drawn as a small chip with the
+link that reaches it in its tooltip, and `#tag` steps back from the prose around it.
+
 ### Fixed — dropdown lists were invisible when the theme and the desktop disagreed
 
 The webviews declared `color-scheme: light dark`, which defers to the operating system rather

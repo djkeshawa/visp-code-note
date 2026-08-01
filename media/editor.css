@@ -1,63 +1,53 @@
 .editor-shell {
-  display: grid;
-  grid-template-rows: auto auto auto auto minmax(0, 1fr);
+  position: relative;
 }
 
 /*
- * The tab bar already names the document and the status bar already reports state, so
- * the editor's own chrome stays to one compact row plus a context strip. Sync state rides
- * in that row beside the title rather than in a footer of its own: a permanent bar cost
- * the document ~30px to carry one short phrase and a fixed keyboard hint.
+ * One row. The tab bar already names the document, so this row carries what the tab cannot:
+ * where the note sits, how it is tagged, whether it is saved, and the two controls used
+ * often enough to earn permanent space. Everything else lives in the overflow menu.
  */
 .editor-toolbar {
-  min-height: 34px;
-  padding: 3px 12px;
-  flex-wrap: wrap;
-}
-
-.editor-toolbar .toolbar-title {
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.editor-link-button,
-.editor-retry-button {
-  min-height: 24px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  padding: 2px 8px;
-  font-size: 11px;
-  white-space: nowrap;
-}
-
-.secondary-button:disabled {
-  cursor: default;
-  opacity: 0.55;
-}
-
-/* Document context strip: where the note lives, how it is tagged, how connected it is. */
-.note-context {
-  min-height: 26px;
+  height: 38px;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 2px 12px;
+  padding: 0 12px 0 16px;
   overflow: hidden;
-  border-bottom: 1px solid var(--visp-border);
+  border-bottom: 1px solid var(--visp-hairline);
   background: var(--visp-bg);
-  color: var(--visp-muted-strong);
-  font-size: 11px;
 }
 
+.editor-note-icon {
+  flex: 0 0 auto;
+  color: var(--visp-brand);
+  font-size: 15px;
+}
+
+.editor-title {
+  min-width: 0;
+  flex: 0 1 auto;
+  margin: 0;
+  overflow: hidden;
+  color: var(--visp-strong);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Where the note lives. Subordinate to the title, and the first thing to go when narrow. */
 .note-breadcrumb {
   min-width: 0;
+  flex: 0 1 auto;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   overflow: hidden;
+  color: var(--visp-muted);
+  font-size: 11.5px;
   white-space: nowrap;
+  opacity: 0.9;
 }
 
 .note-breadcrumb .crumb {
@@ -65,53 +55,51 @@
   text-overflow: ellipsis;
 }
 
-.note-breadcrumb .crumb.is-current {
-  color: var(--visp-text);
-}
-
 .note-breadcrumb .crumb-separator {
   flex: 0 0 auto;
-  opacity: 0.6;
 }
 
 .note-tags {
   display: flex;
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   align-items: center;
-  gap: 4px;
-  overflow: hidden;
+  gap: 5px;
 }
 
 .note-tag {
+  height: 19px;
   display: inline-flex;
   align-items: center;
-  gap: 2px;
-  padding: 0 6px;
+  gap: 5px;
+  padding: 0 8px 0 6px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--visp-accent) 14%, transparent);
-  color: var(--visp-accent);
+  background: var(--visp-chip);
+  color: var(--visp-muted-strong);
   font-size: 11px;
-  line-height: 17px;
   white-space: nowrap;
 }
 
-/* An inline `#tag` lives in the prose, so it reads as informational rather than editable. */
-.note-tag.is-inline {
-  background: color-mix(in srgb, var(--visp-muted) 16%, transparent);
-  color: var(--visp-muted-strong);
+/* Tag colour is assigned from the tag's own name, so a tag keeps its hue across every view. */
+.note-tag .tag-dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--tag-hue, var(--visp-brand));
 }
 
-.note-tag.is-editable {
-  padding-right: 2px;
-}
-
+/*
+ * The remove control takes no width until it is wanted. Laid out but invisible, it made every
+ * editable chip 15px wider than the design's, which pushed the row's controls along with it.
+ */
 .note-tag-remove {
-  width: 14px;
-  height: 14px;
+  width: 0;
+  height: 15px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 0;
+  overflow: hidden;
   border-radius: 50%;
   background: transparent;
   color: inherit;
@@ -122,22 +110,29 @@
   font-size: 10px;
 }
 
-/* Revealed on hover or keyboard focus so the strip stays quiet at rest. */
+/* Revealed on hover or keyboard focus so the row stays quiet at rest. */
 .note-tag.is-editable:hover .note-tag-remove,
 .note-tag-remove:focus-visible {
+  width: 15px;
+  margin-left: -2px;
   opacity: 0.85;
 }
 
 .note-tag-remove:hover {
-  background: color-mix(in srgb, var(--visp-accent) 28%, transparent);
+  background: var(--visp-surface-hover);
   opacity: 1;
 }
 
 .note-tag-add {
-  padding: 0 5px;
+  width: 19px;
+  height: 19px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
   background: transparent;
-  border: 1px dashed color-mix(in srgb, var(--visp-accent) 45%, transparent);
-  color: var(--visp-accent);
+  color: var(--visp-muted);
 }
 
 .note-tag-add .codicon {
@@ -145,31 +140,274 @@
 }
 
 .note-tag-add:hover {
-  background: color-mix(in srgb, var(--visp-accent) 14%, transparent);
+  background: var(--visp-chip);
+  color: var(--visp-brand);
 }
 
-.note-stats {
-  display: flex;
+/*
+ * Below the width that fits the tags themselves, they collapse to one pill carrying a
+ * colour for each — enough to see at a glance that the note is tagged, and how, without
+ * dropping the row's most-used controls off the end.
+ */
+.note-tags-summary {
+  height: 19px;
+  padding: 0 8px 0 6px;
+}
+
+.note-tags-summary .tag-dots {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.note-tags-summary .tag-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--tag-hue, var(--visp-brand));
+}
+
+@media (max-width: 819px) {
+  .note-tags {
+    display: none;
+  }
+}
+
+@media (min-width: 820px) {
+  .note-tags-summary {
+    display: none !important;
+  }
+}
+
+@media (max-width: 639px) {
+  .note-tags-summary {
+    display: none !important;
+  }
+}
+
+.toolbar-button {
+  height: 24px;
+  display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
-  gap: 10px;
-  margin-left: auto;
+  gap: 6px;
+  padding: 0 8px;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--visp-muted-strong);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
-.editor-width-field {
-  min-height: 22px;
+.toolbar-button:hover {
+  background: var(--visp-surface-hover);
+  color: var(--visp-text);
+}
+
+.toolbar-button[aria-expanded="true"] {
+  color: var(--visp-text);
+}
+
+.editor-toolbar .icon-button {
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+}
+
+.editor-toolbar .icon-button .codicon {
+  font-size: 16px;
+}
+
+.toolbar-button .codicon {
+  font-size: 14px;
+}
+
+.editor-toolbar .segmented-control {
+  height: 24px;
+}
+
+.editor-toolbar .segment {
+  height: 20px;
+  padding: 0 9px;
+}
+
+/* The note header's switch lifts its selection; the view toolbars' switches sit flat. */
+.editor-toolbar .segment.is-active {
+  box-shadow: 0 1px 2px color-mix(in srgb, #000 14%, transparent);
+}
+
+/*
+ * A dot and a word. The document's own state does not need an icon set: colour carries
+ * which state it is, and the word carries which one for anyone the colour does not reach.
+ */
+.sync-status {
+  height: 24px;
+  display: inline-flex;
   flex: 0 0 auto;
-  gap: 4px;
-  padding: 0 4px 0 6px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 6px;
+  overflow: hidden;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--visp-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sync-status:hover {
+  background: var(--visp-surface-hover);
+}
+
+.sync-dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.sync-status[data-state="saved"] {
+  color: var(--visp-pass);
+}
+
+.sync-status[data-state="syncing"],
+.sync-status[data-state="unsaved"] {
+  color: var(--visp-warning);
+}
+
+.sync-status[data-state="error"],
+.sync-status[data-state="conflict"] {
+  color: var(--visp-danger);
+}
+
+/* Work in flight breathes; a settled document does not. */
+.sync-status[data-state="syncing"] .sync-dot {
+  animation: visp-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes visp-pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sync-status[data-state="syncing"] .sync-dot {
+    animation: none;
+  }
+}
+
+/*
+ * The overflow menu. Anchored to the row rather than to the button so it cannot be pushed
+ * off the right edge, and floated above the document rather than reserving a row of its own.
+ */
+.editor-menu {
+  position: absolute;
+  top: 36px;
+  right: 12px;
+  z-index: 30;
+  width: 262px;
+  padding: 5px;
+  border: 1px solid var(--visp-border);
+  border-radius: 7px;
+  background: var(--visp-surface);
+  box-shadow: var(--visp-shadow);
+}
+
+.editor-menu-item {
+  width: 100%;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 8px;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--visp-text);
+  font-size: 12px;
+  text-align: left;
+}
+
+.editor-menu-item:hover {
+  background: var(--visp-surface-hover);
+}
+
+.editor-menu-item:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.editor-menu-item .codicon {
+  flex: 0 0 auto;
+  color: var(--visp-muted);
+  font-size: 14px;
+}
+
+.editor-menu-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editor-menu-hint {
+  flex: 0 0 auto;
+  color: var(--visp-muted);
+  font-size: 10.5px;
+}
+
+.editor-menu-separator {
+  height: 1px;
+  margin: 5px 8px;
+  background: var(--visp-hairline);
+}
+
+.editor-menu-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 8px 4px;
+}
+
+.editor-menu-row-label {
+  flex: 1;
   color: var(--visp-muted);
   font-size: 11px;
 }
 
-.editor-width-field select {
-  min-height: 20px;
-  min-width: 66px;
-  color: var(--vscode-input-foreground, var(--visp-text));
-  font-size: 11px;
+.segmented-control.is-compact {
+  height: 22px;
+}
+
+.segmented-control.is-compact .segment {
+  height: 18px;
+  padding: 0 7px;
+  font-size: 10.5px;
+}
+
+.segmented-control.is-compact .segment.is-active {
+  box-shadow: none;
+}
+
+/*
+ * Document and inspector. The inspector is a column of the same grid rather than an overlay,
+ * so opening it re-measures the prose instead of covering it.
+ */
+.editor-body {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+}
+
+.editor-body.is-inspector-closed {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.editor-body.is-inspector-closed .note-inspector {
+  display: none;
 }
 
 .editor-content,
@@ -184,7 +422,7 @@
 }
 
 .editor-host {
-  --editor-inline-gutter: clamp(16px, 2.5vw, 32px);
+  --editor-inline-gutter: min(40px, 4.5%);
   --editor-content-max-width: 1280px;
 
   width: 100%;
@@ -193,7 +431,7 @@
 }
 
 .editor-host[data-content-width="readable"] {
-  --editor-content-max-width: 820px;
+  --editor-content-max-width: 720px;
 }
 
 .editor-host[data-content-width="wide"] {
@@ -235,7 +473,7 @@
   max-width: var(--editor-content-max-width);
   min-height: 100%;
   margin-inline: auto;
-  padding: 36px 0 120px;
+  padding: 44px 0 140px;
   caret-color: var(--vscode-editorCursor-foreground, var(--visp-text));
   tab-size: var(--vscode-editor-tab-size, 2);
 }
@@ -243,8 +481,8 @@
 .editor-host.is-live-mode .cm-content {
   color: var(--visp-prose);
   font-family: var(--visp-prose-font, var(--visp-font));
-  font-size: 14px;
-  line-height: 1.72;
+  font-size: 15px;
+  line-height: 1.78;
 }
 
 .editor-host .cm-line {
@@ -349,6 +587,12 @@
   box-shadow: 0 6px 18px color-mix(in srgb, #000 28%, transparent);
 }
 
+.editor-host .cm-tooltip-autocomplete {
+  width: min(330px, 94vw);
+  padding: 0;
+  border-radius: 7px;
+}
+
 .editor-host .cm-tooltip-autocomplete > ul {
   max-height: min(280px, 45vh);
   padding: 4px;
@@ -361,14 +605,86 @@
   border-radius: 4px;
 }
 
+/*
+ * The suffixes a wiki link accepts, kept under the list — the part of the syntax nobody
+ * remembers until they have used it. Real markup rather than generated content, so the three
+ * keys can carry the weight the design gives them.
+ */
+.editor-host .wiki-completion-footer {
+  display: flex;
+  gap: 12px;
+  margin-top: 4px;
+  padding: 6px 9px 3px;
+  border-top: 1px solid var(--visp-hairline);
+  color: var(--visp-muted);
+  font-size: 10.5px;
+}
+
+.editor-host .wiki-completion-footer b {
+  color: var(--visp-text);
+  font-weight: 600;
+}
+
+.editor-host .wiki-completion-footer .is-trailing {
+  margin-left: auto;
+}
+
 .editor-host .cm-tooltip-autocomplete > ul > li[aria-selected="true"] {
   background: var(--vscode-editorSuggestWidget-selectedBackground, var(--visp-surface-hover));
   color: var(--vscode-editorSuggestWidget-selectedForeground, var(--visp-text));
 }
 
 .editor-host .cm-completionDetail {
-  color: var(--vscode-editorSuggestWidgetStatus-foreground, var(--visp-muted));
-  font-style: normal;
+  display: none;
+}
+
+/*
+ * A row of the wiki-link popup: what kind of thing it is, what it is called, and where it
+ * lives — the last pushed to the right edge so the names form a readable column.
+ */
+.editor-host .wiki-completion-tooltip > ul > li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 28px;
+}
+
+.editor-host .wiki-completion-icon {
+  flex: 0 0 auto;
+  font-size: 14px;
+}
+
+.editor-host .wiki-completion-icon.is-reference {
+  color: var(--visp-brand);
+}
+
+.editor-host .wiki-completion-icon.is-property {
+  color: var(--visp-hue-structure);
+}
+
+.editor-host .wiki-completion-icon.is-constant {
+  color: var(--visp-hue-literal);
+}
+
+.editor-host .wiki-completion-tooltip .cm-completionLabel {
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editor-host .wiki-completion-path {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--visp-muted);
+  font-family: var(--visp-mono);
+  font-size: 10.5px;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .is-live-mode .live-heading-1,
@@ -392,7 +708,7 @@
 }
 
 .is-live-mode .live-heading-2 {
-  color: color-mix(in srgb, var(--visp-hue-structure) 82%, var(--visp-text));
+  color: color-mix(in srgb, var(--visp-hue-structure) 78%, var(--visp-text));
 }
 
 .is-live-mode .live-heading-3 {
@@ -400,20 +716,21 @@
 }
 
 .is-live-mode .live-heading-1 {
-  padding-block: 10px 4px;
-  font-size: 2em;
-  line-height: 1.3;
+  padding-block: 34px 14px;
+  font-size: 1.93em;
+  letter-spacing: -0.021em;
+  line-height: 1.22;
 }
 
 .is-live-mode .live-heading-2 {
-  padding-block: 8px 3px;
-  font-size: 1.55em;
+  padding-block: 30px 12px;
+  font-size: 1.27em;
   line-height: 1.35;
 }
 
 .is-live-mode .live-heading-3 {
-  padding-block: 6px 2px;
-  font-size: 1.25em;
+  padding-block: 12px 4px;
+  font-size: 1.13em;
   line-height: 1.4;
 }
 
@@ -452,7 +769,8 @@
 .is-live-mode .live-list-marker {
   display: inline-block;
   min-width: 1.25em;
-  color: var(--visp-muted-strong);
+  color: var(--visp-muted);
+  opacity: 0.75;
   text-align: center;
 }
 
@@ -479,17 +797,34 @@
 .is-live-mode .live-callout-line {
   --live-callout-accent: var(--visp-accent);
 
-  border-left: 3px solid var(--live-callout-accent);
+  border-left: 2px solid var(--live-callout-accent);
   background: color-mix(in srgb, var(--live-callout-accent) 9%, transparent);
+  font-size: 0.93em;
+  line-height: 1.65;
+}
+
+.editor-host.is-live-mode .live-callout-line {
+  padding-inline: 14px;
+}
+
+.is-live-mode .live-callout-line.is-first {
+  padding-top: 12px;
+  border-radius: 0 6px 0 0;
+}
+
+.is-live-mode .live-callout-line.is-last {
+  padding-bottom: 12px;
+  border-radius: 0 0 6px 0;
 }
 
 .is-live-mode .live-callout-line.is-header {
   color: var(--live-callout-accent);
-  font-weight: 650;
+  font-weight: 600;
+  line-height: 1.5;
 }
 
 .is-live-mode .live-callout-note {
-  --live-callout-accent: var(--vscode-editorInfo-foreground, var(--visp-accent));
+  --live-callout-accent: var(--visp-info);
 }
 
 .is-live-mode .live-callout-tip {
@@ -497,11 +832,11 @@
 }
 
 .is-live-mode .live-callout-important {
-  --live-callout-accent: var(--vscode-charts-purple, #a074c4);
+  --live-callout-accent: var(--visp-hue-reference);
 }
 
 .is-live-mode .live-callout-warning {
-  --live-callout-accent: var(--vscode-editorWarning-foreground, #ddb870);
+  --live-callout-accent: var(--visp-warning);
 }
 
 .is-live-mode .live-callout-danger {
@@ -509,14 +844,16 @@
 }
 
 .is-live-mode .live-callout-success {
-  --live-callout-accent: var(--vscode-testing-iconPassed, #3fa270);
+  --live-callout-accent: var(--visp-pass);
 }
 
 .is-live-mode .live-callout-icon {
   display: inline-flex;
   align-items: center;
-  margin-right: 2px;
+  margin-right: 10px;
   color: var(--live-callout-accent);
+  font-size: 15px;
+  transform: translateY(3px);
   vertical-align: baseline;
 }
 
@@ -526,14 +863,15 @@
  */
 .is-live-mode .live-table-line {
   font-family: var(--visp-mono);
-  font-size: 0.92em;
+  font-size: 0.87em;
+  line-height: 1.9;
   white-space: pre;
 }
 
 .is-live-mode .live-table-line.is-header {
   border-bottom: 1px solid color-mix(in srgb, var(--visp-hue-structure) 50%, transparent);
-  color: var(--visp-text);
-  font-weight: 650;
+  color: var(--visp-strong);
+  font-weight: 600;
 }
 
 .is-live-mode .live-table-line.is-delimiter {
@@ -546,9 +884,12 @@
   display: inline-block;
 }
 
-/* With the pipes hidden, the column edge is the cell's own, kept faint so rows stay readable. */
+/*
+ * No vertical rules. Each cell already holds its column's width, so the columns line up on
+ * their own; ruling them as well drew a grid over three words per row and made a small table
+ * read as a spreadsheet. The header's underline is the only rule the table needs.
+ */
 .is-live-mode .live-table-cell:not(.is-first) {
-  border-left: 1px solid color-mix(in srgb, var(--visp-border) 70%, transparent);
   padding-left: 0.6ch;
 }
 
@@ -560,8 +901,8 @@
 .is-live-mode .live-md-link {
   color: var(--visp-hue-reference);
   text-decoration: underline;
-  text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
-  text-underline-offset: 2px;
+  text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);
+  text-underline-offset: 3px;
 }
 
 .is-live-mode .live-md-link.is-image {
@@ -576,12 +917,29 @@
 }
 
 .is-live-mode .live-inline-code {
-  padding: 1px 5px;
+  padding: 1px 6px;
   border-radius: 4px;
-  background: var(--vscode-textCodeBlock-background, color-mix(in srgb, var(--visp-text) 10%, transparent));
-  color: var(--vscode-textPreformat-foreground, var(--visp-hue-literal));
+  background: var(--visp-code-bg);
+  color: var(--visp-code-fg);
   font-family: var(--visp-mono);
-  font-size: 0.9em;
+  font-size: 0.86em;
+}
+
+/*
+ * The `^id` that ends a paragraph. It is an address, not a word, so it is set apart from the
+ * sentence it trails without leaving the document — the caret still moves through it.
+ */
+.is-live-mode .live-block-ref {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--visp-chip);
+  color: var(--visp-muted);
+  font-family: var(--visp-mono);
+  font-size: 0.73em;
+  vertical-align: 1px;
 }
 
 /*
@@ -589,12 +947,42 @@
  * metadata rather than as the note's opening paragraph.
  */
 .is-live-mode .live-frontmatter-line {
-  background: color-mix(in srgb, var(--visp-surface) 45%, transparent);
-  box-shadow: inset 2px 0 0 var(--visp-border);
+  background: var(--visp-chip);
   color: var(--visp-muted);
-  font-family: var(--visp-mono);
-  font-size: 0.85em;
-  line-height: 1.6;
+  font-size: 0.84em;
+  line-height: 1.7;
+}
+
+/* Beats `.cm-line { padding-inline: 0 }`, which is what holds every other line flush. */
+.editor-host.is-live-mode .live-frontmatter-line {
+  padding-inline: 14px;
+}
+
+.is-live-mode .live-frontmatter-line.is-first {
+  padding-top: 10px;
+  border-radius: 6px 6px 0 0;
+}
+
+.is-live-mode .live-frontmatter-line.is-last {
+  padding-bottom: 10px;
+  border-radius: 0 0 6px 6px;
+}
+
+/*
+ * The `---` fences carry no information the card does not carry by being a card, so they take
+ * no height — until the caret lands on one, when the line comes back to be edited.
+ */
+.editor-host.is-live-mode .live-frontmatter-line.is-fence {
+  height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.editor-host.is-live-mode .live-frontmatter-line.is-fence.is-active {
+  height: auto;
+  padding-inline: 14px;
+  overflow: visible;
+  color: color-mix(in srgb, var(--visp-muted) 82%, transparent);
 }
 
 /*
@@ -608,9 +996,19 @@
   text-decoration: none;
 }
 
-.is-live-mode .live-frontmatter-line.is-fence {
-  /* Still text, so keep it legible rather than purely decorative. */
-  color: color-mix(in srgb, var(--visp-muted) 82%, transparent);
+/* The key column. Fixed so every value in the card starts at the same place. */
+.is-live-mode .live-frontmatter-line .live-frontmatter-key {
+  display: inline-block;
+  min-width: 76px;
+  color: var(--visp-muted);
+}
+
+.is-live-mode .live-frontmatter-line .live-frontmatter-value {
+  color: var(--visp-text);
+}
+
+.is-live-mode .live-frontmatter-line .live-frontmatter-value.is-linking {
+  color: var(--visp-brand);
 }
 
 /* The fenced block's language, kept as a label once the backticks are out of the way. */
@@ -622,10 +1020,34 @@
 }
 
 .is-live-mode .live-code-line {
-  background: var(--vscode-textCodeBlock-background, var(--visp-surface));
+  background: var(--visp-code-bg);
   color: var(--vscode-editor-foreground, var(--visp-text));
   font-family: var(--visp-mono);
   font-size: var(--vscode-editor-font-size, 13px);
+  line-height: 1.75;
+}
+
+/* One box, so the code sits inside it rather than running to the edge of the measure. */
+.editor-host.is-live-mode .live-code-line {
+  padding-inline: 14px;
+}
+
+.is-live-mode .live-code-line.is-open {
+  padding-top: 6px;
+  border-radius: 6px 6px 0 0;
+}
+
+.is-live-mode .live-code-line.is-close {
+  height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* The block's bottom edge is the last line of code, so it carries the cap. */
+.is-live-mode .live-code-line.is-close ~ .live-code-line,
+.is-live-mode .live-code-line:has(+ .live-code-line.is-close) {
+  padding-bottom: 14px;
+  border-radius: 0 0 6px 6px;
 }
 
 /*
@@ -642,8 +1064,8 @@
    */
   color: var(--visp-hue-reference);
   text-decoration: underline;
-  text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
-  text-underline-offset: 2px;
+  text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);
+  text-underline-offset: 3px;
   transition: background-color 120ms ease;
 }
 
@@ -652,11 +1074,16 @@
   text-decoration-color: currentColor;
 }
 
+/*
+ * An unresolved link is a note that has not been written yet, not a mistake, so it keeps the
+ * reference hue and says so with a dashed underline. It used to be painted warning-yellow on
+ * a tinted block, which made a note full of intentions read as a note full of errors.
+ */
 .is-live-mode .live-wiki-link.is-unresolved {
-  background: color-mix(in srgb, var(--vscode-editorWarning-foreground, #ddb870) 13%, transparent);
-  color: var(--vscode-editorWarning-foreground, #ddb870);
+  color: var(--visp-hue-reference);
   text-decoration-line: underline;
   text-decoration-style: dashed;
+  text-decoration-color: color-mix(in srgb, currentColor 55%, transparent);
   text-decoration-thickness: 1px;
 }
 
@@ -664,20 +1091,39 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  margin: 0 5px 0 1px;
-  vertical-align: text-bottom;
+  margin: 0 10px 0 0;
+  vertical-align: baseline;
 }
 
 .is-live-mode .live-task-checkbox {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
   margin: 0;
   accent-color: var(--visp-accent);
+  transform: translateY(2px);
 }
 
 .is-live-mode .live-task-checkbox:focus-visible {
   outline: 2px solid var(--visp-focus);
   outline-offset: 2px;
+}
+
+.is-live-mode .live-task-due {
+  color: var(--visp-muted);
+  font-size: 0.84em;
+}
+
+.is-live-mode .live-task-due.is-overdue {
+  color: var(--visp-danger);
+}
+
+.is-live-mode .live-task-due.is-soon {
+  color: var(--visp-warning);
+}
+
+.is-live-mode .live-tag {
+  color: var(--visp-muted);
+  font-size: 0.87em;
 }
 
 .is-live-mode .live-task-completed {
@@ -696,45 +1142,192 @@
 }
 
 /*
- * Placed left of the toolbar spacer so the buttons on the right keep still while the
- * status text changes length between "Saved", "Syncing…" and a conflict message.
+ * The note inspector.
+ *
+ * Everything the index knows about the note that the note itself does not say: where it sits
+ * in its own structure, what points at it, what it points at, and what it still owes. Sections
+ * are separated by a labelled rule rather than by cards, because four boxed lists in a 300px
+ * column is more frame than content.
  */
-.sync-status {
+.note-inspector {
+  min-height: 0;
+  overflow: auto;
+  padding-bottom: 28px;
+  border-left: 1px solid var(--visp-border);
+  background: var(--visp-panel);
+}
+
+.inspector-section {
+  margin: 0;
+  padding: 18px 14px 6px;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.inspector-section.is-first {
+  padding-top: 14px;
+}
+
+/* Headings indent by level and the top one keeps a bar, so the note's shape is visible. */
+.inspector-outline-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 14px;
+  border-left: 2px solid transparent;
+  background: transparent;
+  color: var(--visp-muted-strong);
+  font-size: 12px;
+  text-align: left;
+}
+
+.inspector-outline-row:hover {
+  background: var(--visp-surface-hover);
+}
+
+.inspector-outline-row.is-top {
+  border-left-color: var(--visp-brand);
+  color: var(--visp-text);
+}
+
+.inspector-outline-row.is-anchor {
+  color: var(--visp-muted);
+}
+
+.inspector-outline-label {
   min-width: 0;
-  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inspector-backlink {
+  width: 100%;
+  display: block;
+  padding: 8px 14px 10px;
+  border-bottom: 1px solid var(--visp-hairline);
+  background: transparent;
+  color: var(--visp-text);
+  text-align: left;
+}
+
+.inspector-backlink:hover {
+  background: var(--visp-surface-hover);
+}
+
+.inspector-backlink-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.inspector-backlink-dot {
+  width: 5px;
+  height: 5px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--visp-brand);
+}
+
+.inspector-backlink-title {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inspector-backlink-line {
+  margin-left: auto;
+  color: var(--visp-muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.inspector-backlink-context {
+  display: block;
+  margin-top: 3px;
+  color: var(--visp-muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.inspector-task {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 6px 14px;
+  font-size: 12px;
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+.inspector-task:hover {
+  background: var(--visp-surface-hover);
+}
+
+.inspector-task input {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  margin: 2px 0 0;
+  accent-color: var(--visp-accent);
+}
+
+.inspector-task-body {
+  min-width: 0;
+}
+
+.inspector-task.is-completed .inspector-task-text {
+  color: var(--visp-muted);
+  text-decoration: line-through;
+}
+
+.inspector-task-meta {
+  display: block;
+  margin-top: 1px;
+  color: var(--visp-muted);
+  font-size: 10.5px;
+}
+
+.inspector-task-meta.is-due {
+  color: var(--visp-warning);
+}
+
+.inspector-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 2px 14px 0;
+}
+
+.inspector-link {
+  height: 22px;
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  overflow: hidden;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--visp-chip);
+  color: var(--visp-hue-reference);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.inspector-link:hover {
+  background: var(--visp-surface-hover);
+}
+
+.inspector-link.is-unresolved {
+  color: var(--visp-warning);
+}
+
+.inspector-empty {
+  padding: 2px 14px 4px;
   color: var(--visp-muted);
   font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  cursor: default;
-}
-
-.sync-status .codicon {
-  flex: 0 0 auto;
-  font-size: 13px;
-}
-
-.sync-status.is-unsaved,
-.sync-status[data-state="unsaved"],
-.sync-status.is-syncing,
-.sync-status[data-state="syncing"] {
-  color: var(--vscode-editorWarning-foreground, #ddb870);
-}
-
-.sync-status.is-error,
-.sync-status[data-state="error"],
-.sync-status.is-conflict,
-.sync-status[data-state="conflict"] {
-  color: var(--vscode-errorForeground, var(--visp-danger));
-}
-
-.sync-status.is-saved,
-.sync-status[data-state="saved"] {
-  color: var(--vscode-testing-iconPassed, var(--visp-muted));
 }
 
 /* Moved out of the CodeMirror JS theme so one stylesheet owns the editor's look. */
@@ -748,20 +1341,12 @@
 }
 
 @media (max-width: 720px) {
-  .note-stats {
-    gap: 8px;
-  }
-
-  .note-tags {
-    display: none;
-  }
-
   .editor-host {
     --editor-inline-gutter: 20px;
   }
 
   .editor-host .cm-content {
-    padding-block: 28px 96px;
+    padding-block: 32px 100px;
   }
 }
 
@@ -771,24 +1356,11 @@
     padding-inline: 10px;
   }
 
-  .editor-toolbar .toolbar-title {
-    flex: 1 1 100%;
-  }
-
-  .editor-toolbar .segmented-control {
-    margin-left: auto;
-  }
-
-  .note-breadcrumb .crumb:not(.is-current),
-  .note-breadcrumb .crumb-separator {
-    display: none;
-  }
-
   .editor-host {
     --editor-inline-gutter: 12px;
   }
 
-  /* The icon alone still reports state once the row is too narrow for the phrase. */
+  /* The dot alone still reports state once the row is too narrow for the phrase. */
   #sync-status-text {
     display: none;
   }

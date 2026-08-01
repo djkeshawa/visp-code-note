@@ -10,6 +10,8 @@ import type { DecorationSet, ViewUpdate } from "@codemirror/view";
 import { parseCalloutBlock } from "../../markdown/callouts.js";
 import { isExternalLink } from "../../application/externalLink.js";
 import { indentColumns } from "../../markdown/outline.js";
+import { findTags } from "../../markdown/tags.js";
+import { dueUrgency, formatDueDate } from "../tasks/grouping.js";
 import type { CalloutHeader } from "../../markdown/callouts.js";
 import type { MarkdownBlock } from "../../domain/models.js";
 import { pipePositions, rowCells, tableBlocks } from "../../markdown/tables.js";
@@ -31,7 +33,25 @@ export interface LivePreviewOptions {
   readonly unresolvedLinks: () => ReadonlySet<string>;
   readonly openLink: (target: string, beside: boolean) => void;
   readonly openExternal: (url: string) => void;
+  /** Used to spell out the link that reaches a block reference from another note. */
+  readonly noteTitle: () => string;
 }
+
+/** Mirrors `parseBlockReferences`, matched against one line rather than the whole note. */
+const BLOCK_REFERENCE = /(^|[\t ])\^([A-Za-z0-9][\w.-]*)([\t ]*)$/;
+
+/** A top-level `key:` in frontmatter. Nested list items carry no key and stay as values. */
+const FRONTMATTER_PROPERTY = /^([\t ]*)([A-Za-z0-9_][\w.-]*)[\t ]*:[\t ]*/;
+
+/*
+ * Mirrors the markers `parseTasks` reads, matched against one line. The due marker leaves the
+ * space before it in the document so the badge does not collide with the word it follows;
+ * the priority marker takes its own leading space with it, since it disappears entirely.
+ */
+const DUE_MARKER = /@due\(\s*([^)]+?)\s*\)/i;
+const PRIORITY_MARKER = /\s*@priority\(\s*(?:low|medium|high)\s*\)/i;
+
+const LINKING_PROPERTIES: ReadonlySet<string> = new Set(["tags", "aliases", "alias"]);
 
 export const refreshLivePreview = StateEffect.define<void>();
 export const revealLiveLine = StateEffect.define<number | undefined>({
@@ -43,14 +63,18 @@ export function createLivePreview(options: LivePreviewOptions): Extension {
     public decorations: DecorationSet;
 
     public constructor(view: EditorView) {
-      this.decorations = buildDecorations(view, options.unresolvedLinks());
+      this.decorations = buildDecorations(view, options.unresolvedLinks(), options.noteTitle());
     }
 
     public update(update: ViewUpdate): void {
       const refreshRequested = update.transactions.some((transaction) =>
         transaction.effects.some((effect) => effect.is(refreshLivePreview)));
       if (update.docChanged || update.selectionSet || update.viewportChanged || refreshRequested) {
-        this.decorations = buildDecorations(update.view, options.unresolvedLinks());
+        this.decorations = buildDecorations(
+          update.view,
+          options.unresolvedLinks(),
+          options.noteTitle(),
+        );
       }
     }
   }, {
@@ -131,6 +155,31 @@ class TaskWidget extends WidgetType {
   }
 }
 
+/**
+ * A due date, drawn as the date rather than as the syntax that records it. Urgency is a
+ * colour: a task list is scanned, not read, and "is this late" is the only question the
+ * scan is asking.
+ */
+class DueDateWidget extends WidgetType {
+  public constructor(
+    private readonly label: string,
+    private readonly urgency: string,
+  ) {
+    super();
+  }
+
+  public override eq(other: DueDateWidget): boolean {
+    return this.label === other.label && this.urgency === other.urgency;
+  }
+
+  public override toDOM(): HTMLElement {
+    const badge = document.createElement("span");
+    badge.className = `live-task-due is-${this.urgency}`;
+    badge.textContent = `· ${this.label}`;
+    return badge;
+  }
+}
+
 class CalloutIconWidget extends WidgetType {
   public constructor(
     private readonly icon: string,
@@ -158,19 +207,29 @@ class CalloutIconWidget extends WidgetType {
   }
 }
 
+/**
+ * A bullet is punctuation, and one repeated at every depth says nothing about depth. A rule
+ * for the top level and a point beneath it means a nested list reads as a nested list even
+ * where the indentation is shallow. Ordered markers keep their own numbers.
+ */
 class ListMarkerWidget extends WidgetType {
-  public constructor(private readonly marker: string) {
+  public constructor(
+    private readonly marker: string,
+    private readonly depth: number,
+  ) {
     super();
   }
 
   public override eq(other: ListMarkerWidget): boolean {
-    return this.marker === other.marker;
+    return this.marker === other.marker && this.depth === other.depth;
   }
 
   public override toDOM(): HTMLElement {
     const marker = document.createElement("span");
     marker.className = "live-list-marker";
-    marker.textContent = /^[-+*]$/.test(this.marker) ? "•" : this.marker;
+    marker.textContent = /^[-+*]$/.test(this.marker)
+      ? (this.depth === 0 ? "—" : "·")
+      : this.marker;
     marker.setAttribute("aria-hidden", "true");
     return marker;
   }
@@ -179,6 +238,7 @@ class ListMarkerWidget extends WidgetType {
 function buildDecorations(
   view: EditorView,
   unresolvedLinks: ReadonlySet<string>,
+  noteTitle: string,
 ): DecorationSet {
   const ranges: Range<Decoration>[] = [];
   const visitedLines = new Set<number>();
@@ -192,11 +252,11 @@ function buildDecorations(
         visitedLines.add(line.from);
         const tableRole = tables.get(line.number);
         if (frontmatter !== undefined && line.from < frontmatter.end) {
-          decorateFrontmatterLine(line.from, line.to, frontmatter, ranges);
+          decorateFrontmatterLine(view, line.from, line.to, line.text, frontmatter, ranges);
         } else if (tableRole !== undefined) {
           decorateTableLine(view, line.from, line.to, line.text, tableRole, ranges);
         } else {
-          decorateLine(view, line.from, line.to, line.text, unresolvedLinks, ranges);
+          decorateLine(view, line.from, line.to, line.text, unresolvedLinks, noteTitle, ranges);
         }
       }
       if (line.to >= view.state.doc.length) break;
@@ -207,21 +267,72 @@ function buildDecorations(
 }
 
 /**
- * Frontmatter stays fully visible and editable — it is metadata the author owns — but
- * reads as a property block rather than as the note's first paragraph.
+ * Frontmatter, drawn as the property card the design shows rather than as four lines of YAML.
+ *
+ * The text stays in the document and the caret still moves through all of it — the fences, the
+ * colons and a list's brackets come back the moment the caret lands on their line, like every
+ * other mark this editor hides. What changes is what is drawn when it does not: a key column,
+ * a value column, and one rounded block around the pair.
  */
 function decorateFrontmatterLine(
+  view: EditorView,
   from: number,
   to: number,
+  text: string,
   frontmatter: { readonly start: number; readonly end: number },
   ranges: Range<Decoration>[],
 ): void {
-  const isFence = from === frontmatter.start || to >= frontmatter.end - 1;
+  const active = view.state.selection.ranges.some((selection) =>
+    selection.from <= to && selection.to >= from);
+  const isOpening = from === frontmatter.start;
+  const isClosing = to >= frontmatter.end - 1;
+  const classes = ["live-frontmatter-line"];
+
+  if (isOpening || isClosing) {
+    /*
+     * The `---` fences say nothing the card does not already say by being a card, so they
+     * collapse to nothing at all — the same treatment a table's delimiter row gets.
+     */
+    classes.push("is-fence");
+    if (active) classes.push("is-active");
+    ranges.push(Decoration.line({ class: classes.join(" ") }).range(from));
+    addHiddenMarkup(ranges, from, to - from, active);
+    return;
+  }
+
+  // The first and last property rows carry the card's rounded ends and its vertical padding.
+  const document = view.state.doc;
+  if (from === document.lineAt(frontmatter.start).to + 1) classes.push("is-first");
+  if (to + 1 >= document.lineAt(Math.max(0, frontmatter.end - 1)).from) classes.push("is-last");
+  ranges.push(Decoration.line({ class: classes.join(" ") }).range(from));
+
+  const property = FRONTMATTER_PROPERTY.exec(text);
+  if (property?.[2] === undefined) return;
+  const keyFrom = from + (property[1]?.length ?? 0);
+  const keyTo = keyFrom + property[2].length;
+  ranges.push(Decoration.mark({ class: "live-frontmatter-key" }).range(keyFrom, keyTo));
+  // The colon is punctuation between two columns that are already apart.
+  addHiddenMarkup(ranges, keyTo, from + property[0].length - keyTo, active);
+
+  const valueFrom = from + property[0].length;
+  if (valueFrom >= to) return;
+  const value = text.slice(property[0].length);
+  /*
+   * Tags and aliases are the two properties that are themselves navigation — every other
+   * view keys off them — so they carry the identity hue rather than the prose colour.
+   */
+  const linking = LINKING_PROPERTIES.has(property[2].toLowerCase());
   ranges.push(
-    Decoration.line({
-      class: isFence ? "live-frontmatter-line is-fence" : "live-frontmatter-line",
-    }).range(from),
+    Decoration.mark({
+      class: linking ? "live-frontmatter-value is-linking" : "live-frontmatter-value",
+    }).range(valueFrom, to),
   );
+  // `tags: [research, active]` reads as `research, active`; the brackets are YAML, not content.
+  if (!active && value.startsWith("[") && value.trimEnd().endsWith("]")) {
+    const closing = valueFrom + value.trimEnd().length - 1;
+    addHiddenMarkup(ranges, valueFrom, 1, false);
+    addHiddenMarkup(ranges, closing, 1, false);
+  }
 }
 
 interface TableRowLayout {
@@ -341,6 +452,7 @@ function decorateLine(
   to: number,
   text: string,
   unresolvedLinks: ReadonlySet<string>,
+  noteTitle: string,
   ranges: Range<Decoration>[],
 ): void {
   const active = view.state.selection.ranges.some((selection) =>
@@ -370,7 +482,7 @@ function decorateLine(
       if (!active) {
         const markerFrom = from + indent.length;
         ranges.push(Decoration.replace({
-          widget: new ListMarkerWidget(list[2]),
+          widget: new ListMarkerWidget(list[2], Math.round(indentColumns(indent) / 2)),
         }).range(markerFrom, markerFrom + list[2].length));
       }
     } else {
@@ -406,7 +518,15 @@ function decorateLine(
       ranges.push(Decoration.line({ class: "live-quote-line" }).range(from));
       hideQuoteMarker(ranges, from, text, active);
     } else {
-      decorateCalloutLine(from, text, block.range.start === from, callout, active, ranges);
+      decorateCalloutLine(
+        from,
+        text,
+        block.range.start === from,
+        to >= block.range.end - 1,
+        callout,
+        active,
+        ranges,
+      );
     }
   }
   if (block?.kind === "thematic-break") {
@@ -433,6 +553,18 @@ function decorateLine(
       if (task[2].toLowerCase() === "x") {
         ranges.push(Decoration.line({ class: "live-task-completed" }).range(from));
       }
+      decorateTaskMetadata(ranges, from, text);
+    }
+  }
+
+  /*
+   * `#tag` is an address the rest of the tool navigates by, not a word in the sentence, so
+   * it steps back from the prose the way a block anchor does. Kept out of code, where a `#`
+   * is a comment or a preprocessor line rather than a tag.
+   */
+  if (block !== undefined && block.kind !== "code") {
+    for (const tag of findTags(text, from)) {
+      ranges.push(Decoration.mark({ class: "live-tag" }).range(tag.start, tag.end));
     }
   }
 
@@ -468,6 +600,27 @@ function decorateLine(
     }
   }
 
+  /*
+   * A trailing `^id` is an anchor other notes link to, not a word in the sentence it ends.
+   * Drawing it as a small chip separates it from the prose while leaving it as editable text,
+   * and the tooltip spells out the link that reaches it — the one thing an author has to know
+   * about a block reference and the one thing the syntax does not say.
+   */
+  if (block !== undefined && block.kind !== "code" && block.kind !== "blank") {
+    const anchor = BLOCK_REFERENCE.exec(text);
+    if (anchor?.[2] !== undefined) {
+      const anchorFrom = from + text.length - (anchor[2].length + 1) - (anchor[3]?.length ?? 0);
+      ranges.push(
+        Decoration.mark({
+          class: "live-block-ref",
+          attributes: {
+            title: `Block reference — link to this block with [[${noteTitle}^${anchor[2]}]]`,
+          },
+        }).range(anchorFrom, anchorFrom + anchor[2].length + 1),
+      );
+    }
+  }
+
   if (block !== undefined && block.kind !== "code") {
     for (const span of markdownInlineCodeRanges(view.state, from, to)) {
       ranges.push(Decoration.mark({ class: "live-inline-code" }).range(span.start, span.end));
@@ -484,6 +637,41 @@ function decorateLine(
 }
 
 /**
+ * `@due(2026-08-03)` and `@priority(high)` are how a task records its metadata, not how a
+ * task should read. The due date becomes the date, coloured by how near it is; the priority
+ * marker steps out of the sentence entirely — it is carried by the task list's margin bar
+ * and by the inspector, and the raw text comes back the moment the caret lands on the line,
+ * like every other mark this editor hides.
+ */
+function decorateTaskMetadata(
+  ranges: Range<Decoration>[],
+  from: number,
+  text: string,
+): void {
+  const due = DUE_MARKER.exec(text);
+  if (due?.[1] !== undefined) {
+    /*
+     * The marker is only ever replaced by something that still shows its value. Hiding it
+     * when the value could not be parsed erased the due date from the rendered note while
+     * the task list went on showing it — the author saw an undated task and had to click the
+     * line to discover otherwise. An unparseable value is shown as written instead.
+     */
+    ranges.push(
+      Decoration.replace({
+        widget: new DueDateWidget(
+          formatDueDate(due[1]) ?? due[1],
+          dueUrgency(due[1]),
+        ),
+      }).range(from + due.index, from + due.index + due[0].length),
+    );
+  }
+  const priority = PRIORITY_MARKER.exec(text);
+  if (priority !== null) {
+    addHiddenMarkup(ranges, from + priority.index, priority[0].length, false);
+  }
+}
+
+/**
  * A callout is a blockquote whose first line declares a type. Every line of the block
  * carries the tone class so the border and tint span the whole callout, and the marker
  * itself collapses to an icon while the caret is elsewhere.
@@ -492,12 +680,14 @@ function decorateCalloutLine(
   from: number,
   text: string,
   isHeader: boolean,
+  isLast: boolean,
   callout: CalloutHeader,
   active: boolean,
   ranges: Range<Decoration>[],
 ): void {
   const classes = ["live-callout-line", `live-callout-${callout.tone}`];
-  if (isHeader) classes.push("is-header");
+  if (isHeader) classes.push("is-header", "is-first");
+  if (isLast) classes.push("is-last");
   ranges.push(Decoration.line({ class: classes.join(" ") }).range(from));
   hideQuoteMarker(ranges, from, text, active);
   if (!isHeader || active) {
@@ -550,12 +740,23 @@ function decorateCodeFence(
   const markerFrom = from + (fence[1]?.length ?? 0);
   addHiddenMarkup(ranges, markerFrom, fence[2].length, active);
   const language = fence[3] ?? "";
-  if (opening && language.length > 0 && !active) {
-    const languageFrom = markerFrom + fence[2].length;
-    ranges.push(
-      Decoration.mark({ class: "live-code-lang" })
-        .range(languageFrom, languageFrom + language.length),
-    );
+  if (opening) {
+    // The opening line is the box's cap and carries the language as a label above the code.
+    ranges.push(Decoration.line({ class: "live-code-line is-open" }).range(from));
+    if (language.length > 0 && !active) {
+      const languageFrom = markerFrom + fence[2].length;
+      ranges.push(
+        Decoration.mark({ class: "live-code-lang" })
+          .range(languageFrom, languageFrom + language.length),
+      );
+    }
+  }
+  if (closing) {
+    /*
+     * A closing fence says nothing — the box ends where it ends — so it collapses to the
+     * block's bottom edge unless the caret is on it.
+     */
+    ranges.push(Decoration.line({ class: "live-code-line is-close" }).range(from));
   }
 }
 

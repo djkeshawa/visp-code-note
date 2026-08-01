@@ -1,133 +1,91 @@
 .graph-shell {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  position: relative;
 }
 
-.graph-toolbar .control-label {
-  color: var(--visp-muted);
-  font-size: 10px;
-  text-transform: uppercase;
-}
-
-.depth-control {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-}
-
-.graph-workspace {
-  min-width: 0;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: 220px minmax(0, 1fr) 250px;
-}
-
-.graph-controls,
-.graph-details {
-  min-width: 0;
-  overflow: auto;
-  background: var(--visp-panel);
-}
-
-.graph-controls {
-  padding: 14px 12px;
-  border-right: 1px solid var(--visp-border);
+.graph-shell .view-toolbar {
+  height: 44px;
 }
 
 .graph-search {
+  flex: 0 1 190px;
+}
+
+/*
+ * Hops only mean something when the graph is centred on one note. On the workspace graph the
+ * control stays put and says why rather than disappearing, so the toolbar does not reflow
+ * every time the scope changes.
+ */
+#depth-control.is-unavailable {
+  opacity: 0.45;
+}
+
+#depth-control .segment:disabled {
+  cursor: default;
+}
+
+.floating-menu {
+  position: absolute;
+  z-index: 30;
+  width: 236px;
+  padding: 5px;
+  border: 1px solid var(--visp-border);
+  border-radius: 7px;
+  background: var(--visp-surface);
+  box-shadow: var(--visp-shadow);
+}
+
+.graph-menu {
+  top: 40px;
+  right: 12px;
+}
+
+.menu-item {
   width: 100%;
-}
-
-.graph-search-status {
-  min-height: 15px;
-  margin: 5px 2px 0;
-  color: var(--visp-muted);
-  font-size: 10px;
-}
-
-.filter-fieldset {
-  display: grid;
-  gap: 4px;
-  margin: 18px 0 0;
-  padding: 10px 0 0;
-  border: 0;
-  border-top: 1px solid var(--visp-border);
-}
-
-.filter-fieldset legend,
-.graph-legend h2 {
-  padding: 0;
-  color: var(--visp-muted);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.filter-fieldset label {
-  min-height: 28px;
+  height: 26px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  font-size: 11px;
-}
-
-.filter-fieldset input {
-  accent-color: var(--visp-accent);
-}
-
-.graph-legend {
-  display: grid;
   gap: 9px;
-  margin-top: 18px;
-  padding-top: 12px;
-  border-top: 1px solid var(--visp-border);
-}
-
-.graph-legend h2 {
-  margin: 0 0 2px;
-}
-
-.graph-legend span {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--visp-muted);
-  font-size: 11px;
-}
-
-.legend-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--visp-accent);
-}
-
-.task-dot {
-  border-radius: 2px;
-  background: var(--vscode-editorWarning-foreground, #e9a66b);
-  transform: rotate(45deg);
-}
-
-.tag-dot {
-  background: var(--vscode-testing-iconPassed, #62c3b4);
-}
-
-.unresolved-dot {
-  border: 1px dashed var(--visp-muted);
+  padding: 0 8px;
+  border-radius: 4px;
   background: transparent;
+  color: var(--visp-text);
+  font-size: 12px;
+  text-align: left;
 }
 
+.menu-item:hover {
+  background: var(--visp-surface-hover);
+}
+
+.menu-item:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.menu-item .codicon {
+  flex: 0 0 auto;
+  color: var(--visp-muted);
+  font-size: 14px;
+}
+
+.menu-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * The canvas is the view. A soft glow under the middle of the field gives the drawing a
+ * centre of gravity without drawing a frame around it.
+ */
 .graph-canvas {
   position: relative;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
   background-color: var(--visp-bg);
-  background-image:
-    radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--visp-accent) 7%, transparent), transparent 48%),
-    radial-gradient(circle at center, transparent 54%, color-mix(in srgb, black 12%, transparent));
+  background-image: radial-gradient(circle at 46% 48%, var(--visp-brand-soft), transparent 55%);
   cursor: grab;
 }
 
@@ -152,10 +110,80 @@
   transform: translate(-50%, -50%);
 }
 
+/* Filters, top left: what is on the canvas, how much of it, and a way to put it away. */
+.graph-filters {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  max-width: 70%;
+}
+
+.graph-chip {
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  border: 1px solid var(--visp-border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--visp-panel) 60%, transparent);
+  color: var(--visp-muted);
+  font-size: 11.5px;
+  white-space: nowrap;
+  backdrop-filter: blur(6px);
+}
+
+/* An enabled filter sits on a more solid pill, so on/off reads without checking the dot. */
+.graph-chip.is-active {
+  background: color-mix(in srgb, var(--visp-panel) 85%, transparent);
+  color: var(--visp-text);
+}
+
+.graph-chip:hover {
+  border-color: color-mix(in srgb, var(--visp-brand) 45%, var(--visp-border));
+}
+
+.graph-chip-count {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.65;
+}
+
+.graph-chip-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--visp-brand);
+}
+
+.dot-tag {
+  background: var(--visp-hue-string);
+}
+
+.dot-task {
+  border-radius: 2px;
+  background: var(--visp-warning);
+  transform: rotate(45deg);
+}
+
+.dot-unresolved {
+  border: 1px dashed var(--visp-muted);
+  background: transparent;
+}
+
+.dot-orphan {
+  background: var(--visp-muted);
+}
+
 .graph-edge {
-  stroke: color-mix(in srgb, var(--visp-muted) 78%, transparent);
+  /* dim = muted at 25% alpha in the prototype; a link is context, not content. */
+  stroke: var(--visp-edge);
   stroke-linecap: round;
-  stroke-width: 1.1;
+  stroke-width: 1;
   vector-effect: non-scaling-stroke;
   transition: opacity 140ms ease, stroke 140ms ease, stroke-width 140ms ease;
 }
@@ -181,57 +209,103 @@
   pointer-events: all;
 }
 
+/*
+ * A node away from the selection is a landmark, not a subject: it keeps the shape of the
+ * field without competing with the neighbourhood being read.
+ */
 .node-shape {
-  fill: color-mix(in srgb, var(--visp-accent) 82%, #c5d1ff);
-  stroke: color-mix(in srgb, var(--visp-accent) 66%, var(--visp-text));
-  stroke-width: 1.15;
+  /* A slate with the identity hue mixed in: recognisably the same family, clearly not lit. */
+  fill: color-mix(in srgb, var(--visp-brand) 25%, color-mix(in srgb, var(--visp-muted) 50%, var(--visp-bg)));
+  stroke: none;
   vector-effect: non-scaling-stroke;
-  transition: filter 140ms ease, stroke 140ms ease, stroke-width 140ms ease;
+  transition: fill 140ms ease, filter 140ms ease, stroke 140ms ease, stroke-width 140ms ease;
 }
 
 .node-task .node-shape {
-  fill: color-mix(in srgb, var(--vscode-editorWarning-foreground, #e9a66b) 58%, #ffd166);
-  stroke: color-mix(in srgb, var(--vscode-editorWarning-foreground, #e9a66b) 72%, white);
+  fill: var(--visp-warning);
 }
 
 .node-tag .node-shape {
-  fill: color-mix(in srgb, var(--vscode-testing-iconPassed, #62c3b4) 88%, white);
-  stroke: var(--vscode-testing-iconPassed, #62c3b4);
+  fill: color-mix(in srgb, var(--tag-hue, var(--visp-hue-string)) 55%, transparent);
 }
 
 .node-unresolved .node-shape {
-  fill: color-mix(in srgb, var(--visp-muted) 18%, var(--visp-bg));
-  stroke: color-mix(in srgb, var(--visp-muted) 86%, var(--visp-text));
+  fill: var(--visp-bg);
+  stroke: var(--visp-unresolved-ring);
+  stroke-width: 1;
   stroke-dasharray: 2 2;
 }
 
+/*
+ * An orphan is a solid muted disc, which is what its filter chip advertises. It used to share
+ * the dashed outline that means "unresolved", so two different states looked the same and
+ * neither matched the legend beside them.
+ */
 .graph-node.is-orphan .node-shape {
-  fill: color-mix(in srgb, var(--visp-muted) 52%, var(--visp-bg));
-  stroke-dasharray: 2 2;
+  fill: var(--visp-muted);
 }
 
-.graph-node.is-hub .node-shape {
-  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--visp-accent) 42%, transparent));
-}
-
+.graph-node.is-connected .node-shape,
 .graph-node.is-selected .node-shape,
 .graph-node.is-hovered .node-shape,
+.graph-node.is-search-match .node-shape,
 .graph-node.is-dragging .node-shape,
+.graph-node:hover .node-shape,
 .graph-node:focus-visible .node-shape {
-  stroke: var(--visp-text);
-  stroke-width: 2.2;
-  filter: brightness(1.18) drop-shadow(0 0 6px color-mix(in srgb, var(--visp-accent) 72%, transparent));
+  fill: var(--visp-brand);
 }
 
-.graph-node.is-connected .node-shape {
-  stroke: color-mix(in srgb, var(--visp-accent) 70%, var(--visp-text));
-  stroke-width: 1.7;
-  filter: brightness(1.1) drop-shadow(0 0 3px color-mix(in srgb, var(--visp-accent) 45%, transparent));
+/*
+ * A tag, a task and an unresolved link keep their own identity in the neighbourhood — the
+ * point of colouring them is that they are not notes — so proximity changes their weight
+ * rather than their colour.
+ */
+.graph-node.node-tag.is-connected .node-shape,
+.graph-node.node-tag.is-selected .node-shape,
+.graph-node.node-tag.is-hovered .node-shape,
+.graph-node.node-tag.is-search-match .node-shape,
+.graph-node.node-tag:hover .node-shape {
+  fill: var(--tag-hue, var(--visp-hue-string));
+}
+
+.graph-node.node-task.is-connected .node-shape,
+.graph-node.node-task.is-selected .node-shape,
+.graph-node.node-task.is-hovered .node-shape,
+.graph-node.node-task.is-search-match .node-shape,
+.graph-node.node-task:hover .node-shape {
+  fill: var(--visp-warning);
+}
+
+.graph-node.node-unresolved.is-connected .node-shape,
+.graph-node.node-unresolved.is-hovered .node-shape,
+.graph-node.node-unresolved.is-search-match .node-shape,
+.graph-node.node-unresolved:hover .node-shape {
+  fill: var(--visp-bg);
+  stroke: var(--visp-unresolved-ring);
+  stroke-width: 1;
+}
+
+/*
+ * The selected node wears a flat 5px ring in the identity hue, sitting flush against the dot —
+ * the design's halo. A blurred glow read as a bloom and, on a hollow unresolved node, swamped
+ * the dashed outline that is its identity.
+ */
+.graph-node.is-selected .node-shape,
+.graph-node:focus-visible .node-shape {
+  stroke: color-mix(in srgb, var(--visp-brand) 20%, transparent);
+  stroke-width: 5;
+  paint-order: stroke;
+}
+
+.graph-node.is-hovered .node-shape,
+.graph-node.is-dragging .node-shape,
+.graph-node:hover .node-shape {
+  filter: brightness(1.15) drop-shadow(0 0 6px color-mix(in srgb, var(--visp-brand) 60%, transparent));
 }
 
 .graph-edge.is-connected {
-  stroke: color-mix(in srgb, var(--visp-accent) 84%, var(--visp-text));
-  stroke-width: 1.8;
+  stroke: var(--visp-brand);
+  stroke-width: 1.5;
 }
 
 .graph-node.is-context-dimmed {
@@ -259,18 +333,12 @@
 }
 
 .graph-node.is-search-match .node-shape {
-  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--visp-accent) 75%, transparent));
-  stroke: var(--visp-text);
-  stroke-width: 2.2;
-}
-
-.graph-node:hover .node-shape {
-  filter: brightness(1.18) drop-shadow(0 0 6px color-mix(in srgb, var(--visp-accent) 72%, transparent));
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--visp-brand) 75%, transparent));
 }
 
 .node-label {
   cursor: grab;
-  fill: var(--visp-text);
+  fill: var(--visp-muted);
   font-family: var(--visp-font);
   font-size: 11px;
   font-weight: 450;
@@ -288,19 +356,23 @@
  * node in a small graph. Everything else surfaces its label on interaction.
  */
 .graph-node.has-standing-label .node-label {
-  opacity: 0.9;
+  opacity: 0.7;
   pointer-events: all;
 }
 
 .graph-node.is-orphan.has-standing-label .node-label {
-  opacity: 0.78;
+  opacity: 0.7;
 }
 
-.node-task .node-label,
-.node-tag .node-label,
-.node-unresolved .node-label {
-  opacity: 0;
-  pointer-events: none;
+/*
+ * The prototype labels every node, including tags and unresolved links — a hollow ring with
+ * no name attached says only that something is missing, not what.
+ */
+.graph-node.node-tag.has-standing-label .node-label,
+.graph-node.node-unresolved.has-standing-label .node-label,
+.graph-node.node-task.has-standing-label .node-label {
+  opacity: 0.55;
+  pointer-events: all;
 }
 
 /*
@@ -315,35 +387,44 @@
 .graph-node.is-hovered .node-label,
 .graph-node.is-dragging .node-label,
 .graph-node:focus-visible .node-label {
+  fill: var(--visp-text);
+  opacity: 0.95;
+  pointer-events: all;
+}
+
+.graph-node.is-selected .node-label {
   font-weight: 600;
   opacity: 1;
-  pointer-events: all;
 }
 
 .graph-node.is-dragging .node-label {
   cursor: grabbing;
 }
 
+/* Viewport, bottom left. One cluster: scale on the left of the divider, framing on the right. */
 .graph-viewport-controls {
   position: absolute;
-  bottom: 13px;
-  left: 13px;
+  bottom: 14px;
+  left: 14px;
   z-index: 2;
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px;
+  gap: 2px;
+  padding: 3px;
   border: 1px solid var(--visp-border);
-  border-radius: var(--visp-radius);
-  background: color-mix(in srgb, var(--visp-surface) 92%, transparent);
-  box-shadow: 0 4px 14px rgb(0 0 0 / 22%);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--visp-panel) 88%, transparent);
+  backdrop-filter: blur(8px);
+  box-shadow: var(--visp-shadow);
 }
 
 .graph-viewport-controls button {
-  min-width: 26px;
+  width: 26px;
   height: 26px;
-  padding: 0 7px;
-  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
   background: transparent;
   color: var(--visp-muted);
 }
@@ -358,112 +439,129 @@
   opacity: 0.4;
 }
 
-.graph-viewport-controls .viewport-text-button {
-  font-size: 10px;
+.graph-viewport-controls .codicon {
+  font-size: 14px;
 }
 
 .graph-viewport-controls output {
-  min-width: 39px;
-  padding: 0 3px;
+  min-width: 40px;
   color: var(--visp-muted);
-  font-size: 10px;
-  text-align: right;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
 }
 
+.viewport-divider {
+  width: 1px;
+  height: 16px;
+  margin: 0 3px;
+  background: var(--visp-border);
+}
+
+/*
+ * The selected node, bottom right. A card rather than a column: it appears when there is
+ * something to say and takes no space from the drawing when there is not.
+ */
 .graph-details {
-  padding: 17px 14px;
-  border-left: 1px solid var(--visp-border);
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 2;
+  width: 290px;
+  max-height: calc(100% - 28px);
+  overflow: auto;
+  padding: 14px;
+  border: 1px solid var(--visp-border);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--visp-panel) 92%, transparent);
+  backdrop-filter: blur(10px);
+  box-shadow: var(--visp-shadow);
+}
+
+.graph-details-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.graph-details-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--visp-brand);
+}
+
+.graph-details-dot.is-tag {
+  background: var(--visp-hue-string);
+}
+
+.graph-details-dot.is-task {
+  border-radius: 2px;
+  background: var(--visp-warning);
+  transform: rotate(45deg);
+}
+
+.graph-details-dot.is-unresolved {
+  border: 1px dashed var(--visp-muted);
+  background: transparent;
 }
 
 .graph-details h2 {
-  margin: 6px 0 4px;
-  font-size: 17px;
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  color: var(--visp-strong);
+  font-size: 14px;
+  font-weight: 600;
   line-height: 1.3;
+  overflow-wrap: anywhere;
 }
 
-.graph-details p {
-  margin: 0 0 16px;
-  font-size: 11px;
+.graph-details .icon-button {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+}
+
+.graph-details .icon-button .codicon {
+  font-size: 13px;
 }
 
 .node-stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  margin: 0 0 16px;
-  border: 1px solid var(--visp-border);
-  border-radius: var(--visp-radius);
+  display: flex;
+  gap: 14px;
+  margin: 8px 0 12px;
+  color: var(--visp-muted);
+  font-size: 11.5px;
 }
 
 .node-stats div {
   display: flex;
-  flex-direction: column-reverse;
-  gap: 2px;
-  padding: 9px 3px;
-  border-right: 1px solid var(--visp-border);
-  text-align: center;
-}
-
-.node-stats div:last-child {
-  border-right: 0;
-}
-
-.node-stats dt {
-  color: var(--visp-muted-strong);
-  font-size: 10px;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
+  gap: 4px;
 }
 
 .node-stats dd {
   margin: 0;
-  font-size: 14px;
+  color: var(--visp-text);
   font-weight: 600;
 }
 
-.connection-heading {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 0 7px;
-}
-
-.connection-heading h3 {
-  margin: 0;
-  color: var(--visp-muted);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.connection-heading span {
-  min-width: 19px;
-  padding: 1px 6px;
-  border-radius: 9px;
-  background: var(--vscode-badge-background, var(--visp-surface));
-  color: var(--vscode-badge-foreground, var(--visp-muted));
-  font-size: 10px;
-  text-align: center;
+.node-stats dt {
+  font-weight: 400;
 }
 
 .connection-list {
   display: grid;
-  gap: 5px;
-  margin-bottom: 16px;
 }
 
 .connection-row {
-  width: 100%;
-  min-height: 32px;
-  display: grid;
-  /* marker, kind icon, label, relation, direction arrow */
-  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+  display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 7px;
-  border: 1px solid var(--visp-border);
-  border-radius: 5px;
-  background: var(--visp-surface);
+  gap: 8px;
+  padding: 5px 4px;
+  border-top: 1px solid var(--visp-hairline);
+  background: transparent;
   text-align: left;
 }
 
@@ -472,20 +570,21 @@
 }
 
 .connection-marker {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
   border-radius: 50%;
-  background: var(--visp-accent);
+  background: var(--visp-brand);
 }
 
 .marker-task {
   border-radius: 2px;
-  background: var(--vscode-editorWarning-foreground, #e9a66b);
+  background: var(--visp-warning);
   transform: rotate(45deg);
 }
 
 .marker-tag {
-  background: var(--vscode-testing-iconPassed, #62c3b4);
+  background: var(--tag-hue, var(--visp-hue-string));
 }
 
 .marker-unresolved {
@@ -494,15 +593,12 @@
 }
 
 .connection-label {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
-  font-size: 11px;
+  color: var(--visp-text);
+  font-size: 11.5px;
   text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.connection-relation {
-  color: var(--visp-muted-strong);
-  font-size: 10px;
   white-space: nowrap;
 }
 
@@ -512,14 +608,19 @@
   font-size: 12px;
 }
 
-/* The direction arrow anchors the right edge of the row. */
-.connection-row > .codicon:last-child {
-  margin-left: 2px;
+.connection-empty {
+  padding: 6px 4px 0;
+  color: var(--visp-muted);
+  font-size: 11px;
 }
 
-.connection-list .connection-empty {
-  margin: 2px 0;
-  font-size: 10px;
+.graph-details .primary-button {
+  height: 28px;
+  min-height: 28px;
+  margin-top: 12px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 500;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -531,66 +632,24 @@
   }
 }
 
-@media (max-width: 900px) {
-  .graph-workspace {
-    grid-template-columns: 190px minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) clamp(180px, 32vh, 260px);
-  }
-
-  .graph-controls {
-    grid-row: 1 / span 2;
-  }
-
-  .graph-canvas {
-    grid-column: 2;
-    grid-row: 1;
-  }
-
+/*
+ * Below this the card would cover most of the drawing, so it gives up its corner and spans
+ * the bottom instead, and the filters give up the ones that are rarely turned off.
+ */
+@media (max-width: 640px) {
   .graph-details {
-    grid-column: 2;
-    grid-row: 2;
-    border-top: 1px solid var(--visp-border);
-  }
-}
-
-@media (max-width: 620px) {
-  .graph-toolbar .control-label {
-    display: none;
+    right: 10px;
+    left: 10px;
+    width: auto;
+    max-height: 45%;
   }
 
-  .graph-workspace {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto minmax(0, 1fr) clamp(180px, 32vh, 240px);
+  .graph-filters {
+    max-width: calc(100% - 24px);
   }
 
-  .graph-controls {
-    grid-column: 1;
-    grid-row: 1;
-    display: flex;
-    gap: 10px;
-    overflow-x: auto;
-    padding: 8px;
-    border-right: 0;
-    border-bottom: 1px solid var(--visp-border);
-  }
-
-  .graph-canvas {
-    grid-column: 1;
-    grid-row: 2;
-  }
-
-  .graph-details {
-    grid-column: 1;
-    grid-row: 3;
-    border-left: 0;
-  }
-
-  .graph-search {
-    min-width: 150px;
-  }
-
-  .filter-fieldset,
-  .graph-legend {
+  .graph-chip[data-orphans],
+  .graph-chip[data-kind="task"] {
     display: none;
   }
 }

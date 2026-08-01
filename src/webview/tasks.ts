@@ -1,6 +1,6 @@
 import type { TaskWire, TasksSnapshotWire, TasksToHostWire } from "./contracts.js";
+import { tagHueColor } from "../application/tagHue.js";
 import {
-  codicon,
   emptyState,
   htmlElement,
   isRecord,
@@ -8,28 +8,40 @@ import {
   setNotice,
 } from "./shared/dom.js";
 import { acquireMessageSender } from "./shared/vscodeApi.js";
-import { formatDueDate, groupTasks, parseTaskGrouping } from "./tasks/grouping.js";
+import {
+  dueUrgency,
+  formatDueDate,
+  groupTasks,
+  parseTaskGrouping,
+} from "./tasks/grouping.js";
 import type { TaskStatusFilter } from "./tasks/grouping.js";
 
 const api = acquireMessageSender<TasksToHostWire>();
 const search = requireElement("#task-search", HTMLInputElement);
-const status = requireElement("#task-status", HTMLSelectElement);
 const groupBy = requireElement("#task-group-by", HTMLSelectElement);
 const title = requireElement("#task-view-title", HTMLHeadingElement);
+const summary = requireElement("#task-summary", HTMLElement);
 const groupsRoot = requireElement("#task-groups", HTMLElement);
 const countLabel = requireElement("#task-count", HTMLElement);
 const errorNotice = requireElement("#tasks-error", HTMLElement);
+const statusSegments = Array.from(
+  document.querySelectorAll<HTMLButtonElement>("button[data-status]"),
+);
 
 let snapshot: TasksSnapshotWire | undefined;
+let status: TaskStatusFilter = "open";
 
 search.addEventListener("input", render);
-status.addEventListener("change", render);
 groupBy.addEventListener("change", render);
+for (const segment of statusSegments) {
+  segment.addEventListener("click", () => setStatus(parseStatus(segment.dataset.status)));
+}
 groupsRoot.addEventListener("click", handleTaskClick);
 groupsRoot.addEventListener("change", handleTaskToggle);
 window.addEventListener("message", handleHostMessage);
 
 // Paint the loading state before the host replies; otherwise the panel opens blank.
+setStatus("open");
 render();
 api.postMessage({ type: "tasks/ready" });
 
@@ -41,10 +53,10 @@ function handleHostMessage(event: MessageEvent<unknown>): void {
   if (message.type === "tasks/state" && isTasksSnapshot(message.snapshot)) {
     snapshot = message.snapshot;
     title.textContent = snapshot.filter === "today" ? "Due Today" : "Tasks";
-    status.disabled = snapshot.filter === "today";
-    if (snapshot.filter === "today") {
-      status.value = "open";
-    }
+    // Due Today is already a status filter, so the segments would only contradict it.
+    const locked = snapshot.filter === "today";
+    for (const segment of statusSegments) segment.disabled = locked;
+    if (locked) setStatus("open");
     setNotice(errorNotice);
     render();
   } else if (message.type === "tasks/error" && typeof message.message === "string") {
@@ -53,15 +65,27 @@ function handleHostMessage(event: MessageEvent<unknown>): void {
   }
 }
 
+function setStatus(next: TaskStatusFilter): void {
+  status = next;
+  for (const segment of statusSegments) {
+    const active = segment.dataset.status === next;
+    segment.classList.toggle("is-active", active);
+    segment.setAttribute("aria-pressed", String(active));
+  }
+  render();
+}
+
 function render(): void {
   groupsRoot.replaceChildren();
   if (snapshot === undefined) {
+    summary.textContent = "Waiting for index…";
     groupsRoot.append(emptyState("loading", "Building the workspace task index…"));
     return;
   }
+  summary.textContent = summaryText(snapshot);
   const groups = groupTasks(snapshot.tasks, {
     query: search.value,
-    status: selectedStatus(),
+    status,
     view: snapshot.filter,
     groupBy: parseTaskGrouping(groupBy.value),
   });
@@ -69,34 +93,81 @@ function render(): void {
   const visibleCount = new Set(
     groups.flatMap((group) => group.tasks.map((task) => `${task.noteUri}:${task.range.start}`)),
   ).size;
-  countLabel.textContent = `${visibleCount} of ${snapshot.tasks.length} tasks · index ${snapshot.version}`;
+  countLabel.textContent = `${visibleCount} of ${snapshot.tasks.length} task${
+    snapshot.tasks.length === 1 ? "" : "s"
+  }`;
   if (groups.length === 0) {
-    groupsRoot.append(dueTodayView() && search.value.trim() === ""
-      ? emptyState(
-          "pass",
-          "No incomplete tasks are due today.",
-          "Add @due(YYYY-MM-DD) to a checkbox to schedule one.",
-        )
-      : emptyState(
-          "search",
-          "No tasks match the current filters.",
-          "Clear the filter text, or switch the status to All tasks.",
-        ));
+    groupsRoot.append(emptyGroups());
     return;
   }
   for (const group of groups) {
     const section = htmlElement("section", "task-group");
-    const heading = htmlElement("h2", "task-group-title");
-    heading.append(document.createTextNode(group.name), htmlElement("span", "count-badge", String(group.tasks.length)));
-    section.append(heading, ...group.tasks.map(createTaskCard));
+    const heading = htmlElement(
+      "h2",
+      group.name === "Overdue" ? "task-group-title is-overdue" : "task-group-title",
+      group.name,
+    );
+    heading.append(
+      htmlElement("span", "task-group-count", String(group.tasks.length)),
+      htmlElement("span", "task-group-rule"),
+    );
+    section.append(heading, ...group.tasks.map(createTaskRow));
     groupsRoot.append(section);
+  }
+  /*
+   * The design closes the list with a note rather than leaving it to run out. It is only true
+   * when nothing is dated beyond the week the list is read against, so it is only shown then.
+   */
+  if (!groups.some((group) => group.name === "Later")) {
+    groupsRoot.append(nothingElseScheduled());
   }
 }
 
-function createTaskCard(task: TaskWire): HTMLElement {
+function nothingElseScheduled(): HTMLElement {
+  const state = emptyState("pass", "Nothing else is scheduled.");
+  const hint = htmlElement("p", "empty-state-hint");
+  hint.append(
+    document.createTextNode("Add "),
+    htmlElement("code", "inline-code", "@due(2026-08-14)"),
+    document.createTextNode(" to any checkbox to schedule one."),
+  );
+  state.append(hint);
+  return state;
+}
+
+function summaryText(current: TasksSnapshotWire): string {
+  const open = current.tasks.filter((task) => !task.completed).length;
+  const today = localDateKey(new Date());
+  const dueToday = current.tasks.filter(
+    (task) => !task.completed && task.due?.slice(0, 10) === today,
+  ).length;
+  return `${open} open · ${dueToday} due today`;
+}
+
+function emptyGroups(): HTMLElement {
+  if (snapshot?.filter === "today" && search.value.trim() === "") {
+    return nothingElseScheduled();
+  }
+  return emptyState(
+    "search",
+    "No tasks match the current filters.",
+    "Clear the filter text, or switch the status to All.",
+  );
+}
+
+function createTaskRow(task: TaskWire): HTMLElement {
   const taskText = task.text || "Untitled task";
-  const card = htmlElement("article", task.completed ? "task-card is-completed" : "task-card");
-  const checkbox = htmlElement("input", "task-card-checkbox");
+  const row = htmlElement("label", task.completed ? "task-row is-completed" : "task-row");
+
+  const priority = htmlElement(
+    "span",
+    task.priority === undefined ? "task-priority" : `task-priority is-${task.priority}`,
+  );
+  if (task.priority !== undefined) {
+    priority.title = `${task.priority} priority`;
+  }
+
+  const checkbox = htmlElement("input");
   checkbox.type = "checkbox";
   checkbox.checked = task.completed;
   checkbox.dataset.action = "toggle";
@@ -104,31 +175,41 @@ function createTaskCard(task: TaskWire): HTMLElement {
   checkbox.dataset.start = String(task.range.start);
   checkbox.setAttribute("aria-label", task.completed ? `Reopen ${taskText}` : `Complete ${taskText}`);
 
-  const body = htmlElement("div", "task-card-body");
-  const open = htmlElement("button", "task-title-button", taskText);
+  const open = htmlElement("button", "task-text", taskText);
   open.type = "button";
+  open.title = `${taskText}\nOpen in ${task.noteTitle}`;
   open.dataset.action = "open";
   open.dataset.uri = task.noteUri;
   open.dataset.start = String(task.range.start);
-  const metadata = htmlElement("div", "task-card-metadata");
-  const noteReference = htmlElement("span", "note-reference");
-  noteReference.append(codicon("note"), htmlElement("span", undefined, task.noteTitle));
-  metadata.append(noteReference);
-  for (const tag of task.tags.slice(0, 3)) {
-    metadata.append(htmlElement("span", "task-tag", `#${tag}`));
-  }
-  body.append(open, metadata);
 
-  const side = htmlElement("div", "task-card-side");
-  const due = formatDueDate(task.due);
-  if (due !== undefined) {
-    side.append(htmlElement("span", "due-date", due));
+  row.append(priority, checkbox, open, taskMeta(task));
+  return row;
+}
+
+/** Tag, source note and due date, in fixed columns so the list scans down as well as across. */
+function taskMeta(task: TaskWire): HTMLElement {
+  const meta = htmlElement("span", "task-meta");
+  const [first] = task.tags;
+  if (first !== undefined) {
+    const tag = htmlElement("span", "task-meta-tag");
+    tag.title = task.tags.map((name) => `#${name}`).join(" ");
+    const dot = htmlElement("span", "tag-dot");
+    dot.style.setProperty("--tag-hue", tagHueColor(first));
+    tag.append(dot, document.createTextNode(`#${first}`));
+    meta.append(tag);
   }
-  if (task.priority !== undefined) {
-    side.append(htmlElement("span", `priority-badge priority-${task.priority}`, task.priority));
-  }
-  card.append(checkbox, body, side);
-  return card;
+  meta.append(htmlElement("span", "task-meta-note", task.noteTitle));
+  const urgency = task.completed ? "none" : dueUrgency(task.due);
+  const due = htmlElement(
+    "span",
+    urgency === "overdue"
+      ? "task-meta-due is-overdue"
+      : urgency === "soon" ? "task-meta-due is-soon" : "task-meta-due",
+    formatDueDate(task.due) ?? "—",
+  );
+  due.title = task.due === undefined ? "No due date" : `Due ${task.due}`;
+  meta.append(due);
+  return meta;
 }
 
 function handleTaskClick(event: MouseEvent): void {
@@ -170,12 +251,16 @@ function handleTaskToggle(event: Event): void {
   }
 }
 
-function selectedStatus(): TaskStatusFilter {
-  return status.value === "all" || status.value === "completed" ? status.value : "open";
+function parseStatus(value: unknown): TaskStatusFilter {
+  return value === "all" || value === "completed" ? value : "open";
 }
 
-function dueTodayView(): boolean {
-  return snapshot?.filter === "today";
+function localDateKey(date: Date): string {
+  return [
+    String(date.getFullYear()).padStart(4, "0"),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
 }
 
 function isTasksSnapshot(value: unknown): value is TasksSnapshotWire {

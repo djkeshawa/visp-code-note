@@ -5,10 +5,10 @@ import { WikiLinkDiagnostics } from "./vscode/diagnostics";
 import { registerCommands } from "./vscode/commands/registerCommands";
 import { openNote } from "./vscode/commands/openNote";
 import { toggleTask } from "./vscode/commands/taskCommands";
-import { BacklinksProvider } from "./vscode/providers/backlinksProvider";
 import { GraphPanel } from "./vscode/providers/graphPanel";
+import { IndexStatusItem } from "./vscode/providers/indexStatusItem";
 import { NoteEditorProvider } from "./vscode/providers/noteEditorProvider";
-import { NotesExplorerProvider } from "./vscode/providers/explorerProvider";
+import { WorkspacePanel } from "./vscode/providers/workspacePanel";
 import { TasksPanel } from "./vscode/providers/tasksPanel";
 import { WikiCompletionProvider } from "./vscode/providers/wikiCompletionProvider";
 import { WikiLinkProvider } from "./vscode/providers/wikiLinkProvider";
@@ -28,7 +28,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   );
   draftRecoveryStore = draftRecoveries;
   const index = new WorkspaceIndex();
-  const backlinks = new BacklinksProvider(context.extensionUri, () => index.snapshot);
   const tasks = new TasksPanel(
     context.extensionUri,
     () => index.snapshot,
@@ -41,46 +40,39 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     () => index.snapshot,
     (uri) => openNote(vscode.Uri.parse(uri), true),
   );
+  const workspacePanel = new WorkspacePanel(context.extensionUri, index, {
+    openNote: (uri) => openNote(vscode.Uri.parse(uri), true),
+    openTasks: (filter) => tasks.show(filter),
+    openGraph: (focusUri) => graph.show(focusUri),
+    revealTask: (noteUri, start) => revealOffset(vscode.Uri.parse(noteUri), start),
+    toggleTask: (noteUri, start, taskId, completed, version) =>
+      toggleTask(index, noteUri, start, taskId, completed, version),
+  });
+  const diffPreview = new TextDiffPreviewProvider();
   const noteEditor = new NoteEditorProvider(
     context.extensionUri,
     index,
-    (uri) => backlinks.setActiveUri(uri),
+    (uri) => workspacePanel.setActiveNote(uri),
+    (title, before, after) => diffPreview.show(title, before, after),
     draftRecoveries,
   );
   activeNoteEditor = noteEditor;
-  const explorer = new NotesExplorerProvider(index, (task, snapshotVersion) =>
-    toggleTask(
-      index,
-      task.noteUri,
-      task.range.start,
-      task.id,
-      task.completed,
-      snapshotVersion,
-    ));
-  const explorerView = vscode.window.createTreeView("vispNotes.explorer", {
-    treeDataProvider: explorer,
-    showCollapseAll: true,
-  });
   const diagnostics = new WikiLinkDiagnostics(index);
-  const diffPreview = new TextDiffPreviewProvider();
+  const indexStatus = new IndexStatusItem(index);
 
   context.subscriptions.push(
     output,
     index,
-    backlinks,
     tasks,
     graph,
     noteEditor,
-    explorer,
+    workspacePanel,
     diagnostics,
+    indexStatus,
     diffPreview,
     diffPreview.register(),
     noteEditor.register(),
-    explorerView,
-    explorerView.onDidChangeCheckboxState((event) => {
-      void explorer.handleCheckboxChange(event.items);
-    }),
-    vscode.window.registerWebviewViewProvider("vispNotes.backlinks", backlinks, {
+    vscode.window.registerWebviewViewProvider("vispNotes.workspace", workspacePanel, {
       webviewOptions: { retainContextWhenHidden: true },
     }),
     vscode.languages.registerDocumentLinkProvider(
@@ -100,14 +92,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       WikiLinkCodeActionProvider.metadata,
     ),
     index.onDidChange(() => {
-      backlinks.update();
       tasks.update();
       graph.update();
       noteEditor.updateIndexState();
     }),
     vscode.window.onDidChangeActiveTextEditor((editor) => {
       if (editor?.document.languageId === "markdown") {
-        backlinks.setActiveUri(editor.document.uri.toString());
+        workspacePanel.setActiveNote(editor.document.uri.toString());
       }
     }),
   );
@@ -118,7 +109,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     {
       openTasks: (filter) => tasks.show(filter),
       openGraph: (focusUri) => graph.show(focusUri),
-      showBacklinks: (uri) => backlinks.reveal(uri),
+      showBacklinks: (uri) => noteEditor.revealInspector(uri),
       toggleEditor: (uri) => noteEditor.toggle(uri),
       activeNoteUri: () => noteEditor.activeUri,
       insertLink: (target) => noteEditor.insertLink(target),
@@ -131,7 +122,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   const activeDocument = vscode.window.activeTextEditor?.document;
   if (activeDocument?.languageId === "markdown") {
-    backlinks.setActiveUri(activeDocument.uri.toString());
+    workspacePanel.setActiveNote(activeDocument.uri.toString());
   }
 
   try {

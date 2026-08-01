@@ -64,7 +64,12 @@ test("produces stable force-directed positions for unchanged graph data", () => 
   assert.deepEqual(first, second);
 });
 
-test("scales graph dots by visible connections while preserving a prominent focus", () => {
+/*
+ * Degree decides size and nothing else. The focused note used to be inflated to a floor of 12
+ * units, half again as large as the biggest hub, which made it incomparable with the very
+ * neighbours it is drawn among — it is told apart by its halo and its label instead.
+ */
+test("scales graph dots by visible connections, and by nothing else", () => {
   const degrees = nodeDegrees(graph);
   const focus = graph.nodes[0]!;
   const other = graph.nodes[2]!;
@@ -72,7 +77,16 @@ test("scales graph dots by visible connections while preserving a prominent focu
   assert.equal(degrees.get(focus.id), 2);
   assert.equal(degrees.get(other.id), 0);
   assert.ok(nodeRadius(focus, 2, false) > nodeRadius(other, 0, false));
-  assert.ok(nodeRadius(focus, 2, true) >= 12);
+  assert.equal(nodeRadius(focus, 2, true), nodeRadius(focus, 2, false));
+});
+
+/* The design's own curve: 4.5 + 0.7 per link, capped at 10, drawn at 0.85 of that. */
+test("node size follows the design's curve and stops growing past eight links", () => {
+  const note = graph.nodes[0]!;
+
+  assert.equal(Number(nodeRadius(note, 1, false).toFixed(2)), 4.42);
+  assert.equal(Number(nodeRadius(note, 8, false).toFixed(2)), 8.5);
+  assert.equal(nodeRadius(note, 40, false), nodeRadius(note, 8, false));
 });
 
 test("keeps the draggable node target comfortably larger than its visible shape", () => {

@@ -1,17 +1,27 @@
+/*
+ * The conflict bar. A note that changed on disk while a draft was being typed is not an
+ * error — nothing was lost — so it reads as a warning wash across the top of the document
+ * with the three ways out laid in order of how much the user is likely to want them.
+ */
 .draft-conflict {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding-block: 9px;
-  background: var(
-    --vscode-inputValidation-warningBackground,
-    color-mix(in srgb, var(--vscode-editorWarning-foreground, #ddb870) 13%, var(--visp-bg))
-  );
-  color: var(--vscode-inputValidation-warningForeground, var(--visp-text));
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--visp-hairline);
+  background: color-mix(in srgb, var(--visp-warning) 12%, transparent);
+  color: var(--visp-text);
+  font-size: 12.5px;
 }
 
 .notice-warning {
-  border-bottom-color: var(--vscode-inputValidation-warningBorder, var(--visp-border));
+  border-bottom-color: var(--visp-hairline);
+}
+
+.draft-conflict > .codicon {
+  flex: 0 0 auto;
+  color: var(--visp-warning);
+  font-size: 15px;
 }
 
 .draft-conflict-copy {
@@ -20,15 +30,51 @@
   line-height: 1.4;
 }
 
-.draft-conflict .secondary-button {
+.draft-conflict button {
+  height: 24px;
   flex: 0 0 auto;
+  padding: 0 10px;
+  border-radius: 5px;
+  font-size: 11.5px;
+  white-space: nowrap;
 }
 
-.draft-conflict .secondary-button:focus-visible {
+/* Keeping the draft is what almost everyone wants, so it is the only filled button. */
+.draft-conflict .is-primary {
+  background: var(--vscode-button-background, var(--visp-focus));
+  color: var(--vscode-button-foreground, #fff);
+}
+
+.draft-conflict .is-primary:hover {
+  background: var(--vscode-button-hoverBackground, var(--visp-focus));
+}
+
+.draft-conflict .is-secondary {
+  background: var(--visp-chip);
+  color: var(--visp-text);
+}
+
+.draft-conflict .is-secondary:hover {
+  background: var(--visp-surface-hover);
+}
+
+/* Comparing is a detour, not a resolution, so it carries no weight until it is wanted. */
+.draft-conflict .is-ghost {
+  padding: 0 8px;
+  background: transparent;
+  color: var(--visp-muted);
+}
+
+.draft-conflict .is-ghost:hover {
+  background: var(--visp-chip);
+  color: var(--visp-text);
+}
+
+.draft-conflict button:focus-visible {
   outline-width: 2px;
 }
 
-@media (max-width: 520px) {
+@media (max-width: 620px) {
   .draft-conflict {
     align-items: stretch;
     flex-direction: column;

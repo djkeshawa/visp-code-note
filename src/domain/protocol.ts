@@ -1,4 +1,9 @@
-import type { Backlink, GraphData, IndexSnapshot, NoteContext } from "./models";
+import type {
+  GraphData,
+  IndexSnapshot,
+  NoteContext,
+  TaskPriority,
+} from "./models";
 
 export type EditorContentWidth = "readable" | "wide" | "full";
 
@@ -19,7 +24,22 @@ export interface EditorState extends EditorDocumentState {
   /** Absent when rendered prose should follow the interface font. */
   readonly proseFont?: string;
   readonly recoveredDraft?: RecoveredDraft;
+  /** Workspace-wide, shown beside Find Broken Links in the note's overflow menu. */
+  readonly brokenLinkCount: number;
+  /** Whether the inspector column beside the note is showing. */
+  readonly showInspector: boolean;
 }
+
+/**
+ * Actions the note's overflow menu delegates to the extension host. Each maps to a
+ * contributed command, so the menu and the command palette cannot drift apart.
+ */
+export type EditorMenuCommand =
+  | "newTask"
+  | "renameNote"
+  | "findBrokenLinks"
+  | "openLocalGraph"
+  | "rebuildIndex";
 
 export interface RecoveredDraft {
   readonly source: string;
@@ -46,10 +66,19 @@ export type HostToEditorMessage =
   | { readonly type: "editor/removeTag"; readonly tag: string }
   | { readonly type: "editor/proseFont"; readonly fontFamily?: string }
   | { readonly type: "editor/contentWidth"; readonly contentWidth: EditorContentWidth }
+  | { readonly type: "editor/showInspector"; readonly showInspector: boolean }
   | {
+      /*
+       * Everything about a note that comes from the index rather than from its own text.
+       * The context rides here as well as on a document publish: a note gains a backlink
+       * when some *other* note is edited, and this is the only message that note's editor
+       * receives when that happens.
+       */
       readonly type: "editor/indexState";
       readonly suggestions: readonly NoteSuggestion[];
       readonly unresolvedLinks: readonly string[];
+      readonly brokenLinkCount: number;
+      readonly context?: NoteContext;
     }
   | {
       readonly type: "editor/error";
@@ -79,7 +108,11 @@ export type EditorToHostMessage =
   | { readonly type: "editor/requestTag" }
   | { readonly type: "editor/openLink"; readonly target: string; readonly beside?: boolean }
   | { readonly type: "editor/openExternal"; readonly url: string }
+  | { readonly type: "editor/openBacklink"; readonly uri: string; readonly start: number }
+  | { readonly type: "editor/runCommand"; readonly command: EditorMenuCommand }
+  | { readonly type: "editor/compareDraft"; readonly source: string }
   | { readonly type: "editor/setContentWidth"; readonly contentWidth: EditorContentWidth }
+  | { readonly type: "editor/setInspectorVisible"; readonly showInspector: boolean }
   | { readonly type: "editor/ready" };
 
 export type HostToTasksMessage =
@@ -112,24 +145,113 @@ export type HostToGraphMessage = {
   readonly local: boolean;
 };
 
+/** The graph's overflow menu, delegated to contributed commands like the note editor's. */
+export type GraphMenuCommand = "openWorkspaceGraph" | "rebuildIndex";
+
 export type GraphToHostMessage =
   | { readonly type: "graph/open"; readonly uri: string }
   | { readonly type: "graph/depth"; readonly depth: 1 | 2 }
+  | { readonly type: "graph/runCommand"; readonly command: GraphMenuCommand }
   | { readonly type: "graph/ready" };
 
-export interface BacklinksState {
-  readonly noteUri?: string;
-  readonly noteTitle?: string;
-  readonly backlinks: readonly Backlink[];
-  readonly outgoingCount: number;
-  readonly taskCount: number;
+/**
+ * The workspace panel.
+ *
+ * The design draws this as a panel, not as a tree: a search field inside it, labelled section
+ * rules, a colour per tag, a connectedness dot per note, and a status line along the bottom.
+ * A `TreeView` can express none of those, so the panel is a webview and this is what the host
+ * sends it. Every figure is derived from the index; the panel decides nothing for itself
+ * except which sections are open.
+ */
+export type WorkspaceViewTone = "default" | "brand" | "warning";
+
+export interface WorkspaceViewRow {
+  readonly id: "tasks" | "due" | "graph" | "broken" | "orphans";
+  readonly label: string;
+  readonly icon: string;
+  readonly count?: number;
+  readonly tone: WorkspaceViewTone;
 }
 
-export type HostToBacklinksMessage = {
-  readonly type: "backlinks/state";
-  readonly state: BacklinksState;
-};
+export interface WorkspaceTaskRow {
+  readonly noteUri: string;
+  readonly noteTitle: string;
+  readonly start: number;
+  readonly id?: string;
+  readonly text: string;
+  readonly completed: boolean;
+  readonly due?: string;
+  readonly priority?: TaskPriority;
+}
 
-export type BacklinksToHostMessage =
-  | { readonly type: "backlinks/open"; readonly uri: string; readonly start: number }
-  | { readonly type: "backlinks/ready" };
+export interface WorkspaceNoteRow {
+  readonly uri: string;
+  readonly title: string;
+  readonly path: string;
+  /** The folder holding the note, empty at the workspace root. */
+  readonly folder: string;
+  /** How many other notes it is connected to. */
+  readonly links: number;
+}
+
+export interface WorkspaceFolderRow {
+  readonly path: string;
+  readonly label: string;
+  readonly count: number;
+}
+
+export interface WorkspaceTagRow {
+  readonly name: string;
+  readonly count: number;
+}
+
+export type WorkspaceDensity = "comfortable" | "compact";
+
+export interface WorkspacePanelState {
+  readonly density: WorkspaceDensity;
+  readonly views: readonly WorkspaceViewRow[];
+  readonly dueToday: readonly WorkspaceTaskRow[];
+  readonly folders: readonly WorkspaceFolderRow[];
+  readonly notes: readonly WorkspaceNoteRow[];
+  readonly tags: readonly WorkspaceTagRow[];
+  readonly noteCount: number;
+  readonly taskCount: number;
+  readonly indexedAt: number;
+  readonly status: "idle" | "indexing" | "error";
+  readonly version: number;
+  readonly activeNoteUri?: string;
+}
+
+export type HostToWorkspaceMessage =
+  | { readonly type: "workspace/state"; readonly state: WorkspacePanelState }
+  /**
+   * Just the current note. Switching notes moves one field, and the full state runs to about
+   * 75KB on a 570-note workspace — not something to serialise for a highlight change.
+   */
+  | { readonly type: "workspace/activeNote"; readonly uri?: string }
+  | { readonly type: "workspace/error"; readonly message: string };
+
+/** What the panel's header and row menus delegate to the host. */
+/**
+ * What the panel itself can ask the host to run. Everything else it offers — new note, new
+ * task, rebuild, the workspace graph — is a contributed view-title action, which VS Code
+ * dispatches without the webview being involved.
+ */
+export type WorkspaceMenuCommand = "search";
+
+export type WorkspaceToHostMessage =
+  | { readonly type: "workspace/ready" }
+  | { readonly type: "workspace/openNote"; readonly uri: string }
+  | { readonly type: "workspace/openView"; readonly id: WorkspaceViewRow["id"] }
+  | { readonly type: "workspace/openTag"; readonly tag: string }
+  | {
+      readonly type: "workspace/toggleTask";
+      readonly noteUri: string;
+      readonly start: number;
+      readonly taskId?: string;
+      readonly completed: boolean;
+      readonly version: number;
+    }
+  | { readonly type: "workspace/revealTask"; readonly noteUri: string; readonly start: number }
+  | { readonly type: "workspace/runCommand"; readonly command: WorkspaceMenuCommand }
+  | { readonly type: "workspace/noteAction"; readonly action: "rename" | "graph"; readonly uri: string };

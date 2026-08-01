@@ -42,6 +42,21 @@ export interface EmphasisInput {
   readonly neighborIds: ReadonlySet<string>;
 }
 
+/**
+ * Which classes to rewrite, given the emphasis now and the emphasis last written.
+ *
+ * `UNKNOWN_EMPHASIS` is what an element carries when its current classes are not known —
+ * straight after the SVG is rebuilt — and it has to mean "rewrite all of them". XOR-ing
+ * against it does the opposite: every bit that is *set* in the new mask comes out unchanged,
+ * so the first pass after a render could only ever remove classes. Selection emphasis
+ * therefore never appeared until a hover forced a second pass with a real previous mask.
+ */
+export const UNKNOWN_EMPHASIS = -1;
+
+export function changedEmphasisBits(mask: number, previous: number): number {
+  return previous === UNKNOWN_EMPHASIS ? ~0 : mask ^ previous;
+}
+
 export function nodeEmphasisMask(nodeId: string, input: EmphasisInput): number {
   const emphasisId = input.hoveredId ?? input.selectedId;
   const selected = nodeId === input.selectedId;

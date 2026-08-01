@@ -1,10 +1,10 @@
 import type { GraphDataWire, GraphNodeWire } from "../contracts.js";
 import { svgElement } from "../shared/dom.js";
+import { tagHueColor } from "../../application/tagHue.js";
 import { positionsWithOverrides } from "./dragModel.js";
 import { graphLayoutBounds, layoutGraph } from "./layout.js";
 import type { GraphPoint } from "./layout.js";
 import {
-  isHubNode,
   nodeDegrees,
   nodeHitRadius,
   nodeRadius,
@@ -26,7 +26,6 @@ export function renderGraphSvg(
   const nodeIds = new Set(graph.nodes.map((node) => node.id));
   const bounds = graphLayoutBounds(graph.nodes.length);
   const positions = positionsWithOverrides(layoutGraph(graph, bounds), nodeIds, positionOverrides);
-  const midX = bounds.width / 2;
   const degrees = nodeDegrees(graph);
   const labelledIds = standingLabelIds(graph, degrees);
   const tabStopId = selectedId ?? graph.focusId ?? graph.nodes[0]?.id;
@@ -63,7 +62,6 @@ export function renderGraphSvg(
         selectedId === node.id,
         tabStopId === node.id,
         labelledIds.has(node.id),
-        midX,
       ));
     }
   }
@@ -79,12 +77,8 @@ function createNode(
   selected: boolean,
   tabbable: boolean,
   labelled: boolean,
-  midX: number,
 ): SVGGElement {
   const classNames = ["graph-node", `node-${node.kind}`];
-  if (isHubNode(degree)) {
-    classNames.push("is-hub");
-  }
   if (node.orphan === true) {
     classNames.push("is-orphan");
   }
@@ -100,6 +94,12 @@ function createNode(
   }
   const group = svgElement("g", {
     class: classNames.join(" "),
+    /*
+     * A tag takes the hue its name gives it, the same one it wears in the panel, the note
+     * header and the task list. Painting every tag one green made the colour say only "this
+     * is a tag", which the shape already says.
+     */
+    ...(node.kind === "tag" ? { style: `--tag-hue: ${tagHueColor(node.label)}` } : {}),
     transform: `translate(${point.x} ${point.y})`,
     tabindex: tabbable ? "0" : "-1",
     role: "button",
@@ -113,7 +113,7 @@ function createNode(
     title.textContent = node.label;
   }
   const radius = nodeRadius(node, degree, focused);
-  group.dataset.labelOffset = String(radius + 6);
+  group.dataset.labelOffset = String(radius + LABEL_GAP);
   group.append(svgElement("circle", {
     class: "node-hit-area",
     cx: "0",
@@ -122,17 +122,26 @@ function createNode(
   }));
   group.append(createShape(node, radius));
 
-  const labelOnLeft = point.x > midX;
+  /*
+   * The label always sits to the right of its dot, as the design draws it. Mirroring it to the
+   * left past the canvas midline meant a node that drifted across the middle flipped its own
+   * name to the other side, which reads as the graph rearranging itself rather than moving.
+   */
   const label = svgElement("text", {
     class: "node-label",
-    x: String((radius + 6) * (labelOnLeft ? -1 : 1)),
+    x: String(radius + LABEL_GAP),
     y: "4",
-    "text-anchor": labelOnLeft ? "end" : "start",
+    "text-anchor": "start",
   });
-  label.textContent = truncateLabel(node.label);
+  // The whole name. A note called something long is exactly the note hardest to recognise
+  // from its first 23 characters.
+  label.textContent = node.label;
   group.append(label);
   return group;
 }
+
+/** The gap between a node and its name, in the design's own units. */
+const LABEL_GAP = 7;
 
 function createShape(node: GraphNodeWire, radius: number): SVGElement {
   if (node.kind === "task") {
@@ -153,10 +162,6 @@ function createShape(node: GraphNodeWire, radius: number): SVGElement {
 function nodeDescription(node: GraphNodeWire, degree: number): string {
   const connectionLabel = `${degree} visible connection${degree === 1 ? "" : "s"}`;
   return `${node.label}, ${node.kind}, ${connectionLabel}${node.orphan === true ? ", orphan" : ""}`;
-}
-
-function truncateLabel(label: string): string {
-  return label.length > 24 ? `${label.slice(0, 23)}…` : label;
 }
 
 export function graphExtentForPositions(

@@ -48,6 +48,7 @@ import { isRecognizedWikiLink, markdownContext } from "./markdownContext.js";
 import { detectLineSeparator, rawOffsetToEditorOffset } from "./offsetMapping.js";
 import type { LineSeparator } from "./offsetMapping.js";
 import { createWikiCompletionSource } from "./wikiCompletion.js";
+import { wikiCompletionFooter } from "./wikiCompletionFooter.js";
 import { planWikiLinkInsertion } from "./wikiLinkInsertion.js";
 import { findWikiLinkAtPosition } from "./wikiLinkNavigation.js";
 import type { TextPatch } from "../../application/textPatch.js";
@@ -61,7 +62,15 @@ export interface CodeMirrorEditorDependencies {
   readonly saveRequested: () => void;
   readonly openLink: (target: string, beside: boolean) => void;
   readonly openExternal: (url: string) => void;
+  readonly noteTitle: () => string;
 }
+
+/** The design gives a note, a heading and a block their own glyph in their own hue. */
+const WIKI_COMPLETION_ICONS: Readonly<Record<string, string>> = {
+  reference: "note",
+  property: "symbol-numeric",
+  constant: "symbol-field",
+};
 
 const hostTransaction = Annotation.define<boolean>();
 
@@ -88,6 +97,7 @@ export class CodeMirrorEditor {
       unresolvedLinks: dependencies.unresolvedLinks,
       openLink: dependencies.openLink,
       openExternal: dependencies.openExternal,
+      noteTitle: dependencies.noteTitle,
     });
     this.host.classList.add("is-live-mode");
     this.view = new EditorView({
@@ -183,7 +193,7 @@ export class CodeMirrorEditor {
     plan: (source: string) => OffsetTextEdit | undefined,
   ): { readonly applied: boolean; readonly reason?: string } {
     if (this.readOnly) {
-      return { applied: false, reason: "Resolve the editor conflict before editing tags." };
+      return { applied: false, reason: "Resolve the editor conflict before editing this note." };
     }
     const live = serializeEditorDocument(this.view.state.doc, this.lineSeparator);
     const edit = plan(live);
@@ -263,7 +273,46 @@ export class CodeMirrorEditor {
       highlightActiveLine(),
       highlightSpecialChars(),
       highlightSelectionMatches(),
-      autocompletion({ override: [completionSource], defaultKeymap: false, activateOnTyping: true }),
+      /*
+       * The only completion source in this editor is the wiki-link one, so the popup can
+       * carry a fixed footer naming the three suffixes a link accepts — the part of the
+       * syntax nobody remembers until they have used it.
+       *
+       * `icons: false` turns off CodeMirror's own glyph column, which has no rule for the
+       * types this source emits and so drew an empty box beside every note. The design's
+       * three codicons are added instead, and the path is given its own right-aligned
+       * column rather than trailing the label as free text.
+       */
+      autocompletion({
+        override: [completionSource],
+        defaultKeymap: false,
+        activateOnTyping: true,
+        icons: false,
+        tooltipClass: () => "wiki-completion-tooltip",
+        addToOptions: [
+          {
+            position: 15,
+            render: (completion) => {
+              const icon = document.createElement("span");
+              icon.className =
+                `wiki-completion-icon codicon codicon-${WIKI_COMPLETION_ICONS[completion.type ?? ""] ?? "note"} is-${completion.type ?? "reference"}`;
+              icon.setAttribute("aria-hidden", "true");
+              return icon;
+            },
+          },
+          {
+            position: 90,
+            render: (completion) => {
+              if (completion.detail === undefined) return null;
+              const path = document.createElement("span");
+              path.className = "wiki-completion-path";
+              path.textContent = completion.detail;
+              return path;
+            },
+          },
+        ],
+      }),
+      wikiCompletionFooter(),
       Prec.highest(keymap.of([
         ...completionKeymap,
         { key: "Mod-s", preventDefault: true, run: () => this.requestSave() },

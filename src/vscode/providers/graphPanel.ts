@@ -1,9 +1,16 @@
 import * as vscode from "vscode";
-import type { HostToGraphMessage } from "../../domain/protocol";
+import type { GraphMenuCommand, HostToGraphMessage } from "../../domain/protocol";
 import type { IndexSnapshot } from "../../domain/models";
 import { buildLocalGraph, buildWorkspaceGraph } from "../../indexing/projections";
 import { createGraphHtml } from "../../ui";
+import { COMMAND_IDS } from "../ids";
 import { isGraphMessage } from "./messageValidation";
+
+/** What the graph's overflow menu can ask for, resolved to contributed commands. */
+const GRAPH_MENU_COMMANDS: Readonly<Record<GraphMenuCommand, string>> = {
+  openWorkspaceGraph: COMMAND_IDS.openWorkspaceGraph,
+  rebuildIndex: COMMAND_IDS.rebuildIndex,
+};
 
 export class GraphPanel implements vscode.Disposable {
   private panel: vscode.WebviewPanel | undefined;
@@ -78,6 +85,9 @@ export class GraphPanel implements vscode.Disposable {
         if (this.getSnapshot().notes.some((note) => note.uri === message.uri)) {
           await this.onOpen(message.uri);
         }
+        break;
+      case "graph/runCommand":
+        await vscode.commands.executeCommand(GRAPH_MENU_COMMANDS[message.command]);
         break;
     }
   }

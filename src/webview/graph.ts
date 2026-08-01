@@ -1,5 +1,6 @@
 import type {
   GraphDataWire,
+  GraphMenuCommandWire,
   GraphNodeKindWire,
   GraphNodeWire,
   GraphToHostWire,
@@ -29,9 +30,9 @@ import { GraphViewportController } from "./graph/viewportController.js";
 
 const api = acquireMessageSender<GraphToHostWire>();
 const {
-  svg, emptyState, graphScope, depthControl, search, searchStatus, orphanToggle,
+  svg, emptyState, summary, depthControl, search, searchStatus, orphanToggle,
   connections, zoomIn, zoomOut, fitGraph, centerSelected, zoomStatus,
-  resetLayout, kindToggles, depthButtons, details,
+  resetLayout, kindToggles, depthButtons, chipCounts, menu, menuButton, menuItems, details,
 } = getGraphPageElements();
 const openSelected = details.openButton;
 
@@ -45,6 +46,7 @@ let hoveredId: string | undefined;
 let matchingIds: readonly string[] = [];
 let matchingIdSet: ReadonlySet<string> = new Set();
 let scopeKey: string | undefined;
+let isLocalScope = false;
 let fitPending = true;
 
 const viewport = new GraphViewportController(svg, (percent) => {
@@ -56,15 +58,20 @@ const motion = new GraphMotionController(svg, updateRenderedGraph, () => !reduce
 
 search.addEventListener("input", updateSearch);
 search.addEventListener("keydown", handleSearchKeydown);
-orphanToggle.addEventListener("change", refreshVisibleGraph);
-kindToggles.forEach((toggle) => toggle.addEventListener("change", refreshVisibleGraph));
+orphanToggle.addEventListener("click", () => toggleChip(orphanToggle));
+kindToggles.forEach((toggle) => toggle.addEventListener("click", () => toggleChip(toggle)));
 depthButtons.forEach((button) => button.addEventListener("click", () => selectDepth(button)));
+menuButton.addEventListener("click", () => setMenuOpen(menu.hidden));
+menuItems.forEach((item) => item.addEventListener("click", () => runMenuCommand(item)));
+document.addEventListener("click", closeMenuOnOutsideClick, true);
+document.addEventListener("keydown", closeMenuOnEscape);
 svg.addEventListener("click", handleNodeSelection);
 svg.addEventListener("dblclick", handleNodeOpen);
 svg.addEventListener("keydown", handleNodeKeydown);
 svg.addEventListener("pointerover", handleNodePointerOver);
 svg.addEventListener("pointerout", handleNodePointerOut);
 connections.addEventListener("click", handleConnectionSelection);
+details.closeButton.addEventListener("click", clearSelection);
 openSelected.addEventListener("click", openSelectedNode);
 zoomIn.addEventListener("click", () => viewport.zoomBy(1.25));
 zoomOut.addEventListener("click", () => viewport.zoomBy(0.8));
@@ -97,7 +104,32 @@ function handleHostMessage(event: MessageEvent<unknown>): void {
   scopeKey = nextScopeKey;
   graph = message.graph;
   updateDepthControl(message.depth, message.local);
+  updateChipCounts();
   refreshVisibleGraph();
+}
+
+/** Chip counts come from the whole graph, so turning a filter off does not zero its own count. */
+function updateChipCounts(): void {
+  const counts = new Map<string, number>();
+  for (const node of graph.nodes) {
+    counts.set(node.kind, (counts.get(node.kind) ?? 0) + 1);
+    if (node.orphan === true) counts.set("orphan", (counts.get("orphan") ?? 0) + 1);
+  }
+  for (const element of chipCounts) {
+    const key = element.dataset.count;
+    element.textContent = String(key === undefined ? 0 : counts.get(key) ?? 0);
+  }
+}
+
+function toggleChip(chip: HTMLButtonElement): void {
+  const active = !chip.classList.contains("is-active");
+  chip.classList.toggle("is-active", active);
+  chip.setAttribute("aria-pressed", String(active));
+  refreshVisibleGraph();
+}
+
+function isChipActive(chip: HTMLButtonElement): boolean {
+  return chip.classList.contains("is-active");
 }
 
 function refreshVisibleGraph(): void {
@@ -106,10 +138,10 @@ function refreshVisibleGraph(): void {
   const focusedConnectionId = connectionNodeIdFromTarget(document.activeElement);
   const kinds = new Set(
     kindToggles
-      .filter((toggle) => toggle.checked)
+      .filter(isChipActive)
       .map((toggle) => toggle.dataset.kind as GraphNodeKindWire),
   );
-  visibleGraph = filterGraph(graph, kinds, orphanToggle.checked);
+  visibleGraph = filterGraph(graph, kinds, isChipActive(orphanToggle));
   visibleNodesById = new Map(visibleGraph.nodes.map((node) => [node.id, node]));
   selectedId = resolveSelection(visibleGraph, selectedId);
   hoveredId = undefined;
@@ -122,6 +154,7 @@ function refreshVisibleGraph(): void {
     viewport.fit(renderedGraph.extent);
     fitPending = false;
   }
+  updateSummary();
   updateSearch();
   renderGraphDetails(details, visibleGraph, selectedId);
   updateViewportControls();
@@ -132,6 +165,16 @@ function refreshVisibleGraph(): void {
       if (!focusConnectionRow(connections, focusedConnectionId)) focusGraphNode(svg, selectedId);
     });
   }
+}
+
+function updateSummary(): void {
+  const nodes = visibleGraph.nodes.length;
+  const links = visibleGraph.edges.length;
+  summary.textContent = [
+    isLocalScope ? "local" : "workspace",
+    `${nodes} node${nodes === 1 ? "" : "s"}`,
+    `${links} link${links === 1 ? "" : "s"}`,
+  ].join(" · ");
 }
 
 function updateSearch(): void {
@@ -284,11 +327,51 @@ function openSelectedNode(): void {
   if (uri !== undefined) api.postMessage({ type: "graph/open", uri });
 }
 
+function setMenuOpen(open: boolean): void {
+  menu.hidden = !open;
+  menuButton.setAttribute("aria-expanded", String(open));
+  if (open) {
+    const workspaceItem = menu.querySelector<HTMLButtonElement>('[data-command="openWorkspaceGraph"]');
+    // Already looking at the whole workspace: the entry would be a no-op.
+    if (workspaceItem !== null) workspaceItem.disabled = !isLocalScope;
+    menu.querySelector<HTMLButtonElement>(".menu-item:not(:disabled)")?.focus();
+  }
+}
+
+function runMenuCommand(item: HTMLButtonElement): void {
+  const command = item.dataset.command;
+  setMenuOpen(false);
+  if (command === "openWorkspaceGraph" || command === "rebuildIndex") {
+    api.postMessage({ type: "graph/runCommand", command: command satisfies GraphMenuCommandWire });
+  }
+}
+
+function closeMenuOnOutsideClick(event: MouseEvent): void {
+  if (menu.hidden || !(event.target instanceof Node)) return;
+  if (menu.contains(event.target) || menuButton.contains(event.target)) return;
+  setMenuOpen(false);
+}
+
+function closeMenuOnEscape(event: KeyboardEvent): void {
+  if (event.key !== "Escape" || menu.hidden) return;
+  event.preventDefault();
+  setMenuOpen(false);
+  menuButton.focus();
+}
+
+/**
+ * Hop depth only means something around a focused note. On the workspace graph the control
+ * stays in place, disabled and saying why, rather than vanishing and shifting the toolbar.
+ */
 function updateDepthControl(depth: 1 | 2, local: boolean): void {
-  depthControl.hidden = !local;
-  graphScope.textContent = local ? "Local connections" : "Workspace connections";
+  isLocalScope = local;
+  depthControl.classList.toggle("is-unavailable", !local);
+  depthControl.title = local
+    ? "How many links out from this note to include"
+    : "Hops apply to a note's local graph";
   for (const button of depthButtons) {
     const active = button.dataset.depth === String(depth);
+    button.disabled = !local;
     button.classList.toggle("is-active", active);
     button.setAttribute("aria-pressed", String(active));
   }

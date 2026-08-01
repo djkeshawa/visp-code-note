@@ -1,24 +1,24 @@
 import assert = require("node:assert/strict");
 import { test } from "node:test";
 import type {
-  BacklinksToHostMessage,
-  HostToBacklinksMessage,
   EditorToHostMessage,
   GraphToHostMessage,
   HostToEditorMessage,
   HostToGraphMessage,
   HostToTasksMessage,
+  HostToWorkspaceMessage,
   TasksToHostMessage,
+  WorkspaceToHostMessage,
 } from "../../src/domain/protocol";
 import type {
-  BacklinksToHostWire,
   EditorToHostWire,
   GraphToHostWire,
-  HostToBacklinksWire,
   HostToEditorWire,
   HostToGraphWire,
   HostToTasksWire,
+  HostToWorkspaceWire,
   TasksToHostWire,
+  WorkspaceToHostWire,
 } from "../../src/webview/contracts";
 
 type Equal<Left, Right> =
@@ -35,8 +35,8 @@ const conformance: readonly [
   Equal<TasksToHostMessage, TasksToHostWire>,
   Equal<HostToGraphMessage, HostToGraphWire>,
   Equal<GraphToHostMessage, GraphToHostWire>,
-  Equal<HostToBacklinksMessage, HostToBacklinksWire>,
-  Equal<BacklinksToHostMessage, BacklinksToHostWire>,
+  Equal<HostToWorkspaceMessage, HostToWorkspaceWire>,
+  Equal<WorkspaceToHostMessage, WorkspaceToHostWire>,
 ] = [
   true,
   true,

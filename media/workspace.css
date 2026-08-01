@@ -1,0 +1,382 @@
+/*
+ * The workspace panel, at the design's own measurements.
+ *
+ * `--row` is the height of every navigable row and the one knob the design exposes: the
+ * prototype switches it between 30px and 26px for a comfortable and a compact density.
+ */
+.workspace-shell {
+  --row: 30px;
+
+  /* The note menu is placed against the panel, so it can be clamped to it. */
+  position: relative;
+  background: var(--visp-panel);
+  font-size: 12.5px;
+}
+
+.workspace-shell[data-density="compact"] {
+  --row: 26px;
+}
+
+.workspace-search {
+  padding: 0 10px 10px;
+}
+
+.workspace-search .search-field {
+  width: 100%;
+  height: 28px;
+  border-radius: 5px;
+  /* The panel is already panel-coloured, so the field recesses against the editor's own. */
+  background: var(--visp-bg);
+}
+
+/* The way through to full-text search, which the field itself does not do. */
+.workspace-search-key {
+  flex: 0 0 auto;
+  padding: 0 2px;
+  background: transparent;
+  color: var(--visp-muted);
+  font-family: var(--visp-font);
+  font-size: 10px;
+  letter-spacing: 0.02em;
+}
+
+.workspace-search-key:hover {
+  color: var(--visp-text);
+}
+
+.workspace-body {
+  overflow: auto;
+  padding-bottom: 10px;
+}
+
+.workspace-section {
+  margin: 0;
+  padding: 14px 12px 4px;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.workspace-section:first-child {
+  padding-top: 6px;
+}
+
+/* Every row in the panel: a view, a folder, a note, a task. One height, one rhythm. */
+.workspace-row {
+  width: 100%;
+  height: var(--row);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 12px;
+  background: transparent;
+  color: var(--visp-text);
+  font-size: 12.5px;
+  text-align: left;
+}
+
+.workspace-row:hover {
+  background: var(--visp-surface-hover);
+}
+
+.workspace-row.is-active {
+  background: var(--vscode-list-activeSelectionBackground, var(--visp-surface-hover));
+  color: var(--vscode-list-activeSelectionForeground, var(--visp-text));
+}
+
+.workspace-row-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-row-count {
+  flex: 0 0 auto;
+  color: var(--visp-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * A view worth acting on says so in its own colour — today's work in the identity hue, broken
+ * links in the warning one. A view with nothing in it stays with the rest of the panel.
+ */
+.workspace-row-count.is-brand {
+  color: var(--visp-brand);
+}
+
+.workspace-row-count.is-warning {
+  color: var(--visp-warning);
+}
+
+.workspace-row .codicon {
+  flex: 0 0 auto;
+  font-size: 15px;
+}
+
+.workspace-row .row-icon.is-brand {
+  color: var(--visp-brand);
+}
+
+.workspace-row .row-icon.is-warning {
+  color: var(--visp-warning);
+}
+
+.workspace-row .row-icon.is-default {
+  color: var(--visp-muted);
+}
+
+/*
+ * The twisty sits in the row's left padding rather than taking a column of its own, so a row
+ * that can expand and a row that cannot start their icons at the same place.
+ */
+.workspace-row .row-twisty {
+  margin-left: -14px;
+  color: var(--visp-muted);
+  font-size: 14px;
+}
+
+.workspace-row.is-nested {
+  padding-left: 26px;
+}
+
+/* A note's connectedness, at a glance: bright when well linked, hollow when linked to nothing. */
+.workspace-note-dot {
+  width: 5px;
+  height: 5px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--visp-brand);
+}
+
+.workspace-note-dot.is-weak {
+  background: var(--visp-muted);
+}
+
+.workspace-note-dot.is-orphan {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--visp-border);
+}
+
+.workspace-note-count {
+  flex: 0 0 auto;
+  color: var(--visp-muted);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A task under Due Today: completable in place, with how urgent it is on the right. */
+.workspace-task {
+  width: 100%;
+  min-height: var(--row);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 12px 0 34px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.workspace-task:hover {
+  background: var(--visp-surface-hover);
+}
+
+.workspace-task input {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  margin: 0;
+  accent-color: var(--visp-accent);
+}
+
+.workspace-task-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--visp-text);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-task.is-completed .workspace-task-text {
+  color: var(--visp-muted);
+  text-decoration: line-through;
+}
+
+.workspace-task-dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--visp-muted);
+}
+
+.workspace-task-dot.is-overdue {
+  background: var(--visp-danger);
+}
+
+.workspace-task-dot.is-soon {
+  background: var(--visp-warning);
+}
+
+.workspace-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 2px 12px 0;
+}
+
+.workspace-tag {
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 9px 0 7px;
+  border-radius: 999px;
+  background: var(--visp-chip);
+  color: var(--visp-muted-strong);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.workspace-tag:hover {
+  background: var(--visp-surface-hover);
+  color: var(--visp-text);
+}
+
+.workspace-tag-dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--tag-hue, var(--visp-brand));
+}
+
+.workspace-tag-count {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.6;
+}
+
+/* What the index holds and how fresh it is, along the bottom of the panel. */
+.workspace-status {
+  min-height: 26px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px;
+  border-top: 1px solid var(--visp-border);
+  color: var(--visp-muted);
+  font-size: 11px;
+}
+
+.workspace-status-dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--visp-pass);
+}
+
+.workspace-status[data-state="indexing"] .workspace-status-dot {
+  background: var(--visp-warning);
+  animation: visp-pulse 1.2s ease-in-out infinite;
+}
+
+.workspace-status[data-state="error"] .workspace-status-dot {
+  background: var(--visp-danger);
+}
+
+.workspace-status-indexed {
+  margin-left: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.75;
+}
+
+@keyframes visp-pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-status[data-state="indexing"] .workspace-status-dot {
+    animation: none;
+  }
+}
+
+.workspace-empty {
+  padding: 4px 12px 8px;
+  color: var(--visp-muted);
+  font-size: 11px;
+}
+
+/*
+ * What a note offers besides opening it.
+ *
+ * A webview cannot raise VS Code's own context menu, so the panel draws one — at the pointer,
+ * clamped to the panel, in the same language as the note editor's overflow menu, because they
+ * are the same kind of thing and one of them is two inches away.
+ */
+.workspace-menu {
+  position: absolute;
+  z-index: 30;
+  min-width: 186px;
+  max-width: 100%;
+  padding: 5px;
+  border: 1px solid var(--visp-border);
+  border-radius: 7px;
+  background: var(--visp-surface);
+  box-shadow: var(--visp-shadow);
+}
+
+/* Which note is about to be acted on: the menu is drawn over the list that names it. */
+.workspace-menu-note {
+  margin: 0;
+  padding: 3px 8px 5px;
+  overflow: hidden;
+  color: var(--visp-muted);
+  font-size: 10.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-menu-item {
+  width: 100%;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 8px;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--visp-text);
+  font-size: 12px;
+  text-align: left;
+}
+
+.workspace-menu-item:hover,
+.workspace-menu-item:focus-visible {
+  background: var(--visp-surface-hover);
+}
+
+.workspace-menu-item .codicon {
+  flex: 0 0 auto;
+  color: var(--visp-muted);
+  font-size: 14px;
+}
+
+.workspace-menu-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The row the menu belongs to keeps its highlight while the menu is over the list. */
+.workspace-row.is-menu-target {
+  background: var(--visp-surface-hover);
+}

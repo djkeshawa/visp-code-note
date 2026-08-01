@@ -2,6 +2,7 @@ import type {
   Backlink,
   IndexSnapshot,
   NoteContext,
+  NoteOutgoingLinkContext,
   NoteRecord,
   ResolvedLink,
 } from "../domain/models";
@@ -34,7 +35,12 @@ export function buildSnapshot(
         ...(target === undefined ? {} : { targetUri: target.uri }),
       };
       links.push(Object.freeze(resolved));
-      if (target !== undefined) {
+      /*
+       * A backlink is a mention from somewhere else. `[[#Heading]]` and `[[^block]]` point
+       * inside the note being read, and the resolver answers them with that same note, so
+       * recording them here made a note appear in its own backlinks list — once per anchor.
+       */
+      if (target !== undefined && target.uri !== note.uri) {
         backlinks.push(
           Object.freeze({
             sourceUri: note.uri,
@@ -97,13 +103,22 @@ export function getBrokenLinks(snapshot: IndexSnapshot): readonly ResolvedLink[]
 export function getOrphanNotes(snapshot: IndexSnapshot): readonly NoteRecord[] {
   const connected = new Set<string>();
   for (const link of snapshot.links) {
-    if (link.targetUri !== undefined) {
+    // A note that links only to its own headings is still connected to nothing.
+    if (link.targetUri !== undefined && link.targetUri !== link.sourceUri) {
       connected.add(link.sourceUri);
       connected.add(link.targetUri);
     }
   }
   return Object.freeze(snapshot.notes.filter((note) => !connected.has(note.uri)));
 }
+
+/**
+ * The inspector lists mentions, not every mention. A note everything points at would
+ * otherwise put its whole in-link table on the wire on every keystroke, and no one reads
+ * past the first screenful of a 300px column anyway — the count above the list stays exact.
+ */
+const INSPECTOR_BACKLINK_LIMIT = 50;
+const INSPECTOR_LINK_LIMIT = 50;
 
 export function buildNoteContext(
   snapshot: IndexSnapshot,
@@ -115,6 +130,8 @@ export function buildNoteContext(
   }
   const segments = note.path.split("/").filter((segment) => segment.length > 0);
   const declared = note.frontmatter?.tags;
+  const incoming = snapshot.backlinks.filter((backlink) => backlink.targetUri === uri);
+  const destinations = dedupeLinks(snapshot.links.filter((link) => link.sourceUri === uri));
   return Object.freeze({
     folders: Object.freeze(segments.slice(0, -1)),
     fileName: segments[segments.length - 1] ?? note.fileName,
@@ -122,11 +139,57 @@ export function buildNoteContext(
     frontmatterTags: mergeTagNames(
       typeof declared === "string" ? [declared] : declared ?? [],
     ),
-    backlinkCount: snapshot.backlinks.filter((backlink) => backlink.targetUri === uri).length,
-    outgoingCount: snapshot.links.filter((link) => link.sourceUri === uri).length,
+    backlinkCount: incoming.length,
+    // Destinations, not link occurrences, so the count agrees with the list it heads.
+    outgoingCount: destinations.length,
     taskCount: note.tasks.length,
     openTaskCount: note.tasks.filter((task) => !task.completed).length,
+    backlinks: Object.freeze(
+      incoming.slice(0, INSPECTOR_BACKLINK_LIMIT).map((backlink) =>
+        Object.freeze({
+          uri: backlink.sourceUri,
+          title: backlink.sourceTitle,
+          line: backlink.line,
+          start: backlink.range.start,
+          context: backlink.context,
+        })),
+    ),
+    linksOut: Object.freeze(destinations.slice(0, INSPECTOR_LINK_LIMIT)),
   });
+}
+
+/**
+ * The destinations a note reaches, in the order it reaches them.
+ *
+ * The same note linked three times is one destination, not three. A link with no target at
+ * all — `[[#Heading]]` or `[[^block]]`, which point inside the note being read — is not a
+ * destination either: it resolves to the note itself, and listing it produced a chip with no
+ * label that threw "the wiki-link target is invalid" when clicked, because there is no note
+ * name to open.
+ *
+ * `resolved` asks only whether the target note exists. A link into a heading or block that
+ * does not exist is a different failure — it is reported by diagnostics and by Find Broken
+ * Links, which resolve the whole reference — and answering it here would mean building a
+ * reference resolver over every note on each call, which this runs far too often for.
+ */
+function dedupeLinks(links: readonly ResolvedLink[]): NoteOutgoingLinkContext[] {
+  const seen = new Set<string>();
+  const outgoing: NoteOutgoingLinkContext[] = [];
+  for (const { link, targetUri } of links) {
+    const target = link.target.trim();
+    if (target === "") continue;
+    const key = target.toLocaleLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    outgoing.push(
+      Object.freeze({
+        label: link.alias ?? target,
+        target,
+        resolved: targetUri !== undefined,
+      }),
+    );
+  }
+  return outgoing;
 }
 
 function lineContext(content: string, offset: number): string {

@@ -197,55 +197,95 @@
     "views": {
       "vispNotes": [
         {
-          "id": "vispNotes.explorer",
-          "name": "Workspace"
-        },
-        {
-          "id": "vispNotes.backlinks",
-          "name": "Backlinks",
+          "id": "vispNotes.workspace",
+          "name": "Workspace",
           "type": "webview"
         }
       ]
     },
-    "viewsWelcome": [
+    "colors": [
       {
-        "view": "vispNotes.explorer",
-        "contents": "Open a folder to build your connected Markdown workspace.\n[Open Folder](command:vscode.openFolder)"
+        "id": "vispNotes.hueStructure",
+        "description": "Structure hue: headings, well-linked notes, and tags assigned this hue.",
+        "defaults": {
+          "dark": "#7fb6d8",
+          "light": "#1f5f84",
+          "highContrast": "foreground",
+          "highContrastLight": "foreground"
+        }
+      },
+      {
+        "id": "vispNotes.hueReference",
+        "description": "Reference hue: links, and tags assigned this hue.",
+        "defaults": {
+          "dark": "#ad86dd",
+          "light": "#6a3f9e",
+          "highContrast": "foreground",
+          "highContrastLight": "foreground"
+        }
+      },
+      {
+        "id": "vispNotes.hueString",
+        "description": "String hue: tag nodes in the graph, and tags assigned this hue.",
+        "defaults": {
+          "dark": "#6fc99a",
+          "light": "#186b46",
+          "highContrast": "foreground",
+          "highContrastLight": "foreground"
+        }
+      },
+      {
+        "id": "vispNotes.hueDeclare",
+        "description": "Declaration hue: tags assigned this hue.",
+        "defaults": {
+          "dark": "#dcc978",
+          "light": "#7a5a0d",
+          "highContrast": "foreground",
+          "highContrastLight": "foreground"
+        }
+      },
+      {
+        "id": "vispNotes.hueLiteral",
+        "description": "Literal hue: inline code, and tags assigned this hue.",
+        "defaults": {
+          "dark": "#f2965f",
+          "light": "#a8480f",
+          "highContrast": "foreground",
+          "highContrastLight": "foreground"
+        }
+      },
+      {
+        "id": "vispNotes.hueAccentuate",
+        "description": "Accent hue: tags assigned this hue.",
+        "defaults": {
+          "dark": "#e88aa5",
+          "light": "#a32d55",
+          "highContrast": "foreground",
+          "highContrastLight": "foreground"
+        }
       }
     ],
     "menus": {
       "view/title": [
         {
-          "command": "vispNotes.search",
-          "when": "view == vispNotes.explorer",
-          "group": "navigation@1"
-        },
-        {
           "command": "vispNotes.newNote",
-          "when": "view == vispNotes.explorer",
-          "group": "navigation@2"
+          "when": "view == vispNotes.workspace",
+          "group": "navigation@1"
         },
         {
           "command": "vispNotes.newTask",
-          "when": "view == vispNotes.explorer",
-          "group": "navigation@3"
+          "when": "view == vispNotes.workspace",
+          "group": "1_create@1"
+        },
+        {
+          "command": "vispNotes.openWorkspaceGraph",
+          "when": "view == vispNotes.workspace",
+          "group": "2_open@1"
         },
         {
           "command": "vispNotes.rebuildIndex",
-          "when": "view == vispNotes.explorer",
-          "group": "navigation@4"
-        }
-      ],
-      "view/item/context": [
-        {
-          "command": "vispNotes.openLocalGraph",
-          "when": "view == vispNotes.explorer && viewItem == vispNotes.note",
-          "group": "navigation@1"
-        },
-        {
-          "command": "vispNotes.renameNote",
-          "when": "view == vispNotes.explorer && viewItem == vispNotes.note",
-          "group": "navigation@2"
+          "when": "view == vispNotes.workspace",
+          "group": "3_index@1"
         }
       ],
       "editor/context": [
@@ -267,18 +307,6 @@
         {
           "command": "vispNotes.openTodayTasks",
           "when": "false"
-        }
-      ],
-      "editor/title": [
-        {
-          "command": "vispNotes.toggleRenderedSource",
-          "when": "resourceExtname == .md",
-          "group": "navigation@10"
-        },
-        {
-          "command": "vispNotes.openLocalGraph",
-          "when": "resourceExtname == .md",
-          "group": "navigation@11"
         }
       ]
     },
@@ -366,6 +394,24 @@
           "scope": "resource",
           "default": true,
           "description": "Open newly created notes in the Visp Notes editor."
+        },
+        "vispNotes.density": {
+          "type": "string",
+          "enum": [
+            "comfortable",
+            "compact"
+          ],
+          "default": "comfortable",
+          "enumDescriptions": [
+            "Rows in the workspace panel are 30 pixels tall.",
+            "Rows in the workspace panel are 26 pixels tall, fitting more of the workspace on screen."
+          ],
+          "description": "How tall each row in the Visp Notes workspace panel is."
+        },
+        "vispNotes.editor.showInspector": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the inspector beside a note — its outline, what links to it, its tasks, and what it links out to. Also toggled from the note's header."
         }
       }
     }

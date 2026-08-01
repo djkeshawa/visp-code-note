@@ -1,7 +1,12 @@
 import assert = require("node:assert/strict");
 import { test } from "node:test";
 import type { TaskWire } from "../../src/webview/contracts";
-import { groupTasks, parseTaskGrouping } from "../../src/webview/tasks/grouping";
+import {
+  dueUrgency,
+  formatDueDate,
+  groupTasks,
+  parseTaskGrouping,
+} from "../../src/webview/tasks/grouping";
 
 const baseTask: TaskWire = {
   text: "Review release",
@@ -66,4 +71,37 @@ test("an unknown grouping falls back to due dates", () => {
   assert.equal(parseTaskGrouping("note"), "note");
   assert.equal(parseTaskGrouping("project"), "due");
   assert.equal(parseTaskGrouping(undefined), "due");
+});
+
+/*
+ * The three steps the task list colours a due date by. A single boundary each, because that
+ * is where the colour changes and therefore where getting it wrong is visible.
+ */
+test("due urgency splits at today and at a week out", () => {
+  assert.equal(dueUrgency("2026-07-25", "2026-07-26"), "overdue");
+  assert.equal(dueUrgency("2026-07-26", "2026-07-26"), "soon");
+  assert.equal(dueUrgency("2026-08-02", "2026-07-26"), "soon");
+  assert.equal(dueUrgency("2026-08-03", "2026-07-26"), "later");
+});
+
+test("a task with no due date, or an unparseable one, has no urgency", () => {
+  assert.equal(dueUrgency(undefined, "2026-07-26"), "none");
+  assert.equal(dueUrgency("next tuesday", "2026-07-26"), "none");
+});
+
+test("a due date carrying a time is judged by its date", () => {
+  assert.equal(dueUrgency("2026-07-25T18:00", "2026-07-26"), "overdue");
+});
+
+/*
+ * The rendered note replaces `@due(...)` with this label, so a value it cannot parse must
+ * still come back as something. Returning nothing made the marker vanish from the note while
+ * the task list went on showing it.
+ */
+test("a due value that is not a plain date is shown as written rather than dropped", () => {
+  assert.equal(formatDueDate("2026-08-10"), "Aug 10");
+  assert.equal(formatDueDate("2026-08-10T09:00"), "Aug 10");
+  assert.equal(formatDueDate("2026-8-3"), "2026-8-3");
+  assert.equal(formatDueDate("tomorrow"), "tomorrow");
+  assert.equal(formatDueDate(undefined), undefined);
 });

@@ -9,8 +9,8 @@ Visp Notes turns ordinary workspace Markdown files into a connected note system 
 - Continuous Markdown editing with one natural CodeMirror document, Live/Markdown modes, undo history, search, bracket matching, list continuation, and explicit sync/conflict status
 - `[[wiki links]]`, aliases, heading links, block references, context-aware completion, exact-anchor navigation, and missing-anchor diagnostics
 - Live presentation of callouts (`> [!note]`), inline code, thematic breaks, and frontmatter as a property block
-- A document context strip with the note's location, tags, backlink count, links out, and open tasks
-- Backlinks with source context
+- A one-row note header with its location, tags, backlink count, save state, and an overflow menu
+- A note inspector beside the note: its outline, backlinks with source context, its tasks, and its links out
 - Standard Markdown checkbox tasks, Toggle Task, tickable tasks in the Activity Bar, and dashboards grouped by due date, note, or tag
 - Interactive one- and two-hop local graphs plus a live force-directed workspace graph, with spring motion, connection-scaled nodes, hover neighborhoods, pan, cursor-centered zoom, fit/center controls, non-destructive search, and connection details
 - Safe note rename choices with a native before/after diff preview
@@ -110,7 +110,7 @@ tags: [engineering, architecture]
 - `Visp Notes: New Task`
 - `Visp Notes: Toggle Task`
 - `Visp Notes: Insert Link`
-- `Visp Notes: Show Backlinks`
+- `Visp Notes: Show Backlinks` (opens the note with its inspector showing)
 - `Visp Notes: Open Local Graph`
 - `Visp Notes: Open Workspace Graph`
 - `Visp Notes: Toggle Live / Markdown`

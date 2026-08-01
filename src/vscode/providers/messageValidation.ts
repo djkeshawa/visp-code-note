@@ -1,11 +1,29 @@
 import { isExternalLink } from "../../application/externalLink";
 import { EDITOR_CONTENT_WIDTHS } from "../../application/editorContentWidth";
 import type {
-  BacklinksToHostMessage,
+  EditorMenuCommand,
   EditorToHostMessage,
+  GraphMenuCommand,
   GraphToHostMessage,
   TasksToHostMessage,
+  WorkspaceMenuCommand,
+  WorkspaceToHostMessage,
 } from "../../domain/protocol";
+
+const GRAPH_MENU_COMMANDS: readonly GraphMenuCommand[] = ["openWorkspaceGraph", "rebuildIndex"];
+
+const WORKSPACE_MENU_COMMANDS: readonly WorkspaceMenuCommand[] = ["search"];
+
+const WORKSPACE_VIEW_IDS = ["tasks", "due", "graph", "broken", "orphans"];
+
+/** The closed set the overflow menu may ask for; anything else is not a command here. */
+const EDITOR_MENU_COMMANDS: readonly EditorMenuCommand[] = [
+  "newTask",
+  "renameNote",
+  "findBrokenLinks",
+  "openLocalGraph",
+  "rebuildIndex",
+];
 
 export function isEditorMessage(value: unknown): value is EditorToHostMessage {
   if (!isRecord(value) || typeof value.type !== "string") return false;
@@ -19,6 +37,8 @@ export function isEditorMessage(value: unknown): value is EditorToHostMessage {
       return isOffset(value.version);
     case "editor/setContentWidth":
       return EDITOR_CONTENT_WIDTHS.some((width) => width === value.contentWidth);
+    case "editor/setInspectorVisible":
+      return typeof value.showInspector === "boolean";
     case "editor/stashDraft":
       return isSource(value.source) && typeof value.saveRequested === "boolean";
     case "editor/openExternal":
@@ -27,6 +47,12 @@ export function isEditorMessage(value: unknown): value is EditorToHostMessage {
     case "editor/openLink":
       return isShortString(value.target) && !/[\r\n]/.test(value.target)
         && (value.beside === undefined || typeof value.beside === "boolean");
+    case "editor/openBacklink":
+      return isSource(value.uri) && isOffset(value.start);
+    case "editor/runCommand":
+      return EDITOR_MENU_COMMANDS.some((command) => command === value.command);
+    case "editor/compareDraft":
+      return isSource(value.source);
     case "editor/editSource":
       return isOffset(value.start) && isOffset(value.end) && value.end >= value.start
         && isSource(value.source) && isSource(value.expectedSource) && isOffset(value.version)
@@ -55,13 +81,40 @@ export function isGraphMessage(value: unknown): value is GraphToHostMessage {
   if (!isRecord(value) || typeof value.type !== "string") return false;
   if (value.type === "graph/ready") return true;
   if (value.type === "graph/open") return isSource(value.uri);
+  if (value.type === "graph/runCommand") {
+    return GRAPH_MENU_COMMANDS.some((command) => command === value.command);
+  }
   return value.type === "graph/depth" && (value.depth === 1 || value.depth === 2);
 }
 
-export function isBacklinksMessage(value: unknown): value is BacklinksToHostMessage {
+/**
+ * The workspace panel is a webview, so everything it sends is untrusted — including the note
+ * URIs and task offsets it asks the host to act on.
+ */
+export function isWorkspaceMessage(value: unknown): value is WorkspaceToHostMessage {
   if (!isRecord(value) || typeof value.type !== "string") return false;
-  if (value.type === "backlinks/ready") return true;
-  return value.type === "backlinks/open" && isSource(value.uri) && isOffset(value.start);
+  switch (value.type) {
+    case "workspace/ready":
+      return true;
+    case "workspace/openNote":
+      return isSource(value.uri);
+    case "workspace/openView":
+      return WORKSPACE_VIEW_IDS.some((id) => id === value.id);
+    case "workspace/openTag":
+      return isShortString(value.tag) && !/[\r\n]/.test(value.tag);
+    case "workspace/revealTask":
+      return isSource(value.noteUri) && isOffset(value.start);
+    case "workspace/toggleTask":
+      return isSource(value.noteUri) && isOffset(value.start)
+        && (value.taskId === undefined || isSource(value.taskId))
+        && typeof value.completed === "boolean" && isOffset(value.version);
+    case "workspace/runCommand":
+      return WORKSPACE_MENU_COMMANDS.some((command) => command === value.command);
+    case "workspace/noteAction":
+      return (value.action === "rename" || value.action === "graph") && isSource(value.uri);
+    default:
+      return false;
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

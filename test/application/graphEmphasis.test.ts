@@ -2,7 +2,9 @@ import assert = require("node:assert/strict");
 import { test } from "node:test";
 import type { GraphDataWire } from "../../src/webview/contracts";
 import {
+  UNKNOWN_EMPHASIS,
   buildAdjacency,
+  changedEmphasisBits,
   edgeEmphasisMask,
   nodeEmphasisMask,
 } from "../../src/webview/graph/emphasisModel";
@@ -105,4 +107,23 @@ test("an edge is connected when either end is emphasised", () => {
 
 test("edges with an unknown endpoint stay neutral instead of throwing", () => {
   assert.equal(edgeEmphasisMask(undefined, undefined, input()), 0);
+});
+
+/*
+ * Regression: a freshly rendered element has no emphasis classes, and the diff against that
+ * unknown state used to be an XOR, which reports every set bit as unchanged. The first pass
+ * after a render could then only remove classes — so opening the graph on a focused note
+ * drew no neighbourhood at all until something else forced a second pass.
+ */
+test("an element whose classes are unknown has every class rewritten", () => {
+  const mask = 0b1011;
+
+  assert.equal(changedEmphasisBits(mask, UNKNOWN_EMPHASIS), ~0);
+  assert.equal(changedEmphasisBits(0, UNKNOWN_EMPHASIS), ~0);
+});
+
+test("an element whose classes are known only rewrites what moved", () => {
+  assert.equal(changedEmphasisBits(0b1010, 0b0010), 0b1000);
+  assert.equal(changedEmphasisBits(0b0010, 0b1010), 0b1000);
+  assert.equal(changedEmphasisBits(0b0110, 0b0110), 0);
 });

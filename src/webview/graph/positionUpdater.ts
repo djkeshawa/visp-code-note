@@ -31,15 +31,10 @@ const MOVEMENT_EPSILON = 0.05;
 export class GraphPositionUpdater {
   private nodes: readonly PositionedNode[] = [];
   private edges: readonly PositionedEdge[] = [];
-  private midX = 480;
 
   public constructor(private readonly svg: SVGSVGElement) {}
 
   /** The x coordinate labels flip around; scales with the layout, not a fixed canvas. */
-  public setMidX(midX: number): void {
-    this.midX = midX;
-  }
-
   public refresh(): void {
     this.nodes = Array.from(this.svg.querySelectorAll<SVGGElement>(".graph-node"))
       .flatMap((element) => {
@@ -88,11 +83,8 @@ export class GraphPositionUpdater {
         "transform",
         `translate(${coordinate(point.x)} ${coordinate(point.y)})`,
       );
-      const onLeft = point.x > this.midX;
-      if (onLeft !== node.labelOnLeft || !placed) {
-        node.labelOnLeft = onLeft;
-        positionLabel(node, onLeft);
-      }
+      // The label's side never changes, so it is written once, on the opening pass.
+      if (!placed) positionLabel(node);
     }
     for (const edge of this.edges) {
       const source = positions.get(edge.sourceId);
@@ -121,10 +113,9 @@ function moved(appliedX: number, appliedY: number, x: number, y: number): boolea
   return !(Math.abs(appliedX - x) < MOVEMENT_EPSILON && Math.abs(appliedY - y) < MOVEMENT_EPSILON);
 }
 
-function positionLabel(node: PositionedNode, onLeft: boolean): void {
+function positionLabel(node: PositionedNode): void {
   if (node.label === null) return;
-  node.label.setAttribute("x", coordinate(node.labelOffset * (onLeft ? -1 : 1)));
-  node.label.setAttribute("text-anchor", onLeft ? "end" : "start");
+  node.label.setAttribute("x", coordinate(node.labelOffset));
 }
 
 function coordinate(value: number): string {

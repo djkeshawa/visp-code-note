@@ -1,141 +1,42 @@
-import type { IndexSnapshot, NoteRecord } from "../../domain/models";
-import { getBrokenLinks, getOrphanNotes } from "../../indexing/projections";
-
-export type SectionId = "notes" | "smart" | "tags";
-export type SmartViewId = "tasks" | "due" | "graph" | "broken" | "orphans";
-
-export type ExplorerTask = IndexSnapshot["tasks"][number];
+import type { IndexSnapshot } from "../../domain/models";
 
 /**
- * Which branch of the tree a row was produced for.
+ * Shaping the index for the workspace panel.
  *
- * A note reaches the tree from the folder listing, from any tag it carries and from Orphan
- * Notes, and a task from both Tasks and Due Today, so the same note or task is several distinct
- * rows. `TreeItem.id` has to be unique across the whole tree, and keying it on the URI alone
- * meant the later row displaced the earlier one — the first row lost the click command that
- * opens the note, and the tree could not tell the two apart when revealing or selecting.
+ * What is left here after the panel replaced the tree view: the two questions the panel asks
+ * of the index that are not simply "list the notes" — how connected each note is, and what
+ * counts as today.
  */
-export type ExplorerOrigin = string;
 
-export type ExplorerNode =
-  | { readonly kind: "section"; readonly id: SectionId; readonly label: string }
-  | { readonly kind: "folder"; readonly path: string; readonly label: string }
-  | { readonly kind: "note"; readonly note: NoteRecord; readonly origin?: ExplorerOrigin }
-  | {
-      readonly kind: "smart";
-      readonly id: SmartViewId;
-      readonly label: string;
-      readonly count?: number;
-    }
-  | {
-      readonly kind: "task";
-      readonly task: ExplorerTask;
-      /**
-       * Index version this row was built from. Passed back on toggle so a row rendered
-       * against a stale index is rejected instead of edited.
-       */
-      readonly snapshotVersion: number;
-      readonly origin?: ExplorerOrigin;
-    }
-  | { readonly kind: "tag"; readonly tag: string; readonly count: number }
-  | { readonly kind: "status" };
-
-export const ROOT_NODES: readonly ExplorerNode[] = [
-  { kind: "section", id: "notes", label: "Notes" },
-  { kind: "section", id: "smart", label: "Smart Views" },
-  { kind: "section", id: "tags", label: "Tags" },
-  { kind: "status" },
-];
-
-export function noteChildren(
-  snapshot: IndexSnapshot,
-  parentPath = "",
-): readonly ExplorerNode[] {
-  const folders = new Set<string>();
-  const notes: ExplorerNode[] = [];
-  const prefix = parentPath ? `${parentPath}/` : "";
-
-  for (const note of snapshot.notes) {
-    if (!note.path.startsWith(prefix)) {
-      continue;
-    }
-    const remainder = note.path.slice(prefix.length);
-    const separator = remainder.indexOf("/");
-    if (separator === -1) {
-      notes.push({ kind: "note", note });
+/**
+ * How many other notes each note is connected to, which is what the panel's dot and count
+ * report.
+ *
+ * Neighbours, not link occurrences. Linking the same note three times is one connection, and
+ * an in-note anchor such as `[[#Heading]]` resolves to the note itself and is no connection
+ * at all — counting rows made a note with two anchors and no outside links read as its
+ * best-connected note. This is also the sense `getOrphanNotes` and the note inspector's
+ * links-out list use, so the three cannot disagree about the same note.
+ *
+ * Counted once for the whole snapshot rather than per row.
+ */
+export function noteLinkCounts(snapshot: IndexSnapshot): ReadonlyMap<string, number> {
+  const neighbours = new Map<string, Set<string>>();
+  const connect = (from: string, to: string): void => {
+    const existing = neighbours.get(from);
+    if (existing === undefined) {
+      neighbours.set(from, new Set([to]));
     } else {
-      folders.add(remainder.slice(0, separator));
+      existing.add(to);
     }
+  };
+  for (const link of snapshot.links) {
+    const target = link.targetUri;
+    if (target === undefined || target === link.sourceUri) continue;
+    connect(link.sourceUri, target);
+    connect(target, link.sourceUri);
   }
-
-  const folderNodes: ExplorerNode[] = [...folders]
-    .sort(compareText)
-    .map((label) => ({ kind: "folder", label, path: `${prefix}${label}` }));
-  return [...folderNodes, ...notes.sort(compareNoteNodes)];
-}
-
-export function smartViews(snapshot: IndexSnapshot): readonly ExplorerNode[] {
-  return [
-    { kind: "smart", id: "tasks", label: "All Tasks", count: snapshot.tasks.length },
-    { kind: "smart", id: "due", label: "Due Today", count: dueTodayCount(snapshot) },
-    { kind: "smart", id: "graph", label: "Knowledge Graph" },
-    { kind: "smart", id: "broken", label: "Broken Links", count: brokenLinkCount(snapshot) },
-    { kind: "smart", id: "orphans", label: "Orphan Notes", count: orphanNotes(snapshot).length },
-  ];
-}
-
-export function tagNodes(snapshot: IndexSnapshot): readonly ExplorerNode[] {
-  const counts = new Map<string, { label: string; count: number }>();
-  for (const note of snapshot.notes) {
-    for (const tag of note.tags) {
-      const key = tag.toLocaleLowerCase();
-      const current = counts.get(key);
-      counts.set(key, { label: current?.label ?? tag, count: (current?.count ?? 0) + 1 });
-    }
-  }
-  return [...counts.values()]
-    .sort((left, right) => compareText(left.label, right.label))
-    .map(({ label, count }) => ({ kind: "tag", tag: label, count }));
-}
-
-export function notesWithTag(snapshot: IndexSnapshot, tag: string): readonly ExplorerNode[] {
-  const key = tag.toLocaleLowerCase();
-  return snapshot.notes
-    .filter((note) => note.tags.some((candidate) => candidate.toLocaleLowerCase() === key))
-    .map((note) => ({ kind: "note" as const, note }))
-    .sort(compareNoteNodes);
-}
-
-export function orphanNotes(snapshot: IndexSnapshot): readonly ExplorerNode[] {
-  return getOrphanNotes(snapshot)
-    .map((note) => ({ kind: "note" as const, note }))
-    .sort(compareNoteNodes);
-}
-
-/**
- * Tasks appear directly in the tree so they can be completed with the item checkbox,
- * without opening the note or the Tasks view first.
- */
-export function taskNodes(
-  snapshot: IndexSnapshot,
-  filter: "all" | "due",
-  today = todayStamp(),
-): readonly ExplorerNode[] {
-  const tasks = filter === "due"
-    ? snapshot.tasks.filter((task) => isDueToday(task, today))
-    : snapshot.tasks;
-  return [...tasks]
-    .sort(compareTasks)
-    .map((task) => ({ kind: "task" as const, task, snapshotVersion: snapshot.version }));
-}
-
-/**
- * Shared by the Due Today children and its badge count so the two can never disagree
- * about what the view contains. Overdue work stays discoverable under All Tasks, which
- * groups by due date with Overdue first.
- */
-function isDueToday(task: ExplorerTask, today: string): boolean {
-  return !task.completed && task.due?.slice(0, 10) === today;
+  return new Map([...neighbours].map(([uri, set]) => [uri, set.size]));
 }
 
 export function todayStamp(now = new Date()): string {
@@ -144,75 +45,4 @@ export function todayStamp(now = new Date()): string {
     String(now.getMonth() + 1).padStart(2, "0"),
     String(now.getDate()).padStart(2, "0"),
   ].join("-");
-}
-
-function compareTasks(left: ExplorerTask, right: ExplorerTask): number {
-  if (left.completed !== right.completed) {
-    return left.completed ? 1 : -1;
-  }
-  // Dated work sorts ahead of undated work, earliest first.
-  if (left.due !== right.due) {
-    if (left.due === undefined) return 1;
-    if (right.due === undefined) return -1;
-    return compareText(left.due, right.due);
-  }
-  return compareText(left.noteTitle, right.noteTitle) || left.line - right.line;
-}
-
-function brokenLinkCount(snapshot: IndexSnapshot): number {
-  return getBrokenLinks(snapshot).length;
-}
-
-function dueTodayCount(snapshot: IndexSnapshot, today = todayStamp()): number {
-  return snapshot.tasks.filter((task) => isDueToday(task, today)).length;
-}
-
-function compareText(left: string, right: string): number {
-  return left.localeCompare(right, undefined, { sensitivity: "base" });
-}
-
-function compareNoteNodes(left: ExplorerNode, right: ExplorerNode): number {
-  if (left.kind !== "note" || right.kind !== "note") {
-    return 0;
-  }
-  return compareText(left.note.title, right.note.title);
-}
-
-/**
- * Stamps which branch produced these rows, so the same note or task appearing under more than
- * one of them stays distinguishable.
- */
-export function fromBranch(
-  nodes: readonly ExplorerNode[],
-  origin: ExplorerOrigin,
-): ExplorerNode[] {
-  return nodes.map((node) =>
-    node.kind === "note" || node.kind === "task" ? { ...node, origin } : node,
-  );
-}
-
-/**
- * The `TreeItem.id` for a row, or undefined for a row that needs none.
- *
- * VS Code requires these to be unique across the whole tree. Keying a note on its URI alone was
- * not: the same note is a row under its folder, under each of its tags and under Orphan Notes,
- * and the same task is a row under both Tasks and Due Today. Whichever row VS Code saw last
- * displaced the earlier one, which lost the command that opens it on click.
- */
-export function explorerRowId(node: ExplorerNode): string | undefined {
-  switch (node.kind) {
-    case "folder":
-      return `folder:${node.path}`;
-    case "note":
-      return `${node.origin ?? "notes"}:note:${node.note.uri}`;
-    case "task":
-      return `${node.origin ?? "tasks"}:task:${node.task.noteUri}:${node.task.id ?? node.task.range.start}`;
-    case "smart":
-      return `smart:${node.id}`;
-    case "tag":
-      return `tag:${node.tag.toLocaleLowerCase()}`;
-    case "section":
-    case "status":
-      return undefined;
-  }
 }

@@ -79,8 +79,26 @@ export interface NoteRecord extends ParsedNote {
   readonly content: string;
 }
 
+/** A mention of the note from somewhere else, listed in the note inspector. */
+export interface NoteBacklinkContext {
+  readonly uri: string;
+  readonly title: string;
+  /** Zero-based, as everywhere else in the index; the UI adds one when it displays it. */
+  readonly line: number;
+  readonly start: number;
+  readonly context: string;
+}
+
+/** A link the note makes, and whether it currently lands anywhere. */
+export interface NoteOutgoingLinkContext {
+  /** What the link says — its alias when it has one, otherwise the target. */
+  readonly label: string;
+  readonly target: string;
+  readonly resolved: boolean;
+}
+
 /**
- * Document context shown in the note editor header: where the note lives, how it is
+ * Document context shown around the note in its editor: where the note lives, how it is
  * tagged, and how connected it is. Derived from the index, never from the draft.
  */
 export interface NoteContext {
@@ -97,6 +115,12 @@ export interface NoteContext {
   readonly outgoingCount: number;
   readonly taskCount: number;
   readonly openTaskCount: number;
+  /**
+   * The mentions themselves, capped — a hub note can carry hundreds, and this rides on
+   * every document publish. `backlinkCount` stays the true total.
+   */
+  readonly backlinks: readonly NoteBacklinkContext[];
+  readonly linksOut: readonly NoteOutgoingLinkContext[];
 }
 
 export interface ResolvedLink {

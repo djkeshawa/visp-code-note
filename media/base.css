@@ -61,9 +61,55 @@
   --visp-accent: var(--vscode-textLink-foreground, LinkText);
   --visp-focus: var(--vscode-focusBorder, Highlight);
   --visp-danger: var(--vscode-errorForeground, #d64550);
+  --visp-warning: var(--vscode-editorWarning-foreground, #cca700);
+  --visp-pass: var(--vscode-testing-iconPassed, #73c991);
+  --visp-info: var(--vscode-editorInfo-foreground, #3794ff);
+
+  /*
+   * A second, quieter rule weight. The 1px border that separates two panels is too loud
+   * inside one, where it has to divide a list of rows without turning the panel into a
+   * grid, so section rules and row separators use this instead.
+   */
+  --visp-hairline: color-mix(in srgb, var(--visp-border) 58%, transparent);
+
+  /*
+   * The wash behind a chip, a pill or a segmented control: a tint of the foreground rather
+   * than a fixed grey, so one value serves both polarities and every theme in each.
+   */
+  --visp-chip: color-mix(in srgb, var(--visp-text) 8%, transparent);
+
+  /*
+   * The identity hue. Structure and brand are the same colour by design — the note icon,
+   * the active view marker and a heading are all the same idea at different sizes — so this
+   * is an alias rather than a seventh hue. Re-declared on `body` below because a custom
+   * property resolves against the element it is declared on, and the light theme moves
+   * the hue on `body`.
+   */
+  --visp-brand: var(--visp-hue-structure);
+  --visp-brand-soft: color-mix(in srgb, var(--visp-hue-structure) 12%, transparent);
+
+  /*
+   * A link between two notes is context, not content, so it is drawn faintly — and from the
+   * foreground rather than a fixed grey, so it holds its weight against any theme.
+   */
+  --visp-edge: color-mix(in srgb, var(--visp-muted) 25%, transparent);
+  --visp-unresolved-ring: color-mix(in srgb, var(--visp-muted) 70%, var(--visp-bg));
+
+  --visp-code-bg: var(--vscode-textCodeBlock-background, color-mix(in srgb, var(--visp-text) 10%, transparent));
+  --visp-code-fg: var(--vscode-textPreformat-foreground, var(--visp-hue-literal));
+
+  /* Above the text colour rather than below it, for a title against its own metadata. */
+  --visp-strong: var(--visp-text);
+
+  --visp-shadow: 0 10px 30px color-mix(in srgb, #000 35%, transparent);
   --visp-radius: 6px;
   --visp-font: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
   --visp-mono: var(--vscode-editor-font-family, "SFMono-Regular", Consolas, monospace);
+}
+
+body {
+  --visp-brand: var(--visp-hue-structure);
+  --visp-brand-soft: color-mix(in srgb, var(--visp-hue-structure) 12%, transparent);
 }
 
 /*
@@ -76,11 +122,21 @@
 body.vscode-dark,
 body.vscode-high-contrast {
   color-scheme: dark;
+
+  /* Declared beside the scheme so "stronger than text" means brighter, not darker. */
+  --visp-strong: color-mix(in srgb, var(--visp-text) 76%, #fff);
 }
 
 body.vscode-light,
 body.vscode-high-contrast-light {
   color-scheme: light;
+  --visp-strong: color-mix(in srgb, var(--visp-text) 76%, #000);
+  /* On white the design pulls the glow back and draws edges from the darker text colour. */
+  --visp-brand-soft: color-mix(in srgb, var(--visp-hue-structure) 8%, transparent);
+  --visp-edge: color-mix(in srgb, var(--visp-text) 18%, transparent);
+  --visp-unresolved-ring: color-mix(in srgb, var(--visp-muted) 45%, var(--visp-bg));
+  /* The dark theme's 35% cast reads as a smudge on white; the design halves it and more. */
+  --visp-shadow: 0 10px 30px color-mix(in srgb, #000 12%, transparent);
 }
 
 body.vscode-light {
@@ -111,15 +167,23 @@ body.vscode-high-contrast-light {
   box-sizing: border-box;
 }
 
+/*
+ * VS Code injects `body { padding: 0 20px }` into every webview it hosts. That is right for a
+ * webview that is a document and wrong for one that is a view: it inset the whole panel from
+ * both edges, which costs a side-bar view about a sixth of its width and pushed every row's
+ * own padding inward on top of it. Zeroing it is what lets each view own its own gutters.
+ */
 html,
 body {
   width: 100%;
   height: 100%;
   margin: 0;
+  padding: 0;
   overflow: hidden;
 }
 
 body {
+  -webkit-font-smoothing: antialiased;
   background: var(--visp-bg);
   color: var(--visp-text);
   font-family: var(--visp-font);
@@ -157,16 +221,30 @@ textarea:focus-visible,
   display: none !important;
 }
 
-/* Codicons ship at 16px; match the surrounding text so they sit on the baseline. */
-.codicon[class*="codicon-"] {
+/*
+ * Codicons ship at 16px; match the surrounding text so they sit on the baseline.
+ *
+ * Both defaults are wrapped in `:where()`, which contributes no specificity. The attribute
+ * selector `.codicon[class*="codicon-"]` is otherwise stronger than any single-class rule, so
+ * it silently beat every per-element size in this codebase — the note icon asked for 15px, the
+ * toolbar ellipsis for 16px, the inspector toggle for 14px, and all three drew at the
+ * inherited 13px. A default should lose to anything that states a size on purpose.
+ */
+:where(.codicon[class*="codicon-"]) {
   font-size: inherit;
+}
+
+.codicon[class*="codicon-"] {
   vertical-align: middle;
+}
+
+:where(button > .codicon, label > .codicon) {
+  font-size: 14px;
 }
 
 button > .codicon,
 label > .codicon {
   flex: 0 0 auto;
-  font-size: 14px;
   line-height: 1;
 }
 
@@ -177,9 +255,13 @@ label > .codicon {
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
+  border-radius: 5px;
   background: transparent;
   color: var(--visp-muted);
+}
+
+.icon-button .codicon {
+  font-size: 16px;
 }
 
 .icon-button:not(:disabled):hover {
@@ -187,34 +269,81 @@ label > .codicon {
   color: var(--visp-text);
 }
 
+/*
+ * Every view is a column: a header, any number of notices that are usually absent, the view
+ * itself, and sometimes a footer.
+ *
+ * Flex rather than grid because most of those notices are `hidden` most of the time, and a
+ * `display: none` child is not placed in a grid — so a row template silently handed the
+ * view's `1fr` to whichever element happened to land in that row, which put a quarter of the
+ * task list's height into its footer.
+ */
 .visp-shell {
   width: 100%;
   height: 100vh;
   min-width: 0;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
+/* The one part that grows. Everything else in a shell is sized by its content. */
+.visp-shell > .view-body {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.visp-shell > :not(.view-body) {
+  flex: 0 0 auto;
+}
+
+/*
+ * One header row, not a masthead. The view already has a tab carrying its name, so the
+ * toolbar states what this view is looking at and offers the controls that change it,
+ * on a single line that reads left to right: subject, scope, then controls.
+ */
 .view-toolbar {
-  min-height: 50px;
+  min-height: 44px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 7px 16px;
-  border-bottom: 1px solid var(--visp-border);
-  background: color-mix(in srgb, var(--visp-bg) 92%, var(--visp-panel));
+  gap: 12px;
+  padding: 0 12px 0 16px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--visp-hairline);
+  background: var(--visp-bg);
 }
 
 .title-stack {
   min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
 }
 
 .toolbar-title {
-  margin: 1px 0 0;
+  flex: 0 0 auto;
+  margin: 0;
   overflow: hidden;
-  color: var(--visp-text);
-  font-size: 15px;
-  font-weight: 650;
+  color: var(--visp-strong);
+  font-size: 14px;
+  font-weight: 600;
   line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * The scope line beside the title. It shrinks before anything else does — `flex: 0 200 auto`
+ * gives it a shrink factor two orders of magnitude above its neighbours — so a narrow panel
+ * loses "22 nodes · 28 links" long before it loses a control.
+ */
+.toolbar-subtitle {
+  min-width: 0;
+  flex: 0 200 auto;
+  overflow: hidden;
+  color: var(--visp-muted);
+  font-size: 11.5px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -222,7 +351,8 @@ label > .codicon {
 .eyebrow {
   color: var(--visp-muted);
   font-size: 10px;
-  letter-spacing: 0.06em;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
@@ -230,38 +360,84 @@ label > .codicon {
   flex: 1;
 }
 
-.segmented-control {
-  display: inline-flex;
+/*
+ * A section label, a rule filling the space it does not need, and an optional count. Used
+ * wherever a panel divides into named parts: the note inspector, the graph details card.
+ */
+.section-rule {
+  display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 8px;
+}
+
+.section-rule::after {
+  flex: 1;
+  height: 1px;
+  background: var(--visp-hairline);
+  content: "";
+  order: 1;
+}
+
+.section-rule > .section-count {
+  order: 2;
+  color: var(--visp-muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * The active segment is lifted off the track rather than tinted into it: the track is a
+ * recess in the surface, so the selection reads as the surface showing through.
+ */
+.segmented-control {
+  height: 26px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
   padding: 2px;
-  border: 1px solid var(--visp-border);
-  border-radius: var(--visp-radius);
-  background: var(--vscode-input-background, var(--visp-surface));
+  border-radius: 5px;
+  background: var(--visp-chip);
 }
 
 .segment {
-  min-height: 24px;
-  padding: 2px 9px;
+  height: 22px;
+  padding: 0 10px;
   border-radius: 4px;
   background: transparent;
   color: var(--visp-muted);
   font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.segment:not(:disabled):hover {
+  color: var(--visp-text);
 }
 
 .segment.is-active {
-  background: var(--vscode-button-secondaryBackground, var(--visp-surface-hover));
-  color: var(--vscode-button-secondaryForeground, var(--visp-text));
+  background: var(--visp-bg);
+  color: var(--visp-text);
 }
 
-.primary-button,
-.secondary-button {
-  min-height: 28px;
-  padding: 4px 10px;
-  border-radius: var(--visp-radius);
+/* A rounded chip: a tag, a link target, a filter. */
+.pill {
+  height: 22px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 5px;
+  padding: 0 9px 0 7px;
+  border-radius: 999px;
+  background: var(--visp-chip);
+  color: var(--visp-muted-strong);
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .primary-button {
+  min-height: 28px;
+  padding: 4px 10px;
+  border-radius: var(--visp-radius);
   background: var(--vscode-button-background, var(--visp-accent));
   color: var(--vscode-button-foreground, #fff);
 }
@@ -275,63 +451,38 @@ label > .codicon {
   opacity: 0.55;
 }
 
-.secondary-button {
-  background: var(--vscode-button-secondaryBackground, var(--visp-surface));
-  color: var(--vscode-button-secondaryForeground, var(--visp-text));
-}
-
-.search-field,
-.select-field {
-  min-height: 29px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  border: 1px solid var(--vscode-input-border, var(--visp-border));
-  border-radius: 4px;
-  background: var(--vscode-input-background, var(--visp-surface));
-  color: var(--vscode-input-foreground, var(--visp-text));
-}
-
 .search-field {
+  height: 26px;
+  min-width: 96px;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
   padding: 0 8px;
+  border: 1px solid var(--visp-border);
+  border-radius: 5px;
+  background: var(--visp-panel);
+  color: var(--vscode-input-foreground, var(--visp-text));
+  font-size: 11.5px;
 }
 
-.search-field input,
-.select-field select {
-  min-width: 0;
-  border: 0;
-  outline: 0;
+.search-field > .codicon {
+  flex: 0 0 auto;
+  color: var(--visp-muted);
+  font-size: 13px;
 }
 
 .search-field input {
   width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
   background: transparent;
-}
-
-/*
- * The popup list a native `<select>` opens is painted from the control's own background,
- * not from the field wrapping it, so a transparent select hands the list to the user
- * agent's default white. Both the closed control and its options therefore name the
- * theme's dropdown colours explicitly, and the wrapper matches them.
- */
-.select-field,
-.select-field select,
-.select-field select option {
-  background-color: var(--vscode-dropdown-background, var(--visp-surface));
-  color: var(--vscode-dropdown-foreground, var(--visp-text));
-}
-
-.select-field {
-  border-color: var(--vscode-dropdown-border, var(--vscode-input-border, var(--visp-border)));
+  font-size: 11.5px;
 }
 
 .search-field input::placeholder {
   color: var(--vscode-input-placeholderForeground, var(--visp-muted));
-}
-
-.select-field select {
-  min-height: 27px;
-  padding: 0 7px;
 }
 
 .notice {
@@ -345,11 +496,11 @@ label > .codicon {
 }
 
 .view-footer {
-  min-height: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 3px 10px;
+  padding: 0 12px;
   border-top: 1px solid var(--visp-border);
   color: var(--visp-muted);
   font-size: 11px;
@@ -357,6 +508,7 @@ label > .codicon {
 
 .footer-hint {
   margin-left: auto;
+  opacity: 0.8;
 }
 
 .muted {
@@ -377,15 +529,14 @@ label > .codicon {
   align-items: center;
   gap: 6px;
   margin: auto;
-  padding: 28px 20px;
+  padding: 26px 20px;
   color: var(--visp-muted);
-  line-height: 1.5;
   text-align: center;
 }
 
 .empty-state .codicon {
-  font-size: 22px;
-  opacity: 0.55;
+  font-size: 20px;
+  opacity: 0.5;
 }
 
 /* A loading empty state reads as progress rather than as a dead end. */
@@ -409,13 +560,22 @@ label > .codicon {
   max-width: 34ch;
   margin: 0;
   color: var(--visp-text);
-  font-size: 12px;
+  font-size: 12.5px;
 }
 
 .empty-state-hint {
-  max-width: 38ch;
+  max-width: 40ch;
   margin: 0;
-  color: var(--visp-muted-strong);
+  color: var(--visp-muted);
+  font-size: 11.5px;
+}
+
+/* An inline literal inside prose that is not part of a note — a hint, an empty state. */
+.inline-code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--visp-chip);
+  font-family: var(--visp-mono);
   font-size: 11px;
 }
 
