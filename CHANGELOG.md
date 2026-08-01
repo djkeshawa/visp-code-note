@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.0 - 2026-08-01
 
 ### Changed — every view rebuilt to one design
 
