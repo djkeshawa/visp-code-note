@@ -12,6 +12,7 @@ import {
   toggleRenderedEditor,
 } from "./navigationCommands";
 import { renameNote } from "./renameNote";
+import { deleteNote } from "./deleteNote";
 import { searchWorkspace } from "./searchWorkspace";
 import { createTask, toggleTaskAtEditor } from "./taskCommands";
 import { createMissingNote } from "./createMissingNote";
@@ -53,6 +54,7 @@ export function registerCommands(
     value ?? views.activeNoteUri(),
     (title, before, after) => views.showDiffPreview(title, before, after),
   ));
+  register(COMMAND_IDS.deleteNote, (value) => deleteNote(index, value ?? views.activeNoteUri()));
   register(COMMAND_IDS.findBrokenLinks, () => findBrokenLinks(index));
   register(COMMAND_IDS.rebuildIndex, () => rebuildIndex(index));
   register(COMMAND_IDS.openTasks, (filter) => views.openTasks(filter === "today" ? "today" : "all"));

@@ -5,12 +5,22 @@ import type { WorkspaceIndex } from "../indexing/workspaceIndex";
 import { createWikiReferenceResolver } from "../indexing/wikiReferenceResolver";
 import type { WikiReferenceResult } from "../indexing/wikiReferenceResolver";
 import { parseMarkdown } from "../markdown/parser";
+import { taskMetadataProblems } from "../application/taskMetadataProblems";
+import type { TaskMetadataProblem } from "../application/taskMetadataProblems";
 import { TextRangeMapper, documentRange } from "./utils/ranges";
 
 export const UNRESOLVED_WIKI_LINK_CODE = "vispNotes.unresolvedWikiLink";
 export const MISSING_WIKI_HEADING_CODE = "vispNotes.missingWikiHeading";
 export const MISSING_WIKI_BLOCK_CODE = "vispNotes.missingWikiBlock";
 
+/**
+ * The problems Visp Notes reports in a note.
+ *
+ * Wiki links that land nowhere, and task metadata that cannot do what it says — a `@due(…)`
+ * nobody can read, or a `@remind(…)` with no due date to come before. Both are things the
+ * note claims which are not true, and both are invisible without a squiggle: an unreadable
+ * due date simply stops being a due date, and its reminder silently never fires.
+ */
 export class WikiLinkDiagnostics implements vscode.Disposable {
   private readonly collection = vscode.languages.createDiagnosticCollection("visp-notes");
   private readonly subscriptions: vscode.Disposable[];
@@ -42,12 +52,16 @@ export class WikiLinkDiagnostics implements vscode.Disposable {
       const mapper = new TextRangeMapper(note.content);
       this.collection.set(
         vscode.Uri.parse(note.uri),
-        links.flatMap((link) => {
-          const result = resolver.resolve(note.uri, link);
-          return result.status === "resolved"
-            ? []
-            : [createDiagnostic(link, result, mapper.range(link.range))];
-        }),
+        [
+          ...links.flatMap((link) => {
+            const result = resolver.resolve(note.uri, link);
+            return result.status === "resolved"
+              ? []
+              : [createDiagnostic(link, result, mapper.range(link.range))];
+          }),
+          ...taskMetadataProblems(note.content, note.tasks)
+            .map((problem) => createMetadataDiagnostic(problem, mapper.range(problem.range))),
+        ],
       );
     }
   }
@@ -62,16 +76,21 @@ export class WikiLinkDiagnostics implements vscode.Disposable {
       this.collection.delete(document.uri);
       return;
     }
-    const links = parseMarkdown(document.getText()).links;
+    const source = document.getText();
+    const note = parseMarkdown(source);
     const resolver = createWikiReferenceResolver(this.index.snapshot.notes);
     this.collection.set(
       document.uri,
-      links.flatMap((link) => {
-        const result = resolver.resolve(document.uri.toString(), link);
-        return result.status === "resolved"
-          ? []
-          : [createDiagnostic(link, result, documentRange(document, link.range))];
-      }),
+      [
+        ...note.links.flatMap((link) => {
+          const result = resolver.resolve(document.uri.toString(), link);
+          return result.status === "resolved"
+            ? []
+            : [createDiagnostic(link, result, documentRange(document, link.range))];
+        }),
+        ...taskMetadataProblems(source, note.tasks)
+          .map((problem) => createMetadataDiagnostic(problem, documentRange(document, problem.range))),
+      ],
     );
   }
 }
@@ -88,6 +107,20 @@ function createDiagnostic(
   );
   diagnostic.source = "Visp Notes";
   diagnostic.code = diagnosticCode(result);
+  return diagnostic;
+}
+
+function createMetadataDiagnostic(
+  problem: TaskMetadataProblem,
+  range: vscode.Range,
+): vscode.Diagnostic {
+  const diagnostic = new vscode.Diagnostic(
+    range,
+    problem.message,
+    vscode.DiagnosticSeverity.Warning,
+  );
+  diagnostic.source = "Visp Notes";
+  diagnostic.code = problem.code;
   return diagnostic;
 }
 

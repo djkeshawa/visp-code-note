@@ -343,7 +343,7 @@ for (const item of noteMenuItems) {
     const action = item.dataset.action;
     closeNoteMenu(false);
     if (target === undefined) return;
-    if (action === "rename" || action === "graph") {
+    if (action === "rename" || action === "graph" || action === "delete") {
       api.postMessage({ type: "workspace/noteAction", action, uri: target.uri });
     }
   });

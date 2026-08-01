@@ -14,6 +14,7 @@ import { collectTagNames, removeTagTokens } from "./tags";
 const taskPattern = /^([ \t]*(?:[-+*]|\d+[.)])[ \t]+\[)([ xX])(\])(?=[ \t]+|$)/;
 const taskIdPattern = /<!--\s*task:([A-Za-z0-9][\w.-]*)\s*-->/i;
 const duePattern = /@due\(\s*([^)]+?)\s*\)/i;
+const remindPattern = /@remind\(\s*([^)]+?)\s*\)/i;
 const priorityPattern = /@priority\(\s*(low|medium|high)\s*\)/i;
 
 export interface TaskLineMatch {
@@ -65,6 +66,7 @@ export function parseTasks(
     const taskSource = source.slice(line.start, end);
     const body = line.text.slice(match.bodyOffset).trim();
     const due = duePattern.exec(body)?.[1]?.trim();
+    const remind = remindPattern.exec(body)?.[1]?.trim();
     const priority = priorityPattern.exec(body)?.[1]?.toLocaleLowerCase() as TaskPriority | undefined;
     const tags = Object.freeze([...collectTagNames(body)]);
     const text = cleanTaskText(body);
@@ -74,6 +76,7 @@ export function parseTasks(
       text,
       completed: match.completed,
       ...(due === undefined || due === "" ? {} : { due }),
+      ...(remind === undefined || remind === "" ? {} : { remind }),
       ...(priority === undefined ? {} : { priority }),
       tags,
       range: { start: line.start, end },
@@ -101,7 +104,11 @@ export function isTaskIdLine(text: string): boolean {
 
 function cleanTaskText(body: string): string {
   return removeTagTokens(
-    body.replace(taskIdPattern, "").replace(duePattern, "").replace(priorityPattern, ""),
+    body
+      .replace(taskIdPattern, "")
+      .replace(duePattern, "")
+      .replace(remindPattern, "")
+      .replace(priorityPattern, ""),
   )
     .replace(/[ \t]{2,}/g, " ")
     .trim();

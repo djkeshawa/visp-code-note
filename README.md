@@ -12,6 +12,8 @@ Visp Notes turns ordinary workspace Markdown files into a connected note system 
 - A one-row note header with its location, tags, backlink count, save state, and an overflow menu
 - A note inspector beside the note: its outline, backlinks with source context, its tasks, and its links out
 - Standard Markdown checkbox tasks, Toggle Task, tickable tasks in the Activity Bar, and dashboards grouped by due date, note, or tag
+- Due times and reminders: `@due(2026-07-22 14:30) @remind(30m)` raises a notification with Open Note, Snooze and Mark Done
+- A `/` block menu in the note editor, and a folder picker when creating a note
 - Interactive one- and two-hop local graphs plus a live force-directed workspace graph, with spring motion, connection-scaled nodes, hover neighborhoods, pan, cursor-centered zoom, fit/center controls, non-destructive search, and connection details
 - Safe note rename choices with a native before/after diff preview
 - Broken-link diagnostics
@@ -88,6 +90,28 @@ Tasks stay valid Markdown. Optional metadata is read without changing the line:
       <!-- task:stable-id -->
 ```
 
+A due date may name a time of day, and a task may ask to be reminded before it:
+
+```md
+- [ ] Ship the release @due(2026-07-22 14:30) @remind(30m)
+```
+
+When the reminder moment arrives, Visp Notes shows a notification offering to open the note,
+snooze for ten minutes, or mark the task done. A date-only `@due(…)` fires at
+`vispNotes.reminders.defaultTime`. Reminders are VS Code notifications, so they only appear
+while a window is open; anything missed while it was closed is shown once on startup, as far
+back as `vispNotes.reminders.catchUpWindowHours`.
+
+A due may also be a full ISO 8601 timestamp. One that names a zone —
+`@due(2026-08-15T18:00:00Z)` — is a fixed instant: the notification fires at that instant,
+while the task lists and groups under the *written* date. Near a midnight boundary those can
+differ; write zone-less dues if you want the two to always agree.
+
+Typing `/` at the start of a line in the Visp Notes editor opens a block menu — headings,
+lists, tasks, tables, callouts, code blocks, dividers, `@due(…)`, `@remind(…)`, today's date,
+a wiki link, a tag. It only opens where a block can start, so a slash inside prose, a URL or a
+date is left alone.
+
 Tags can also be managed from the editor's context strip: frontmatter tags carry a remove
 control, and the `+` chip opens a picker over every tag in the workspace. Tag editing only
 ever touches frontmatter — an inline `#tag` belongs to the sentence around it, so it is shown
@@ -115,6 +139,7 @@ tags: [engineering, architecture]
 - `Visp Notes: Open Workspace Graph`
 - `Visp Notes: Toggle Live / Markdown`
 - `Visp Notes: Rename Note and Update Links`
+- `Visp Notes: Delete Note` (also on a note's right-click menu in the workspace panel)
 - `Visp Notes: Find Broken Links`
 - `Visp Notes: Rebuild Index`
 - `Visp Notes: Search Notes and Tasks`
@@ -125,7 +150,12 @@ tags: [engineering, architecture]
 
 ## Settings
 
-- `vispNotes.notesFolder` — workspace-relative folder for new notes.
+- `vispNotes.notesFolder` — workspace-relative folder new notes default to.
+- `vispNotes.newNote.askFolder` — ask which folder a new note belongs in. The configured folder is preselected, so Enter accepts it.
+- `vispNotes.reminders.enabled` — notify when a task falls due.
+- `vispNotes.reminders.defaultTime` — time of day a date-only `@due(…)` fires at.
+- `vispNotes.reminders.leadMinutes` — default lead for a task with no `@remind(…)`.
+- `vispNotes.reminders.catchUpWindowHours` — how far back to look for reminders missed while VS Code was closed.
 - `vispNotes.exclude` — glob patterns kept out of the index.
 - `vispNotes.editor.fontFamily` — font for rendered note prose. Leave empty to follow VS Code's interface font. Fenced and inline code always follow `editor.fontFamily`.
 - `vispNotes.editor.contentWidth` — `readable`, `wide`, or `full` measure for note content. Also changeable from the editor's context strip, which writes this setting so every open note agrees.

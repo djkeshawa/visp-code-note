@@ -3,6 +3,7 @@ import type {
   HostToWorkspaceMessage,
   WorkspaceFolderRow,
   WorkspaceMenuCommand,
+  WorkspaceNoteAction,
   WorkspaceNoteRow,
   WorkspacePanelState,
   WorkspaceTaskRow,
@@ -20,6 +21,13 @@ import { noteLinkCounts, todayStamp } from "./explorerModel";
 /** What the panel's header and row actions may ask the host to run. */
 const MENU_COMMANDS: Readonly<Record<WorkspaceMenuCommand, string>> = {
   search: COMMAND_IDS.search,
+};
+
+/** What a note row's own menu may run. Each confirms for itself where it needs to. */
+const NOTE_ACTION_COMMANDS: Readonly<Record<WorkspaceNoteAction, string>> = {
+  rename: COMMAND_IDS.renameNote,
+  graph: COMMAND_IDS.openLocalGraph,
+  delete: COMMAND_IDS.deleteNote,
 };
 
 const SMART_VIEWS: readonly { readonly id: WorkspaceViewRow["id"]; readonly label: string; readonly icon: string }[] = [
@@ -171,7 +179,7 @@ export class WorkspacePanel implements vscode.WebviewViewProvider, vscode.Dispos
         case "workspace/noteAction":
           if (this.index.snapshot.notes.some((note) => note.uri === message.uri)) {
             await vscode.commands.executeCommand(
-              message.action === "rename" ? COMMAND_IDS.renameNote : COMMAND_IDS.openLocalGraph,
+              NOTE_ACTION_COMMANDS[message.action],
               vscode.Uri.parse(message.uri),
             );
           }

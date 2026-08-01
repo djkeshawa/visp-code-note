@@ -28,3 +28,20 @@ test("today view includes only incomplete tasks due on the local date", () => {
   assert.deepEqual(groups.map((group) => group.name), ["Today"]);
   assert.deepEqual(groups[0]?.tasks.map((task) => task.text), ["Due today", "Timed today"]);
 });
+
+test("a due with a time of day still buckets and sorts by its date", () => {
+  const tasks: readonly TaskWire[] = [
+    { ...baseTask, text: "Later today", due: "2026-07-22 18:00" },
+    { ...baseTask, text: "Earlier today", due: "2026-07-22 09:00" },
+    { ...baseTask, text: "Overdue", due: "2026-07-21 23:59" },
+  ];
+
+  const groups = groupTasks(tasks, { query: "", status: "all", view: "all" }, "2026-07-22");
+
+  assert.deepEqual(groups.map((group) => group.name), ["Overdue", "Today"]);
+  assert.deepEqual(
+    groups[1]?.tasks.map((task) => task.text),
+    ["Earlier today", "Later today"],
+    "within a day the time orders them",
+  );
+});

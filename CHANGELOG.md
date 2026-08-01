@@ -1,5 +1,81 @@
 # Changelog
 
+## Unreleased
+
+### Added — due times, a `/` menu, a folder picker, and Delete Note
+
+**Tasks can say when, and say so.** `@due(…)` now accepts a time of day —
+`@due(2026-08-15 14:30)` — and a task may carry `@remind(30m)` to be told ahead of it. When the
+moment arrives Visp Notes shows a notification offering **Open Note**, **Snooze 10m** and
+**Mark Done**. A date-only due fires at `vispNotes.reminders.defaultTime` (09:00 by default).
+Grouping, Due Today and the urgency colours read the date exactly as they did, so existing
+notes are unaffected.
+
+VS Code cannot raise an OS notification, so a reminder only appears while a window is open.
+Reminders that came due while it was closed are shown once on startup, as far back as
+`vispNotes.reminders.catchUpWindowHours` (24 by default); anything older is skipped rather than
+arriving in a burst after a fortnight away. A reminder that has been shown is remembered in
+workspace state, so it does not repeat on every index change or reload — but moving a task's
+due date re-arms it.
+
+A moment already in the past when Visp Notes first sees it is never an alarm: writing
+`@due(2026-08-15)` at nine in the evening records a task that was due this morning, not one to
+be interrupted about this instant. Only moments that arrive while a window is watching, plus
+the one bounded startup pass, raise a notification.
+
+Two tasks that come due together raise two independent notifications. Neither waits on the
+other, and neither waits on being answered — a notification carrying buttons has no timeout, so
+one left sitting in the notification centre must not hold up the rest. **Open Note** and
+**Mark Done** look the task up again when they are clicked rather than trusting the offset the
+notification was built with, so answering one an hour later still lands on the right line.
+
+**Metadata that cannot do what it says is now reported.** A `@due(next friday)`, a
+`@remind(soon)`, or a `@remind(30m)` on a task with no due date at all used to be silently
+inert — it looked like a task that would interrupt you and never did. Each now carries a
+warning under the offending token saying why it will not fire.
+
+A due date may be written as a whole ISO 8601 timestamp — `@due(2026-08-15T18:00:00)` — which
+is the form the rest of the extension has always read. One that names a zone,
+`@due(2026-08-15T18:00:00Z)` or `+05:30`, fixes an instant; everything else is a wall clock, so
+nine in the morning means nine wherever you are. A zone-suffixed due notifies at its instant
+but lists under its written date, so near midnight the two can name different days; zone-less
+dues always agree with themselves.
+
+The catch-up pass is spent on the scheduler's first look at the workspace, however that look is
+triggered — it no longer stays armed for the whole session when the initial index build fails.
+The reminder settings are clamped in code to the ranges they declare, because a hand-edited
+settings.json is not: an absurd `leadMinutes` used to push every reminder into the past and
+silently switch the feature off. Delivered-reminder state is retried once at shutdown rather
+than lost to a transient write failure.
+
+New Note refuses a folder that `vispNotes.exclude` covers, naming the setting, instead of
+creating a note that would never appear in the panel, graph or search. In a multi-root
+workspace the folder picker now offers only the chosen root's folders, relative to that root —
+it used to offer paths from every root, prefixed with the root's own name, and would have
+created that prefix as a real directory.
+
+**A `/` menu in the note editor.** Typing `/` where a block can start opens a filtered menu —
+headings, bulleted and numbered lists, tasks, tables, callouts, code blocks, quotes, dividers,
+`@due(…)`, `@remind(…)`, `@priority(…)`, today's date, a wiki link, a tag, a block reference —
+and writes the syntax, leaving the caret where the next thing gets typed. It shares the
+existing completion popup with wiki links and applies the same guard, so it never fires inside
+fenced code, frontmatter, a URL, or mid-sentence.
+
+**New Note asks where the note goes.** After the title, a picker lists the folders that already
+hold notes, with counts, plus **New folder…**. `vispNotes.notesFolder` is preselected, so Enter
+keeps the old behaviour and the flow costs one keystroke. Turn the prompt off entirely with
+`vispNotes.newNote.askFolder`.
+
+**Delete Note.** A note's right-click menu in the workspace panel gained a third entry, beside
+Rename and Open Local Graph. It confirms first, naming the file and how many notes link to it,
+then moves the file to the OS trash — asking a second time on a file system that has none
+rather than silently deleting outright. Also available as `Visp Notes: Delete Note`.
+
+Open editors are closed before the file goes, not after, so VS Code is never left holding a
+buffer for a file that no longer exists; cancelling the save prompt on a note with unsaved
+changes cancels the delete. A note that cannot be deleted for want of permission says so,
+rather than being reported as a file system without a trash.
+
 ## 0.6.0 - 2026-08-01
 
 ### Changed — every view rebuilt to one design

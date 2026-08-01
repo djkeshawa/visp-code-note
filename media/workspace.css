@@ -369,6 +369,29 @@
   font-size: 14px;
 }
 
+/*
+ * Delete is the one entry here that cannot be undone from inside the panel, so it is separated
+ * from the two that can and carries the error colour once the pointer is on it. It stays the
+ * normal text colour at rest: a menu with a permanently red row reads as a warning about the
+ * note rather than about the action.
+ */
+.workspace-menu-item.is-destructive {
+  margin-top: 4px;
+  border-top: 1px solid var(--visp-hairline);
+  border-radius: 0 0 4px 4px;
+}
+
+.workspace-menu-item.is-destructive:hover,
+.workspace-menu-item.is-destructive:focus-visible {
+  background: var(--visp-surface-hover);
+  color: var(--vscode-errorForeground, var(--visp-text));
+}
+
+.workspace-menu-item.is-destructive:hover .codicon,
+.workspace-menu-item.is-destructive:focus-visible .codicon {
+  color: inherit;
+}
+
 .workspace-menu-label {
   flex: 1;
   overflow: hidden;

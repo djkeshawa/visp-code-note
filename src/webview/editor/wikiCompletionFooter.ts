@@ -49,7 +49,15 @@ export function wikiCompletionFooter(): Extension {
     private attach(): void {
       const tooltip = this.view.dom.parentElement?.querySelector(".wiki-completion-tooltip")
         ?? document.querySelector(".wiki-completion-tooltip");
-      if (tooltip === null || tooltip === undefined) return;
+      /*
+       * The popup is reused between the two sources, so the footer has to be taken away as
+       * well as put up: the `#`, `^` and `|` suffixes belong to a wiki link and say nothing
+       * about a block command.
+       */
+      if (tooltip === null || tooltip === undefined || tooltip.classList.contains("is-slash")) {
+        this.footer.remove();
+        return;
+      }
       if (this.footer.parentElement !== tooltip) tooltip.append(this.footer);
     }
   });

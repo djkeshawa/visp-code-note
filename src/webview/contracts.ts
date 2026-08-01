@@ -132,6 +132,7 @@ interface NoteTaskWire {
   readonly text: string;
   readonly completed: boolean;
   readonly due?: string;
+  readonly remind?: string;
   readonly priority?: "low" | "medium" | "high";
   readonly tags: readonly string[];
   readonly range: OffsetRangeWire;
@@ -270,6 +271,8 @@ export type HostToWorkspaceWire =
 
 export type WorkspaceMenuCommandWire = "search";
 
+export type WorkspaceNoteActionWire = "rename" | "graph" | "delete";
+
 export type WorkspaceToHostWire =
   | { readonly type: "workspace/ready" }
   | { readonly type: "workspace/openNote"; readonly uri: string }
@@ -287,6 +290,6 @@ export type WorkspaceToHostWire =
   | { readonly type: "workspace/runCommand"; readonly command: WorkspaceMenuCommandWire }
   | {
       readonly type: "workspace/noteAction";
-      readonly action: "rename" | "graph";
+      readonly action: WorkspaceNoteActionWire;
       readonly uri: string;
     };

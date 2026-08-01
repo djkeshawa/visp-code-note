@@ -11,6 +11,7 @@ export const COMMAND_IDS = {
   openWorkspaceGraph: "vispNotes.openWorkspaceGraph",
   toggleRenderedSource: "vispNotes.toggleRenderedSource",
   renameNote: "vispNotes.renameNote",
+  deleteNote: "vispNotes.deleteNote",
   findBrokenLinks: "vispNotes.findBrokenLinks",
   rebuildIndex: "vispNotes.rebuildIndex",
   openTasks: "vispNotes.openTasks",

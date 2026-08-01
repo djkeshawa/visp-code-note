@@ -239,6 +239,9 @@ export type HostToWorkspaceMessage =
  */
 export type WorkspaceMenuCommand = "search";
 
+/** What a note row's own context menu offers, beyond opening the note. */
+export type WorkspaceNoteAction = "rename" | "graph" | "delete";
+
 export type WorkspaceToHostMessage =
   | { readonly type: "workspace/ready" }
   | { readonly type: "workspace/openNote"; readonly uri: string }
@@ -254,4 +257,8 @@ export type WorkspaceToHostMessage =
     }
   | { readonly type: "workspace/revealTask"; readonly noteUri: string; readonly start: number }
   | { readonly type: "workspace/runCommand"; readonly command: WorkspaceMenuCommand }
-  | { readonly type: "workspace/noteAction"; readonly action: "rename" | "graph"; readonly uri: string };
+  | {
+      readonly type: "workspace/noteAction";
+      readonly action: WorkspaceNoteAction;
+      readonly uri: string;
+    };

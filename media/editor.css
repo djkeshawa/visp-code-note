@@ -666,6 +666,23 @@
   color: var(--visp-hue-literal);
 }
 
+/*
+ * A `/` block command. The reference hue rather than the brand: these write syntax, and the
+ * brand belongs to the notes a link points at.
+ */
+.editor-host .wiki-completion-icon.is-command {
+  color: var(--visp-hue-reference);
+}
+
+/*
+ * A command's syntax sits in the same right-hand column a note's path does, but it is markup
+ * rather than a path, so it reads at the label's weight instead of as quiet metadata.
+ */
+.editor-host .wiki-completion-tooltip.is-slash .wiki-completion-path {
+  color: var(--visp-text);
+  opacity: 0.75;
+}
+
 .editor-host .wiki-completion-tooltip .cm-completionLabel {
   min-width: 0;
   flex: 0 1 auto;

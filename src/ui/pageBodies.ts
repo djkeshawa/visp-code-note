@@ -298,5 +298,9 @@ export const WORKSPACE_BODY = `
             <span class="codicon codicon-type-hierarchy" aria-hidden="true"></span>
             <span class="workspace-menu-label">Open Local Graph</span>
           </button>
+          <button class="workspace-menu-item is-destructive" type="button" role="menuitem" data-action="delete">
+            <span class="codicon codicon-trash" aria-hidden="true"></span>
+            <span class="workspace-menu-label">Delete Note…</span>
+          </button>
         </div>
       </div>`;

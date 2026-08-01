@@ -54,3 +54,19 @@ test("does not parse checkbox-like text in fenced or indented code", () => {
   assert.deepEqual(note.tasks.map((task) => task.text), ["actual"]);
   assert.equal(note.blocks.filter((block) => block.kind === "task").length, 1);
 });
+
+test("reads a due time and a reminder lead, and keeps both out of the task text", () => {
+  const source = [
+    "- [ ] Ship release @due(2026-08-15 14:30) @remind(30m) @priority(high) #ops",
+    "- [ ] Draft agenda @due(2026-08-15)",
+  ].join("\n");
+  const tasks = parseMarkdown(source).tasks;
+
+  assert.equal(tasks[0]?.due, "2026-08-15 14:30");
+  assert.equal(tasks[0]?.remind, "30m");
+  assert.equal(tasks[0]?.text, "Ship release", "no metadata token survives into the text");
+  assert.deepEqual(tasks[0]?.tags, ["ops"]);
+
+  assert.equal(tasks[1]?.due, "2026-08-15");
+  assert.equal(tasks[1]?.remind, undefined, "a task without @remind carries no lead at all");
+});

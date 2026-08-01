@@ -121,6 +121,12 @@
         "category": "Visp Notes"
       },
       {
+        "command": "vispNotes.deleteNote",
+        "title": "Delete Note",
+        "category": "Visp Notes",
+        "icon": "$(trash)"
+      },
+      {
         "command": "vispNotes.findBrokenLinks",
         "title": "Find Broken Links",
         "category": "Visp Notes"
@@ -407,6 +413,42 @@
             "Rows in the workspace panel are 26 pixels tall, fitting more of the workspace on screen."
           ],
           "description": "How tall each row in the Visp Notes workspace panel is."
+        },
+        "vispNotes.reminders.enabled": {
+          "type": "boolean",
+          "default": true,
+          "scope": "window",
+          "markdownDescription": "Show a notification when a task with a `@due(…)` date falls due. VS Code can only notify while a window is open; reminders missed while it was closed are shown once on startup."
+        },
+        "vispNotes.reminders.defaultTime": {
+          "type": "string",
+          "pattern": "^([01]?\\d|2[0-3]):[0-5]\\d$",
+          "patternErrorMessage": "Use a 24-hour time such as 09:00.",
+          "default": "09:00",
+          "scope": "window",
+          "markdownDescription": "Time of day a date-only `@due(2026-08-15)` reminder fires at. A task that names its own time — `@due(2026-08-15 14:30)` — uses that instead."
+        },
+        "vispNotes.reminders.leadMinutes": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 20160,
+          "default": 0,
+          "scope": "window",
+          "markdownDescription": "How many minutes before it is due to remind about a task that carries no `@remind(…)` of its own."
+        },
+        "vispNotes.reminders.catchUpWindowHours": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 336,
+          "default": 24,
+          "scope": "window",
+          "description": "How far back to look for reminders that came due while VS Code was closed. Anything older is skipped silently rather than shown on startup."
+        },
+        "vispNotes.newNote.askFolder": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": true,
+          "markdownDescription": "Ask which folder a new note belongs in. When off, every note goes straight into `#vispNotes.notesFolder#`."
         },
         "vispNotes.editor.showInspector": {
           "type": "boolean",

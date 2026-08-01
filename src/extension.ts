@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { DraftRecoveryStore } from "./application/draftRecoveryStore";
+import { ReminderStore } from "./application/reminderStore";
 import { WorkspaceIndex } from "./indexing/workspaceIndex";
 import { WikiLinkDiagnostics } from "./vscode/diagnostics";
 import { registerCommands } from "./vscode/commands/registerCommands";
@@ -8,6 +9,7 @@ import { toggleTask } from "./vscode/commands/taskCommands";
 import { GraphPanel } from "./vscode/providers/graphPanel";
 import { IndexStatusItem } from "./vscode/providers/indexStatusItem";
 import { NoteEditorProvider } from "./vscode/providers/noteEditorProvider";
+import { ReminderScheduler } from "./vscode/providers/reminderScheduler";
 import { WorkspacePanel } from "./vscode/providers/workspacePanel";
 import { TasksPanel } from "./vscode/providers/tasksPanel";
 import { WikiCompletionProvider } from "./vscode/providers/wikiCompletionProvider";
@@ -18,6 +20,7 @@ import { revealOffset } from "./vscode/documentEdits";
 
 const MARKDOWN_FILE_SELECTOR: vscode.DocumentSelector = { scheme: "file", language: "markdown" };
 let draftRecoveryStore: DraftRecoveryStore | undefined;
+let reminderStore: ReminderStore | undefined;
 let activeNoteEditor: NoteEditorProvider | undefined;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
@@ -39,6 +42,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     context.extensionUri,
     () => index.snapshot,
     (uri) => openNote(vscode.Uri.parse(uri), true),
+  );
+  const reminders = new ReminderScheduler(
+    index,
+    reminderStore = new ReminderStore(
+      context.workspaceState,
+      (error) => output.error(`Reminder persistence failed: ${String(error)}`),
+    ),
+    {
+      revealTask: (noteUri, start) => revealOffset(vscode.Uri.parse(noteUri), start),
+      toggleTask: (noteUri, start, taskId, completed, version) =>
+        toggleTask(index, noteUri, start, taskId, completed, version),
+      openTasks: (filter) => tasks.show(filter),
+    },
+    output,
   );
   const workspacePanel = new WorkspacePanel(context.extensionUri, index, {
     openNote: (uri) => openNote(vscode.Uri.parse(uri), true),
@@ -65,6 +82,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     index,
     tasks,
     graph,
+    reminders,
     noteEditor,
     workspacePanel,
     diagnostics,
@@ -128,6 +146,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   try {
     await index.initialize();
     output.info(`Indexed ${index.snapshot.notes.length} Markdown notes.`);
+    // After the first index, so the catch-up pass sees the workspace's tasks rather than none.
+    reminders.start();
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     output.error(`Initial index failed: ${message}`);
@@ -145,6 +165,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 export async function deactivate(): Promise<void> {
   activeNoteEditor?.dispose();
   activeNoteEditor = undefined;
-  await draftRecoveryStore?.flush();
+  // Both stores, for the same reason: a write still in flight when the window goes would
+  // otherwise show a reminder again that has already been answered.
+  await Promise.all([draftRecoveryStore?.flush(), reminderStore?.flush()]);
   draftRecoveryStore = undefined;
+  reminderStore = undefined;
 }

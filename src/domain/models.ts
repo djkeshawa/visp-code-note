@@ -30,7 +30,10 @@ export interface NoteTask {
   readonly id?: string;
   readonly text: string;
   readonly completed: boolean;
+  /** `YYYY-MM-DD`, optionally followed by a `HH:MM` time of day. */
   readonly due?: string;
+  /** How long before the due moment to remind, as written: `15m`, `2h`, `1d`. */
+  readonly remind?: string;
   readonly priority?: TaskPriority;
   readonly tags: readonly string[];
   readonly range: OffsetRange;

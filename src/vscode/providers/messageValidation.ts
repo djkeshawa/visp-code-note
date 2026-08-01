@@ -16,6 +16,9 @@ const WORKSPACE_MENU_COMMANDS: readonly WorkspaceMenuCommand[] = ["search"];
 
 const WORKSPACE_VIEW_IDS = ["tasks", "due", "graph", "broken", "orphans"];
 
+/** The closed set a note row's menu may ask for. `delete` still confirms on the host side. */
+const WORKSPACE_NOTE_ACTIONS = ["rename", "graph", "delete"];
+
 /** The closed set the overflow menu may ask for; anything else is not a command here. */
 const EDITOR_MENU_COMMANDS: readonly EditorMenuCommand[] = [
   "newTask",
@@ -111,7 +114,7 @@ export function isWorkspaceMessage(value: unknown): value is WorkspaceToHostMess
     case "workspace/runCommand":
       return WORKSPACE_MENU_COMMANDS.some((command) => command === value.command);
     case "workspace/noteAction":
-      return (value.action === "rename" || value.action === "graph") && isSource(value.uri);
+      return WORKSPACE_NOTE_ACTIONS.some((action) => action === value.action) && isSource(value.uri);
     default:
       return false;
   }

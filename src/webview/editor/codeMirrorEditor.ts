@@ -48,6 +48,7 @@ import { isRecognizedWikiLink, markdownContext } from "./markdownContext.js";
 import { detectLineSeparator, rawOffsetToEditorOffset } from "./offsetMapping.js";
 import type { LineSeparator } from "./offsetMapping.js";
 import { createWikiCompletionSource } from "./wikiCompletion.js";
+import { createSlashCompletionSource, slashQueryAt } from "./slashCompletion.js";
 import { wikiCompletionFooter } from "./wikiCompletionFooter.js";
 import { planWikiLinkInsertion } from "./wikiLinkInsertion.js";
 import { findWikiLinkAtPosition } from "./wikiLinkNavigation.js";
@@ -71,6 +72,19 @@ const WIKI_COMPLETION_ICONS: Readonly<Record<string, string>> = {
   property: "symbol-numeric",
   constant: "symbol-field",
 };
+
+/**
+ * Slash commands each want their own glyph, and `Completion` has no slot for one — so the
+ * codicon rides in `type`, which is a free-form string CodeMirror only uses to build a class
+ * name. Prefixed so a block command can never be mistaken for a wiki-link kind.
+ */
+const SLASH_TYPE_PREFIX = "visp-";
+
+function completionIcon(type: string): { readonly codicon: string; readonly tone: string } {
+  return type.startsWith(SLASH_TYPE_PREFIX)
+    ? { codicon: type.slice(SLASH_TYPE_PREFIX.length), tone: "command" }
+    : { codicon: WIKI_COMPLETION_ICONS[type] ?? "note", tone: type === "" ? "reference" : type };
+}
 
 const hostTransaction = Annotation.define<boolean>();
 
@@ -250,6 +264,7 @@ export class CodeMirrorEditor {
 
   private extensions(): Extension {
     const completionSource = createWikiCompletionSource(this.dependencies.suggestions);
+    const slashSource = createSlashCompletionSource();
     return [
       EditorState.allowMultipleSelections.of(true),
       EditorView.cspNonce.of(this.cspNonce),
@@ -274,28 +289,32 @@ export class CodeMirrorEditor {
       highlightSpecialChars(),
       highlightSelectionMatches(),
       /*
-       * The only completion source in this editor is the wiki-link one, so the popup can
-       * carry a fixed footer naming the three suffixes a link accepts — the part of the
-       * syntax nobody remembers until they have used it.
+       * Two sources share this popup: wiki links after `[[`, and block commands after `/`.
+       * They render identically — icon, label, right-aligned syntax — but only the wiki one
+       * gets the footer naming the three suffixes a link accepts, so the tooltip carries a
+       * second class saying which it currently is. `slashQueryAt` is the same test the slash
+       * source itself applies, so the two cannot disagree about which menu is open.
        *
        * `icons: false` turns off CodeMirror's own glyph column, which has no rule for the
-       * types this source emits and so drew an empty box beside every note. The design's
-       * three codicons are added instead, and the path is given its own right-aligned
-       * column rather than trailing the label as free text.
+       * types these sources emit and so drew an empty box beside every row. The design's
+       * codicons are added instead, and the detail is given its own right-aligned column
+       * rather than trailing the label as free text.
        */
       autocompletion({
-        override: [completionSource],
+        override: [completionSource, slashSource],
         defaultKeymap: false,
         activateOnTyping: true,
         icons: false,
-        tooltipClass: () => "wiki-completion-tooltip",
+        tooltipClass: (state) => slashQueryAt(state, state.selection.main.head) === undefined
+          ? "wiki-completion-tooltip"
+          : "wiki-completion-tooltip is-slash",
         addToOptions: [
           {
             position: 15,
             render: (completion) => {
               const icon = document.createElement("span");
-              icon.className =
-                `wiki-completion-icon codicon codicon-${WIKI_COMPLETION_ICONS[completion.type ?? ""] ?? "note"} is-${completion.type ?? "reference"}`;
+              const { codicon, tone } = completionIcon(completion.type ?? "");
+              icon.className = `wiki-completion-icon codicon codicon-${codicon} is-${tone}`;
               icon.setAttribute("aria-hidden", "true");
               return icon;
             },
