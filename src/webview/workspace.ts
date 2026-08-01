@@ -156,7 +156,7 @@ function renderViews(current: WorkspacePanelStateWire): void {
     if (view.id === "due" && expanded.has(DUE_TODAY_KEY)) {
       const tasks = current.dueToday.filter((task) => matches(task.text));
       rows.push(...(tasks.length === 0
-        ? [htmlElement("p", "workspace-empty", "Nothing is due today.")]
+        ? [htmlElement("p", "workspace-empty", "Nothing due today or overdue.")]
         : tasks.map((task) => taskRow(task, current.version))));
     }
   }

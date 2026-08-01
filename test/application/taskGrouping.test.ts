@@ -15,18 +15,29 @@ const baseTask: TaskWire = {
   notePath: "notes/release.md",
 };
 
-test("today view includes only incomplete tasks due on the local date", () => {
+/*
+ * Due Today carries work that slipped as well as work landing now. Scoped strictly to the
+ * current date, a task that missed its day left the list, and the view went quiet exactly when
+ * something had been forgotten.
+ */
+test("the today view holds what is late as well as what lands today", () => {
   const tasks: readonly TaskWire[] = [
     { ...baseTask, text: "Due today", due: "2026-07-22" },
     { ...baseTask, text: "Completed today", due: "2026-07-22", completed: true },
     { ...baseTask, text: "Due tomorrow", due: "2026-07-23" },
     { ...baseTask, text: "Timed today", due: "2026-07-22T18:00:00" },
+    { ...baseTask, text: "Slipped last week", due: "2026-07-15" },
+    { ...baseTask, text: "No date at all" },
   ];
 
   const groups = groupTasks(tasks, { query: "", status: "all", view: "today" }, "2026-07-22");
 
-  assert.deepEqual(groups.map((group) => group.name), ["Today"]);
-  assert.deepEqual(groups[0]?.tasks.map((task) => task.text), ["Due today", "Timed today"]);
+  assert.deepEqual(groups.map((group) => group.name), ["Overdue", "Today"]);
+  assert.deepEqual(
+    groups.flatMap((group) => group.tasks.map((task) => task.text)),
+    ["Slipped last week", "Due today", "Timed today"],
+    "late first; tomorrow, the undated and the completed one all stay out",
+  );
 });
 
 test("a due with a time of day still buckets and sorts by its date", () => {

@@ -1,6 +1,33 @@
 # Changelog
 
-## Unreleased
+## 0.7.0 - 2026-08-02
+
+### Changed — Due Today carries overdue work, and the note lists get the window
+
+**Due Today carries work that slipped.** Scoped strictly to the current date, a task that
+missed its day left the list altogether, so the one row meant to say what was owed went quiet
+exactly when something had been forgotten. It now holds everything late as well as everything
+landing today, oldest slip first, and its count turns warning-coloured while anything is
+overdue. It stays deliberately narrower than All Tasks: carrying next month's work and the
+undated as well would make it the backlog again under a second name.
+
+**Orphan Notes and Broken Links open in the window.** Both were quick picks — a dropdown over
+the command palette, a dozen rows tall, gone the moment focus moved. Neither is glanced at;
+they are lists worked through, so they now open a panel built from the same toolbar, filter
+field and footer as the task list. A broken link names the note it sits in, the target that
+fails, and the line, and opens the note there. The panel refreshes as the links are repaired.
+
+**Clicking a task opens the note, not the file.** Every list that reaches a task — the panel,
+the dashboard, a reminder's Open Note — went through `showTextDocument`, which opens raw
+Markdown with no header, no inspector and none of the rendered view. They all take the route a
+backlink already took.
+
+**A save that reached disk no longer reports failure.** Several steps of a save can raise after
+the file has been written, and one of them doing so told the reader their note could not be
+saved when it plainly had been — a banner that only cleared by pressing save a second time and
+finding nothing left to do. If the document is clean and holds what the draft projects, the
+save achieved what it was for. Editor errors are also logged to the Visp Notes output channel
+now, with the operation and the file, so the next one can be diagnosed rather than guessed at.
 
 ### Added — due times, a `/` menu, a folder picker, and Delete Note
 
@@ -18,10 +45,16 @@ arriving in a burst after a fortnight away. A reminder that has been shown is re
 workspace state, so it does not repeat on every index change or reload — but moving a task's
 due date re-arms it.
 
-A moment already in the past when Visp Notes first sees it is never an alarm: writing
-`@due(2026-08-15)` at nine in the evening records a task that was due this morning, not one to
-be interrupted about this instant. Only moments that arrive while a window is watching, plus
-the one bounded startup pass, raise a notification.
+A due whose moment has already gone by still notifies, once, so long as it is inside the
+catch-up window — adding a due date to a task is the commonest way anybody writes one, and it
+should not silently do nothing. What stops a notification repeating is the reminder's identity,
+which is the note, the task id and the moment; the window only decides how stale is too stale
+to mention.
+
+The scheduling, the settling, the snoozing and the record of what has already been shown live
+in `ReminderRunner`, which knows nothing of VS Code. The clock and the notifications are ports,
+so the regression suite drives a whole afternoon of reminders in a millisecond and every bug
+this feature has had is written down as a scenario.
 
 Two tasks that come due together raise two independent notifications. Neither waits on the
 other, and neither waits on being answered — a notification carrying buttons has no timeout, so

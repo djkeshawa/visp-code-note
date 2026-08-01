@@ -138,7 +138,39 @@ export type TasksToHostMessage =
   | { readonly type: "tasks/open"; readonly noteUri: string; readonly start: number }
   | { readonly type: "tasks/ready" };
 
+/**
+ * The note list: orphans, and links that land nowhere.
+ *
+ * A panel rather than a quick pick, because neither of these is glanced at — they are lists
+ * worked through, one row compared against the next.
+ */
+export type NoteListMode = "orphans" | "broken";
+
+export interface NoteListRow {
+  readonly uri: string;
+  readonly title: string;
+  readonly path: string;
+  readonly detail?: string;
+  readonly start?: number;
+  readonly line?: number;
+}
+
+export interface NotesState {
+  readonly mode: NoteListMode;
+  readonly rows: readonly NoteListRow[];
+  readonly indexedAt: number;
+}
+
+export type HostToNotesMessage =
+  | { readonly type: "notes/state"; readonly state: NotesState }
+  | { readonly type: "notes/error"; readonly message: string };
+
+export type NotesToHostMessage =
+  | { readonly type: "notes/open"; readonly uri: string; readonly start?: number }
+  | { readonly type: "notes/ready" };
+
 export type HostToGraphMessage = {
+
   readonly type: "graph/state";
   readonly graph: GraphData;
   readonly depth: 1 | 2;
@@ -210,6 +242,7 @@ export type WorkspaceDensity = "comfortable" | "compact";
 export interface WorkspacePanelState {
   readonly density: WorkspaceDensity;
   readonly views: readonly WorkspaceViewRow[];
+  /** Late or landing today, capped for the wire; the row's count carries the true total. */
   readonly dueToday: readonly WorkspaceTaskRow[];
   readonly folders: readonly WorkspaceFolderRow[];
   readonly notes: readonly WorkspaceNoteRow[];

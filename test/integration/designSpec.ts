@@ -267,6 +267,16 @@ export const EDITOR_MARKUP: readonly MarkupRequirement[] = [
   { hook: 'class="editor-body view-body"', what: "the growing region of the shell" },
 ];
 
+/** The note list: orphans and broken links, in the window rather than over it. */
+export const NOTES_MARKUP: readonly MarkupRequirement[] = [
+  { hook: 'class="visp-shell notes-shell"', what: "the shell every view is built in" },
+  { hook: 'class="view-toolbar notes-toolbar"', what: "the 44px header row the views share" },
+  { hook: 'id="note-view-title"', what: "which list is showing" },
+  { hook: 'id="note-search"', what: "the filter field, in the toolbar as the task list has it" },
+  { hook: 'id="note-rows"', what: "the list itself" },
+  { hook: 'class="view-footer"', what: "the footer every view carries" },
+];
+
 export const TASKS_MARKUP: readonly MarkupRequirement[] = [
   { hook: 'id="task-summary"', what: "the open/due-today summary beside the title" },
   { hook: 'id="task-search"', what: "the filter field" },

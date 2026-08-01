@@ -17,6 +17,7 @@ Visp Notes turns ordinary workspace Markdown files into a connected note system 
 - Interactive one- and two-hop local graphs plus a live force-directed workspace graph, with spring motion, connection-scaled nodes, hover neighborhoods, pan, cursor-centered zoom, fit/center controls, non-destructive search, and connection details
 - Safe note rename choices with a native before/after diff preview
 - Broken-link diagnostics
+- A Due Today view holding overdue work as well as today's, and note lists for orphans and broken links
 - Note folders, smart views, tags, full-text search, and index status in the Activity Bar
 
 Headings, quotes, callouts, tables, and fenced code read as themselves while the caret is
@@ -99,8 +100,8 @@ A due date may name a time of day, and a task may ask to be reminded before it:
 When the reminder moment arrives, Visp Notes shows a notification offering to open the note,
 snooze for ten minutes, or mark the task done. A date-only `@due(…)` fires at
 `vispNotes.reminders.defaultTime`. Reminders are VS Code notifications, so they only appear
-while a window is open; anything missed while it was closed is shown once on startup, as far
-back as `vispNotes.reminders.catchUpWindowHours`.
+while a window is open. A due already past — including one you add after the fact — notifies
+once, so long as it is no older than `vispNotes.reminders.catchUpWindowHours`.
 
 A due may also be a full ISO 8601 timestamp. One that names a zone —
 `@due(2026-08-15T18:00:00Z)` — is a fixed instant: the notification fires at that instant,

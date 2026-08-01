@@ -46,24 +46,6 @@ export interface ReminderDecision {
   readonly nextAt?: number;
 }
 
-/**
- * Which past moments are still worth interrupting about.
- *
- * `watchSince` is when the scheduler started looking — activation. A reminder whose moment
- * falls after it came due while somebody was watching for it, and is news. One whose moment
- * falls before it is history: it is either caught up once at startup, inside the window, or
- * silently written off.
- *
- * This is what stops typing a due date that has already gone by from setting off an alarm for
- * it. Writing `@due(2026-08-15)` at nine in the evening means a task due this morning, not a
- * task to be interrupted about this instant.
- */
-export interface ReminderWindow {
-  readonly watchSince: number;
-  /** True only for the one startup pass, which is the only place history is delivered. */
-  readonly catchUp: boolean;
-}
-
 /** Every incomplete task with a readable due, as a reminder that could fire. */
 export function reminderCandidates(
   snapshot: IndexSnapshot,
@@ -102,12 +84,20 @@ export function reminderCandidates(
  * A candidate already delivered is neither shown nor scheduled — that is what stops a reminder
  * repeating every time the index moves, which on an actively edited workspace is constantly.
  */
+/**
+ * A moment already past is still worth showing once, so long as it is recent.
+ *
+ * An earlier version refused anything older than the session itself, which made a due date
+ * typed in after the fact silently do nothing at all — the commonest way to write one. What
+ * actually stops the notification storm is the reminder's identity: it is the note, the task id
+ * and the moment, so editing the line cannot mint a new one. The window here only decides how
+ * stale is too stale to mention.
+ */
 export function decideReminders(
   candidates: readonly ReminderCandidate[],
   now: number,
   isDelivered: (key: string) => boolean,
   settings: ReminderSettings,
-  window: ReminderWindow,
 ): ReminderDecision {
   if (!settings.enabled) return { deliver: [], suppress: [] };
 
@@ -121,7 +111,7 @@ export function decideReminders(
     seen.add(candidate.key);
     if (candidate.at > now) {
       nextAt = nextAt === undefined ? candidate.at : Math.min(nextAt, candidate.at);
-    } else if (shouldInterrupt(candidate.at, now, settings, window)) {
+    } else if (now - candidate.at <= settings.catchUpWindowMs) {
       deliver.push(candidate);
     } else {
       suppress.push(candidate);
@@ -130,15 +120,4 @@ export function decideReminders(
 
   deliver.sort((left, right) => left.at - right.at);
   return { deliver, suppress, ...(nextAt === undefined ? {} : { nextAt }) };
-}
-
-/** Whether a moment that has already gone by is still worth a notification. */
-function shouldInterrupt(
-  at: number,
-  now: number,
-  settings: ReminderSettings,
-  window: ReminderWindow,
-): boolean {
-  if (at >= window.watchSince) return true;
-  return window.catchUp && now - at <= settings.catchUpWindowMs;
 }

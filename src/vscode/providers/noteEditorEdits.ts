@@ -129,6 +129,24 @@ export class NoteEditorEdits {
     return sequence === undefined || sequence === 0 ? undefined : sequence;
   }
 
+  /**
+   * Whether everything the reader has typed is on disk.
+   *
+   * Several steps of a save can fail, and one of them failing after the file has already been
+   * written told the reader their note could not be saved when it plainly had been — the banner
+   * only cleared when they pressed save a second time and nothing was left to do. If the
+   * document is clean and holds exactly what the draft projects, the save achieved what it was
+   * for, whichever step raised.
+   */
+  public settled(document: vscode.TextDocument, panel: vscode.WebviewPanel): boolean {
+    if (document.isDirty) return false;
+    const session = this.sessions.get(panel);
+    if (session === undefined) return true;
+    const snapshot = session.buffer.snapshot;
+    return snapshot.projectedSource === document.getText() &&
+      session.buffer.nextDraft() === undefined;
+  }
+
   public async waitForDocument(uri: string): Promise<void> {
     const operations = [...this.sessions.values()]
       .filter((session) => session.document.uri.toString() === uri)

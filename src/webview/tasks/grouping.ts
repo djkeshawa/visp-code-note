@@ -137,8 +137,14 @@ export function formatDueDate(due: string | undefined): string | undefined {
 }
 
 function matchesFilter(task: TaskWire, filter: TaskFilter, today: string): boolean {
-  if (filter.view === "today" && (task.completed || task.due?.slice(0, 10) !== today)) {
-    return false;
+  /*
+   * Due Today is what is late or landing today. Work that slipped its date belongs here more
+   * than anything else does: scoped strictly to the current date, a task that missed its day
+   * left the list, and the row went quiet exactly when something had been forgotten.
+   */
+  if (filter.view === "today") {
+    const due = task.due?.slice(0, 10);
+    if (task.completed || due === undefined || due > today) return false;
   }
   if (filter.status === "open" && task.completed) {
     return false;

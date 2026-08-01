@@ -7,6 +7,7 @@ import type { EditorContentWidth } from "../../application/editorContentWidth";
 import type {
   EditorDocumentState,
   EditorMenuCommand,
+  EditorToHostMessage,
   HostToEditorMessage,
 } from "../../domain/protocol";
 import { parseMarkdown } from "../../markdown/parser";
@@ -43,6 +44,7 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
     onDidActivateNote: (uri: string) => void,
     private readonly showDiffPreview: DiffPreview,
     recoveryStore = new DraftRecoveryStore(),
+    private readonly output?: vscode.LogOutputChannel,
   ) {
     this.edits = new NoteEditorEdits(recoveryStore);
     this.panels = new NoteEditorPanelRegistry(
@@ -153,6 +155,22 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
         : ({ type: "editor/removeTag", tag } satisfies HostToEditorMessage),
     );
     return true;
+  }
+
+  /**
+   * Opens a note in the Visp Notes editor and scrolls to an offset in it.
+   *
+   * Everything that lists tasks — the panel, the dashboard, a reminder — used to reach the note
+   * through `showTextDocument`, which opens the raw file: no header, no inspector, no rendered
+   * prose, and none of the surroundings the rest of the extension is. This is the same route a
+   * backlink already takes.
+   */
+  public async revealAt(uri: string, start: number): Promise<void> {
+    this.pendingReveals.set(uri, start);
+    await openNote(vscode.Uri.parse(uri), true);
+    for (const panel of this.panels.forDocument(uri) ?? []) {
+      if (this.panels.isReady(panel)) await this.publishPendingReveal(uri, panel);
+    }
   }
 
   public async insertLink(target: string): Promise<boolean> {
@@ -268,23 +286,30 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
       }
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
-      const operation = message.type === "editor/editSource" ||
-          message.type === "editor/save" ||
-          message.type === "editor/stashDraft" ||
-          message.type === "editor/discardDraft"
-        ? "sync"
-        : "link";
+      /*
+       * Logged as well as shown. The banner has room for the message and nothing else, so a
+       * reader reporting "it says it could not save" has no way to say which of the several
+       * things that can fail actually did.
+       */
+      this.output?.error(
+        `${message.type} failed for ${document.uri.fsPath}: ${detail}`,
+      );
+      /*
+       * A save that reached disk is a save, whichever later step raised. Reporting one of those
+       * as a sync failure left the reader with a banner over a note that was already written,
+       * clearable only by saving a second time and finding nothing to do.
+       */
+      if (isSyncOperation(message.type) && this.edits.settled(document, panel)) {
+        await this.publishDocumentState(document, panel);
+        return;
+      }
+      const operation = isSyncOperation(message.type) ? "sync" : "link";
       await panel.webview.postMessage({
         type: "editor/error",
         operation,
         message: detail,
       } satisfies HostToEditorMessage);
-      if (
-        message.type === "editor/editSource" ||
-        message.type === "editor/save" ||
-        message.type === "editor/stashDraft" ||
-        message.type === "editor/discardDraft"
-      ) {
+      if (isSyncOperation(message.type)) {
         await this.publishDocumentState(document, panel);
       }
     }
@@ -592,4 +617,12 @@ function contentWidthSetting(): EditorContentWidth {
   return parseEditorContentWidth(
     vscode.workspace.getConfiguration().get<string>(CONTENT_WIDTH_SETTING),
   );
+}
+
+/** The messages that move the reader's text, as opposed to the ones that follow a link. */
+function isSyncOperation(type: EditorToHostMessage["type"]): boolean {
+  return type === "editor/editSource" ||
+    type === "editor/save" ||
+    type === "editor/stashDraft" ||
+    type === "editor/discardDraft";
 }

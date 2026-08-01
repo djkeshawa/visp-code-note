@@ -15,6 +15,7 @@ await build({
   entryPoints: [
     "src/webview/editor.ts",
     "src/webview/graph.ts",
+    "src/webview/notes.ts",
     "src/webview/tasks.ts",
     "src/webview/workspace.ts",
   ],

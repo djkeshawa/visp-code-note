@@ -4,6 +4,7 @@ import {
   CONTRIBUTED_COLOUR_IDS,
   EDITOR_MARKUP,
   GRAPH_MARKUP,
+  NOTES_MARKUP,
   PALETTE,
   STYLE_RULES,
   TASKS_MARKUP,
@@ -14,6 +15,7 @@ import type { MarkupRequirement } from "../designSpec";
 import {
   createEditorHtml,
   createGraphHtml,
+  createNotesHtml,
   createTasksHtml,
   createWorkspaceHtml,
 } from "../../../src/ui";
@@ -106,6 +108,7 @@ function ruleBody(css: string, selector: string): string | undefined {
 integrationTest("every view is built from the parts the design gives it", () => {
   assertMarkup("The note editor", renderPage(createEditorHtml), EDITOR_MARKUP);
   assertMarkup("The task list", renderPage(createTasksHtml), TASKS_MARKUP);
+  assertMarkup("The note list", renderPage(createNotesHtml), NOTES_MARKUP);
   assertMarkup("The graph", renderPage(createGraphHtml), GRAPH_MARKUP);
   assertMarkup("The workspace panel", renderPage(createWorkspaceHtml), WORKSPACE_MARKUP);
   return Promise.resolve();
@@ -115,6 +118,7 @@ integrationTest("every view loads the stylesheets that carry the design", () => 
   const pages: readonly [string, string, readonly string[]][] = [
     ["The note editor", renderPage(createEditorHtml), ["base.css", "editor.css", "editor-drafts.css"]],
     ["The task list", renderPage(createTasksHtml), ["base.css", "tasks.css"]],
+    ["The note list", renderPage(createNotesHtml), ["base.css", "notes.css"]],
     ["The graph", renderPage(createGraphHtml), ["base.css", "graph.css"]],
     ["The workspace panel", renderPage(createWorkspaceHtml), ["base.css", "workspace.css"]],
   ];
@@ -202,6 +206,7 @@ async function panelState(): Promise<ReturnType<WorkspacePanel["stateForTests"]>
       openNote: () => Promise.resolve(),
       openTasks: () => {},
       openGraph: () => {},
+      openNotesList: () => {},
       revealTask: () => Promise.resolve(),
       toggleTask: () => Promise.resolve(),
     });

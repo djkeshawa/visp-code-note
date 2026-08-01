@@ -144,6 +144,28 @@ export const TASKS_BODY = `
         </footer>
       </div>`;
 
+export const NOTES_BODY = `
+      <div class="visp-shell notes-shell">
+        <header class="view-toolbar notes-toolbar">
+          <div class="title-stack">
+            <h1 id="note-view-title" class="toolbar-title">Notes</h1>
+          </div>
+          <p id="note-summary" class="toolbar-subtitle">Waiting for index…</p>
+          <div class="toolbar-spacer"></div>
+          <label class="search-field notes-search">
+            <span class="sr-only">Filter notes</span>
+            <span class="codicon codicon-search" aria-hidden="true"></span>
+            <input id="note-search" type="search" placeholder="Filter notes" autocomplete="off">
+          </label>
+        </header>
+        <div id="notes-error" class="notice notice-error" role="alert" hidden></div>
+        <main id="note-rows" class="note-rows view-body" aria-live="polite"></main>
+        <footer class="view-footer">
+          <span id="note-count">Waiting for index…</span>
+          <span class="footer-hint">Enter opens the note</span>
+        </footer>
+      </div>`;
+
 export const GRAPH_BODY = `
       <div class="visp-shell graph-shell">
         <header class="view-toolbar graph-toolbar">

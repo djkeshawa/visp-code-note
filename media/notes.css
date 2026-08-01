@@ -1,0 +1,92 @@
+/*
+ * The note list: orphans, and links that land nowhere.
+ *
+ * Built from the same parts as the task list, because it is the same kind of thing — one row
+ * per item, dense enough that a workspace's worth fits on a screen, with the identifying text
+ * on the left and the quiet detail pushed to the right edge so the names form a column.
+ */
+
+.note-rows {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 0;
+}
+
+/* One note. 34px is the task row's height, and these lists sit beside each other. */
+.note-row {
+  width: 100%;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+  border: 0;
+  background: transparent;
+  color: var(--visp-text);
+  font-size: 13px;
+  text-align: left;
+}
+
+.note-row:hover {
+  background: var(--visp-surface-hover);
+}
+
+.note-row:focus-visible {
+  outline: 1px solid var(--visp-focus, var(--visp-brand));
+  outline-offset: -1px;
+}
+
+.note-row .codicon {
+  flex: 0 0 auto;
+  color: var(--visp-muted);
+  font-size: 15px;
+}
+
+.note-row-title {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * The link that does not resolve, in the literal hue the rest of the extension uses for text
+ * the reader typed rather than text it derived.
+ */
+.note-row-detail {
+  flex: 0 0 auto;
+  max-width: 40%;
+  overflow: hidden;
+  color: var(--visp-hue-literal);
+  font-family: var(--visp-mono);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note-row-path {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--visp-muted);
+  font-family: var(--visp-mono);
+  font-size: 11px;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note-row-line {
+  flex: 0 0 auto;
+  color: var(--visp-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* An empty list here is good news, so it reads as a sentence rather than as a blank pane. */
+.notes-empty {
+  padding: 18px 16px;
+  color: var(--visp-muted);
+  font-size: 12.5px;
+}

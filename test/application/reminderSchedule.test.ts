@@ -40,9 +40,6 @@ function snapshot(tasks: readonly IndexSnapshot["tasks"][number][]): IndexSnapsh
 
 const never = (): boolean => false;
 
-/** Activation long before any moment these tests use, so nothing counts as history. */
-const WATCHING = { watchSince: Date.parse("2026-01-01T00:00:00"), catchUp: false };
-
 test("only incomplete tasks with a readable due are reminders at all", () => {
   const candidates = reminderCandidates(
     snapshot([
@@ -65,7 +62,6 @@ test("a reminder in the future schedules rather than fires", () => {
     at - 60_000,
     never,
     SETTINGS,
-    WATCHING,
   );
   assert.deepEqual(decision.deliver, []);
   assert.equal(decision.nextAt, at);
@@ -79,51 +75,9 @@ test("a reminder that has just passed fires", () => {
     at + 60_000,
     never,
     SETTINGS,
-    WATCHING,
   );
   assert.deepEqual(decision.deliver.map((candidate) => candidate.text), ["Ship"]);
   assert.equal(decision.nextAt, undefined);
-});
-
-test("at startup, a missed reminder inside the catch-up window is shown and an older one is not", () => {
-  const due = "2026-08-15 14:00";
-  const at = dueMoment(due, NINE_AM)!;
-  const candidates = reminderCandidates(snapshot([task({ text: "Stale", due })]), SETTINGS);
-
-  const justInside = at + SETTINGS.catchUpWindowMs;
-  const shown = decideReminders(candidates, justInside, never, SETTINGS, {
-    watchSince: justInside,
-    catchUp: true,
-  });
-  assert.deepEqual(shown.deliver.map((candidate) => candidate.text), ["Stale"]);
-  assert.deepEqual(shown.suppress, []);
-
-  const justOutside = at + SETTINGS.catchUpWindowMs + 1;
-  const skipped = decideReminders(candidates, justOutside, never, SETTINGS, {
-    watchSince: justOutside,
-    catchUp: true,
-  });
-  assert.deepEqual(skipped.deliver, []);
-  assert.deepEqual(skipped.suppress.map((candidate) => candidate.text), ["Stale"]);
-});
-
-/*
- * The bug this guards: typing a due date that has already gone by used to raise a notification
- * on the spot, and because the reminder's identity included the task's text, every keystroke
- * that followed raised another. Backspacing the line buried the window in toasts.
- */
-test("a due typed in after the fact never raises a notification", () => {
-  const at = dueMoment("2026-08-15 09:00", NINE_AM)!;
-  const candidates = reminderCandidates(
-    snapshot([task({ text: "Typed late", due: "2026-08-15 09:00" })]),
-    SETTINGS,
-  );
-  const decision = decideReminders(candidates, at + 3_600_000, never, SETTINGS, {
-    watchSince: at + 1_800_000,
-    catchUp: false,
-  });
-  assert.deepEqual(decision.deliver, [], "the moment is older than this session");
-  assert.deepEqual(decision.suppress.map((candidate) => candidate.text), ["Typed late"]);
 });
 
 test("editing a task's text does not re-raise a reminder already delivered", () => {
@@ -139,7 +93,6 @@ test("editing a task's text does not re-raise a reminder already delivered", () 
       at + 60_000,
       (key) => delivered.has(key),
       SETTINGS,
-      WATCHING,
     );
     raised += decision.deliver.length;
     for (const candidate of [...decision.deliver, ...decision.suppress]) {
@@ -157,11 +110,11 @@ test("an already-delivered reminder is neither shown again nor scheduled", () =>
   const always = (): boolean => true;
 
   assert.deepEqual(
-    decideReminders(candidates, at + 60_000, always, SETTINGS, WATCHING).deliver,
+    decideReminders(candidates, at + 60_000, always, SETTINGS).deliver,
     [],
   );
   assert.equal(
-    decideReminders(candidates, at - 60_000, always, SETTINGS, WATCHING).nextAt,
+    decideReminders(candidates, at - 60_000, always, SETTINGS).nextAt,
     undefined,
     "a handled reminder must not keep a timer armed for it",
   );
@@ -180,7 +133,6 @@ test("the next wake-up is the earliest reminder still pending", () => {
     dueMoment("2026-08-15 08:00", NINE_AM)!,
     never,
     SETTINGS,
-    WATCHING,
   );
   assert.equal(decision.nextAt, early);
 });
@@ -197,7 +149,6 @@ test("due reminders arrive in the order they came due", () => {
     dueMoment("2026-08-15 18:00", NINE_AM)!,
     never,
     SETTINGS,
-    WATCHING,
   );
   assert.deepEqual(decision.deliver.map((candidate) => candidate.text), ["First", "Second"]);
 });
@@ -209,7 +160,6 @@ test("nothing happens at all when reminders are switched off", () => {
     dueMoment("2026-08-16", NINE_AM)!,
     never,
     settings,
-    WATCHING,
   );
   assert.deepEqual(decision, { deliver: [], suppress: [] });
 });

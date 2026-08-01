@@ -5,6 +5,7 @@ import type {
   EditorToHostMessage,
   GraphMenuCommand,
   GraphToHostMessage,
+  NotesToHostMessage,
   TasksToHostMessage,
   WorkspaceMenuCommand,
   WorkspaceToHostMessage,
@@ -78,6 +79,13 @@ export function isTasksMessage(value: unknown): value is TasksToHostMessage {
       && typeof value.completed === "boolean" && isOffset(value.version);
   }
   return false;
+}
+
+export function isNotesMessage(value: unknown): value is NotesToHostMessage {
+  if (!isRecord(value) || typeof value.type !== "string") return false;
+  if (value.type === "notes/ready") return true;
+  return value.type === "notes/open" && isSource(value.uri) &&
+    (value.start === undefined || isOffset(value.start));
 }
 
 export function isGraphMessage(value: unknown): value is GraphToHostMessage {

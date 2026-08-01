@@ -17,6 +17,17 @@ import { createWorkspaceHtml } from "../../ui";
 import { COMMAND_IDS } from "../ids";
 import { isWorkspaceMessage } from "./messageValidation";
 import { noteLinkCounts, todayStamp } from "./explorerModel";
+import { selectDueTasks } from "../../application/dueTasks";
+import type { DueSelection } from "../../application/dueTasks";
+
+/**
+ * How many task rows ride to the panel.
+ *
+ * The row's count is the true total; this only bounds what is drawn. A workspace that has let
+ * a few hundred tasks slip would otherwise serialise all of them on every publish, for a list
+ * nobody scrolls to the end of.
+ */
+const DUE_ROW_LIMIT = 50;
 
 /** What the panel's header and row actions may ask the host to run. */
 const MENU_COMMANDS: Readonly<Record<WorkspaceMenuCommand, string>> = {
@@ -31,7 +42,11 @@ const NOTE_ACTION_COMMANDS: Readonly<Record<WorkspaceNoteAction, string>> = {
 };
 
 const SMART_VIEWS: readonly { readonly id: WorkspaceViewRow["id"]; readonly label: string; readonly icon: string }[] = [
-  // Today's work first: it is the only one of these that is about the next hour.
+  /*
+   * Today's work first: it is the only one of these that is about the next few hours. Work that
+   * slipped its date counts as today's — scoped strictly to the current date, a task that missed
+   * its day left the list, and the row went quiet exactly when something had been forgotten.
+   */
   { id: "due", label: "Due Today", icon: "calendar" },
   { id: "tasks", label: "All Tasks", icon: "checklist" },
   { id: "graph", label: "Knowledge Graph", icon: "type-hierarchy" },
@@ -43,6 +58,7 @@ export interface WorkspacePanelActions {
   readonly openNote: (uri: string) => Promise<void>;
   readonly openTasks: (filter: "all" | "today") => void;
   readonly openGraph: (focusUri?: string) => void;
+  readonly openNotesList: (mode: "orphans" | "broken") => void;
   readonly revealTask: (noteUri: string, start: number) => Promise<void>;
   readonly toggleTask: (
     noteUri: string,
@@ -75,7 +91,7 @@ export class WorkspacePanel implements vscode.WebviewViewProvider, vscode.Dispos
    * workspace. The panel publishes on far more than an index change — switching notes, and
    * changing a setting, both did all of that work again for figures that had not moved.
    *
-   * Keyed on the day as well as the snapshot, because Due Today is relative to it.
+   * Keyed on the day as well as the snapshot, because what counts as overdue moves with it.
    */
   private derived: { key: string; state: DerivedPanelState } | undefined;
   /** Set when the index moved while the panel was hidden. */
@@ -206,30 +222,12 @@ export class WorkspacePanel implements vscode.WebviewViewProvider, vscode.Dispos
         this.actions.openGraph();
         break;
       case "broken":
-        void vscode.commands.executeCommand(COMMAND_IDS.findBrokenLinks);
+        this.actions.openNotesList("broken");
         break;
       case "orphans":
-        /*
-         * The row states an exact orphan count, so it opens that list. It used to open the
-         * generic search, which has no notion of an orphan and showed an arbitrary slice of
-         * the workspace instead.
-         */
-        void this.showOrphanNotes();
+        this.actions.openNotesList("orphans");
         break;
     }
-  }
-
-  private async showOrphanNotes(): Promise<void> {
-    const orphans = getOrphanNotes(this.index.snapshot);
-    if (orphans.length === 0) {
-      void vscode.window.showInformationMessage("Every note is connected to another.");
-      return;
-    }
-    const picked = await vscode.window.showQuickPick(
-      orphans.map((note) => ({ label: note.title, description: note.path, uri: note.uri })),
-      { title: "Orphan notes", placeHolder: "Notes nothing links to, and that link nowhere" },
-    );
-    if (picked !== undefined) await this.actions.openNote(picked.uri);
   }
 
   /** The state the panel would render right now. Used by the design-conformance suite. */
@@ -280,13 +278,11 @@ export class WorkspacePanel implements vscode.WebviewViewProvider, vscode.Dispos
 
   private deriveFromSnapshot(snapshot: IndexSnapshot, today: string): DerivedPanelState {
     const links = noteLinkCounts(snapshot);
-    const dueToday = snapshot.tasks.filter(
-      (task) => !task.completed && task.due?.slice(0, 10) === today,
-    );
+    const due = selectDueTasks(snapshot, today, DUE_ROW_LIMIT);
 
     return {
-      views: SMART_VIEWS.map((view) => this.viewRow(view, snapshot, dueToday.length)),
-      dueToday: dueToday.map((task): WorkspaceTaskRow => ({
+      views: SMART_VIEWS.map((view) => this.viewRow(view, snapshot, due)),
+      dueToday: due.rows.map((task): WorkspaceTaskRow => ({
         noteUri: task.noteUri,
         noteTitle: task.noteTitle,
         start: task.range.start,
@@ -319,14 +315,15 @@ export class WorkspacePanel implements vscode.WebviewViewProvider, vscode.Dispos
   private viewRow(
     view: (typeof SMART_VIEWS)[number],
     snapshot: IndexSnapshot,
-    dueTodayCount: number,
+    due: DueSelection,
   ): WorkspaceViewRow {
     switch (view.id) {
       case "due":
         return {
           ...view,
-          count: dueTodayCount,
-          tone: dueTodayCount > 0 ? "brand" : "default",
+          count: due.total,
+          // Late work is the one thing here that has already gone wrong, so it warns.
+          tone: due.overdue > 0 ? "warning" : due.total > 0 ? "brand" : "default",
         };
       case "tasks":
         return { ...view, count: snapshot.tasks.length, tone: "default" };

@@ -1,10 +1,8 @@
 import * as vscode from "vscode";
-import { getBrokenLinks } from "../../indexing/projections";
 import { wikiTargetForNote } from "../../indexing/noteResolver";
 import type { CommandIndex, FeatureViews } from "./contracts";
 import { activeMarkdownUri, coerceUri, pickNote } from "./commandUtils";
 import { openNote } from "./openNote";
-import { revealOffset } from "../documentEdits";
 
 export async function insertWikiLink(index: CommandIndex, views: FeatureViews): Promise<void> {
   const editor = vscode.window.activeTextEditor;
@@ -48,26 +46,15 @@ export async function insertWikiLink(index: CommandIndex, views: FeatureViews): 
   }
 }
 
-export async function findBrokenLinks(index: CommandIndex): Promise<void> {
-  const broken = getBrokenLinks(index.snapshot);
-  if (broken.length === 0) {
-    void vscode.window.showInformationMessage("Visp Notes found no broken wiki links.");
-    return;
-  }
-
-  const notesByUri = new Map(index.snapshot.notes.map((note) => [note.uri, note]));
-  const picked = await vscode.window.showQuickPick(
-    broken.map((item) => ({
-      label: `$(warning) ${item.link.raw}`,
-      description: notesByUri.get(item.sourceUri)?.path,
-      detail: "Unresolved note, heading, or block reference",
-      item,
-    })),
-    { placeHolder: `${broken.length} unresolved wiki link${broken.length === 1 ? "" : "s"}` },
-  );
-  if (picked) {
-    await revealOffset(vscode.Uri.parse(picked.item.sourceUri), picked.item.link.range.start);
-  }
+/**
+ * Every wiki link that lands nowhere, in the window.
+ *
+ * This was a quick pick — a dropdown you could not read beside the note you were fixing, and
+ * which closed the moment you looked away. The panel stays open while the links are repaired
+ * and refreshes itself as each one starts resolving.
+ */
+export function findBrokenLinks(views: FeatureViews): void {
+  views.openNotesList("broken");
 }
 
 export async function rebuildIndex(index: CommandIndex): Promise<void> {

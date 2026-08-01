@@ -9,6 +9,7 @@ import { toggleTask } from "./vscode/commands/taskCommands";
 import { GraphPanel } from "./vscode/providers/graphPanel";
 import { IndexStatusItem } from "./vscode/providers/indexStatusItem";
 import { NoteEditorProvider } from "./vscode/providers/noteEditorProvider";
+import { NotesPanel } from "./vscode/providers/notesPanel";
 import { ReminderScheduler } from "./vscode/providers/reminderScheduler";
 import { WorkspacePanel } from "./vscode/providers/workspacePanel";
 import { TasksPanel } from "./vscode/providers/tasksPanel";
@@ -16,8 +17,6 @@ import { WikiCompletionProvider } from "./vscode/providers/wikiCompletionProvide
 import { WikiLinkProvider } from "./vscode/providers/wikiLinkProvider";
 import { WikiLinkCodeActionProvider } from "./vscode/providers/wikiLinkCodeActionProvider";
 import { TextDiffPreviewProvider } from "./vscode/providers/textDiffPreviewProvider";
-import { revealOffset } from "./vscode/documentEdits";
-
 const MARKDOWN_FILE_SELECTOR: vscode.DocumentSelector = { scheme: "file", language: "markdown" };
 let draftRecoveryStore: DraftRecoveryStore | undefined;
 let reminderStore: ReminderStore | undefined;
@@ -36,7 +35,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     () => index.snapshot,
     (noteUri, start, taskId, completed, version) =>
       toggleTask(index, noteUri, start, taskId, completed, version),
-    (noteUri, start) => revealOffset(vscode.Uri.parse(noteUri), start),
+    (noteUri, start) => revealTask(noteUri, start),
   );
   const graph = new GraphPanel(
     context.extensionUri,
@@ -50,18 +49,26 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       (error) => output.error(`Reminder persistence failed: ${String(error)}`),
     ),
     {
-      revealTask: (noteUri, start) => revealOffset(vscode.Uri.parse(noteUri), start),
+      revealTask: (noteUri, start) => revealTask(noteUri, start),
       toggleTask: (noteUri, start, taskId, completed, version) =>
         toggleTask(index, noteUri, start, taskId, completed, version),
       openTasks: (filter) => tasks.show(filter),
     },
     output,
   );
+  const notesList = new NotesPanel(
+    context.extensionUri,
+    () => index.snapshot,
+    (uri, start) => start === undefined
+      ? openNote(vscode.Uri.parse(uri), true)
+      : noteEditor.revealAt(uri, start),
+  );
   const workspacePanel = new WorkspacePanel(context.extensionUri, index, {
     openNote: (uri) => openNote(vscode.Uri.parse(uri), true),
     openTasks: (filter) => tasks.show(filter),
     openGraph: (focusUri) => graph.show(focusUri),
-    revealTask: (noteUri, start) => revealOffset(vscode.Uri.parse(noteUri), start),
+    openNotesList: (mode) => notesList.show(mode),
+    revealTask: (noteUri, start) => revealTask(noteUri, start),
     toggleTask: (noteUri, start, taskId, completed, version) =>
       toggleTask(index, noteUri, start, taskId, completed, version),
   });
@@ -72,6 +79,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     (uri) => workspacePanel.setActiveNote(uri),
     (title, before, after) => diffPreview.show(title, before, after),
     draftRecoveries,
+    output,
   );
   activeNoteEditor = noteEditor;
   const diagnostics = new WikiLinkDiagnostics(index);
@@ -82,6 +90,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     index,
     tasks,
     graph,
+    notesList,
     reminders,
     noteEditor,
     workspacePanel,
@@ -112,6 +121,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     index.onDidChange(() => {
       tasks.update();
       graph.update();
+      notesList.update();
       noteEditor.updateIndexState();
     }),
     vscode.window.onDidChangeActiveTextEditor((editor) => {
@@ -127,6 +137,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     {
       openTasks: (filter) => tasks.show(filter),
       openGraph: (focusUri) => graph.show(focusUri),
+      openNotesList: (mode) => notesList.show(mode),
       showBacklinks: (uri) => noteEditor.revealInspector(uri),
       toggleEditor: (uri) => noteEditor.toggle(uri),
       activeNoteUri: () => noteEditor.activeUri,
@@ -137,6 +148,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     },
     output,
   );
+
+  /*
+   * The panels are built before the editor provider they reveal through, so the call is late
+   * bound. Every one of them shows the note in the Visp Notes editor rather than the raw file.
+   */
+  function revealTask(noteUri: string, start: number): Promise<void> {
+    return noteEditor.revealAt(noteUri, start);
+  }
 
   const activeDocument = vscode.window.activeTextEditor?.document;
   if (activeDocument?.languageId === "markdown") {

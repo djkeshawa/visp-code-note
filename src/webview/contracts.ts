@@ -169,6 +169,31 @@ export type TasksToHostWire =
   | { readonly type: "tasks/open"; readonly noteUri: string; readonly start: number }
   | { readonly type: "tasks/ready" };
 
+export type NoteListModeWire = "orphans" | "broken";
+
+export interface NoteListRowWire {
+  readonly uri: string;
+  readonly title: string;
+  readonly path: string;
+  readonly detail?: string;
+  readonly start?: number;
+  readonly line?: number;
+}
+
+export interface NotesStateWire {
+  readonly mode: NoteListModeWire;
+  readonly rows: readonly NoteListRowWire[];
+  readonly indexedAt: number;
+}
+
+export type HostToNotesWire =
+  | { readonly type: "notes/state"; readonly state: NotesStateWire }
+  | { readonly type: "notes/error"; readonly message: string };
+
+export type NotesToHostWire =
+  | { readonly type: "notes/open"; readonly uri: string; readonly start?: number }
+  | { readonly type: "notes/ready" };
+
 export type GraphNodeKindWire = "note" | "task" | "tag" | "unresolved";
 
 export interface GraphNodeWire {
