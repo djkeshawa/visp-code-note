@@ -41,6 +41,38 @@ type PendingResult =
   | { readonly kind: "note"; readonly score: number; readonly note: NoteRecord; readonly match: CandidateMatch }
   | { readonly kind: "task"; readonly score: number; readonly task: TaskRecord; readonly match: CandidateMatch };
 
+/**
+ * The notes a query matches, by any searchable field — title, path, alias, tag, or body
+ * text. This answers the workspace panel's filter, which can only see titles and paths
+ * itself: note content never rides to a webview, so the panel asks the host instead.
+ * Bounded because a one-letter query matches most of a vault, and an unbounded answer
+ * would serialise thousands of URIs for a list that draws a couple hundred rows.
+ */
+export function matchingNoteUris(
+  notes: readonly NoteRecord[],
+  query: string,
+  limit: number,
+): readonly string[] {
+  const request = createSearchRequest(query);
+  if (request.terms.length === 0 || limit <= 0) {
+    return [];
+  }
+  const candidateUris = narrowSearchableNotes(notes, request.terms);
+  const uris: string[] = [];
+  for (const note of notes) {
+    if (candidateUris !== undefined && !candidateUris.has(note.uri)) {
+      continue;
+    }
+    if (selectSearchMatch(noteSearchCandidates(note), request) !== undefined) {
+      uris.push(note.uri);
+      if (uris.length >= limit) {
+        break;
+      }
+    }
+  }
+  return uris;
+}
+
 export function buildWorkspaceSearchResults(
   snapshot: Pick<IndexSnapshot, "notes" | "tasks">,
   query: string,

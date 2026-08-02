@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   isEditorMessage,
   isTasksMessage,
+  isWorkspaceMessage,
 } from "../../src/vscode/providers/messageValidation";
 
 test("accepts continuous source edits with version and optional save intent", () => {
@@ -96,4 +97,13 @@ test("rejects malformed or unversioned task toggles", () => {
     completed: false,
     version: 7,
   }), false);
+});
+
+test("accepts a filter query and rejects one that could smuggle structure", () => {
+  assert.equal(isWorkspaceMessage({ type: "workspace/filter", query: "meeting notes" }), true);
+  assert.equal(isWorkspaceMessage({ type: "workspace/filter", query: "c++" }), true);
+  assert.equal(isWorkspaceMessage({ type: "workspace/filter" }), false);
+  assert.equal(isWorkspaceMessage({ type: "workspace/filter", query: 7 }), false);
+  assert.equal(isWorkspaceMessage({ type: "workspace/filter", query: "a\nb" }), false);
+  assert.equal(isWorkspaceMessage({ type: "workspace/filter", query: "x".repeat(10_000) }), false);
 });

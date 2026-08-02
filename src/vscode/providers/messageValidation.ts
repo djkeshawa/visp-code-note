@@ -107,6 +107,8 @@ export function isWorkspaceMessage(value: unknown): value is WorkspaceToHostMess
   switch (value.type) {
     case "workspace/ready":
       return true;
+    case "workspace/filter":
+      return isShortString(value.query) && !/[\r\n]/.test(value.query);
     case "workspace/openNote":
       return isSource(value.uri);
     case "workspace/openView":

@@ -1,6 +1,6 @@
 import assert = require("node:assert/strict");
 import { test } from "node:test";
-import { buildWorkspaceSearchResults } from "../../src/application/workspaceSearch";
+import { buildWorkspaceSearchResults, matchingNoteUris } from "../../src/application/workspaceSearch";
 import { buildSnapshot } from "../../src/indexing/projections";
 import { makeNote } from "../indexing/fixtures";
 
@@ -109,4 +109,21 @@ test("a term found only in tasks still returns the task", () => {
 
   const results = buildWorkspaceSearchResults(snapshot, "recalibrate");
   assert.ok(results.some((result) => result.kind === "task"));
+});
+
+test("matchingNoteUris answers the panel filter from any field, bounded", () => {
+  const notes = [
+    ...vault(10),
+    makeNote({ path: "notes/target.md", content: "# Plans\nThe midden heap hides a krakatoa reference.\n" }),
+  ].map((note) => note);
+  const snapshot = buildSnapshot(notes, 1, 1);
+
+  const byBody = matchingNoteUris(snapshot.notes, "krakatoa", 500);
+  assert.deepEqual(byBody, ["file:///notes/target.md"]);
+  assert.deepEqual(matchingNoteUris(snapshot.notes, "TARGET", 500), ["file:///notes/target.md"]);
+  assert.equal(matchingNoteUris(snapshot.notes, "nowhere-at-all", 500).length, 0);
+  assert.equal(matchingNoteUris(snapshot.notes, "", 500).length, 0);
+
+  // The bound holds even when everything matches.
+  assert.equal(matchingNoteUris(snapshot.notes, "notes", 3).length, 3);
 });

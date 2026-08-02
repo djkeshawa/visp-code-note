@@ -266,6 +266,12 @@ export type HostToWorkspaceMessage =
    * 75KB on a 570-note workspace — not something to serialise for a highlight change.
    */
   | { readonly type: "workspace/activeNote"; readonly uri?: string }
+  /**
+   * Which notes the panel's filter query matches by content. The panel filters titles and
+   * paths itself; note text never rides to a webview, so it asks and the host answers from
+   * the search index. Tagged with the query so a stale answer is recognisable.
+   */
+  | { readonly type: "workspace/filterMatches"; readonly query: string; readonly uris: readonly string[] }
   | { readonly type: "workspace/error"; readonly message: string };
 
 /** What the panel's header and row menus delegate to the host. */
@@ -281,6 +287,8 @@ export type WorkspaceNoteAction = "rename" | "graph" | "delete";
 
 export type WorkspaceToHostMessage =
   | { readonly type: "workspace/ready" }
+  /** The filter box's current query, sent so the host can say which notes match by content. */
+  | { readonly type: "workspace/filter"; readonly query: string }
   | { readonly type: "workspace/openNote"; readonly uri: string }
   | { readonly type: "workspace/openView"; readonly id: WorkspaceViewRow["id"] }
   | { readonly type: "workspace/openTag"; readonly tag: string }

@@ -296,6 +296,12 @@ export interface WorkspacePanelStateWire {
 export type HostToWorkspaceWire =
   | { readonly type: "workspace/state"; readonly state: WorkspacePanelStateWire }
   | { readonly type: "workspace/activeNote"; readonly uri?: string }
+  /**
+   * Which notes the panel's filter query matches by content. The panel filters titles and
+   * paths itself; note text never rides to a webview, so it asks and the host answers from
+   * the search index. Tagged with the query so a stale answer is recognisable.
+   */
+  | { readonly type: "workspace/filterMatches"; readonly query: string; readonly uris: readonly string[] }
   | { readonly type: "workspace/error"; readonly message: string };
 
 export type WorkspaceMenuCommandWire = "search";
@@ -304,6 +310,8 @@ export type WorkspaceNoteActionWire = "rename" | "graph" | "delete";
 
 export type WorkspaceToHostWire =
   | { readonly type: "workspace/ready" }
+  /** The filter box's current query, sent so the host can say which notes match by content. */
+  | { readonly type: "workspace/filter"; readonly query: string }
   | { readonly type: "workspace/openNote"; readonly uri: string }
   | { readonly type: "workspace/openView"; readonly id: WorkspaceViewRowWire["id"] }
   | { readonly type: "workspace/openTag"; readonly tag: string }

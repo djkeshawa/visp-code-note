@@ -20,6 +20,7 @@ import { isWorkspaceMessage } from "./messageValidation";
 import { noteLinkCounts, todayStamp } from "./explorerModel";
 import { selectDueTasks } from "../../application/dueTasks";
 import type { DueSelection } from "../../application/dueTasks";
+import { matchingNoteUris } from "../../application/workspaceSearch";
 
 /**
  * How many task rows ride to the panel.
@@ -29,6 +30,13 @@ import type { DueSelection } from "../../application/dueTasks";
  * nobody scrolls to the end of.
  */
 const DUE_ROW_LIMIT = 50;
+
+/**
+ * How many content-matched note URIs ride back to the panel for one filter query. The panel
+ * draws at most 200 note rows; a one-letter query matches most of a vault, and serialising
+ * every URI it matches would cost hundreds of kilobytes for rows nobody can see.
+ */
+const FILTER_MATCH_LIMIT = 500;
 
 /** What the panel's header and row actions may ask the host to run. */
 const MENU_COMMANDS: Readonly<Record<WorkspaceMenuCommand, string>> = {
@@ -156,6 +164,13 @@ export class WorkspacePanel implements vscode.WebviewViewProvider, vscode.Dispos
       switch (message.type) {
         case "workspace/ready":
           this.publish();
+          break;
+        case "workspace/filter":
+          void this.view?.webview.postMessage({
+            type: "workspace/filterMatches",
+            query: message.query,
+            uris: matchingNoteUris(this.index.snapshot.notes, message.query, FILTER_MATCH_LIMIT),
+          } satisfies HostToWorkspaceMessage);
           break;
         case "workspace/openNote":
           if (this.index.snapshot.notes.some((note) => note.uri === message.uri)) {

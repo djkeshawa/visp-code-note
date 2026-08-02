@@ -66,10 +66,18 @@ const expanded = new Set(api.getState()?.expanded ?? [DUE_TODAY_KEY]);
  * per character, so the field waits for a pause rather than redrawing on every keystroke.
  */
 let filterTimer: number | undefined;
+/**
+ * Which notes the host says match the current query by content. The panel can only filter
+ * what it holds — titles and paths — but a query is usually about what a note *says*, so
+ * each settled query is also sent to the host, and its answer widens the filter. The query
+ * rides along so an answer that arrives after further typing is recognised as stale.
+ */
+let contentMatches: { readonly query: string; readonly uris: ReadonlySet<string> } | undefined;
 filter.addEventListener("input", () => {
   if (filterTimer !== undefined) window.clearTimeout(filterTimer);
   filterTimer = window.setTimeout(() => {
     filterTimer = undefined;
+    requestContentMatches();
     render();
   }, FILTER_DEBOUNCE_MS);
 });
@@ -79,9 +87,19 @@ filter.addEventListener("keydown", (event) => {
     filter.value = "";
     if (filterTimer !== undefined) window.clearTimeout(filterTimer);
     filterTimer = undefined;
+    contentMatches = undefined;
     render();
   }
 });
+
+function requestContentMatches(): void {
+  const query = filter.value.trim();
+  if (query.length === 0) {
+    contentMatches = undefined;
+    return;
+  }
+  api.postMessage({ type: "workspace/filter", query });
+}
 searchButton.addEventListener("click", () =>
   api.postMessage({ type: "workspace/runCommand", command: "search" }));
 window.addEventListener("message", handleHostMessage);
@@ -95,7 +113,19 @@ function handleHostMessage(event: MessageEvent<unknown>): void {
   if (message.type === "workspace/state" && isPanelState(message.state)) {
     state = message.state;
     setNotice(errorNotice);
+    // The index moved, so which notes match the query by content may have moved with it.
+    requestContentMatches();
     render();
+  } else if (
+    message.type === "workspace/filterMatches" &&
+    typeof message.query === "string" &&
+    Array.isArray(message.uris) &&
+    message.uris.every((uri: unknown) => typeof uri === "string")
+  ) {
+    if (message.query === filter.value.trim()) {
+      contentMatches = { query: message.query, uris: new Set(message.uris) };
+      render();
+    }
   } else if (
     message.type === "workspace/activeNote" &&
     (message.uri === undefined || typeof message.uri === "string")
@@ -240,7 +270,11 @@ function taskRow(task: WorkspaceTaskRowWire, version: number): HTMLElement {
 function renderNotes(current: WorkspacePanelStateWire): void {
   noteCount.textContent = String(current.noteCount);
   const filtering = filter.value.trim().length > 0;
-  const visible = current.notes.filter((note) => matches(`${note.title} ${note.path}`));
+  const contentUris = contentMatches?.query === filter.value.trim()
+    ? contentMatches.uris
+    : undefined;
+  const visible = current.notes.filter((note) =>
+    matches(`${note.title} ${note.path}`) || (contentUris?.has(note.uri) ?? false));
   filterStatus.textContent = filtering
     ? `${visible.length} note${visible.length === 1 ? "" : "s"} match`
     : "";
