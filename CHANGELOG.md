@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.9.0 - 2026-08-03
+
+### Changed — the sidebar filter finds notes by what they say
+
+**The filter box searches note text now.** It matched titles and paths — the only fields the
+panel holds, because note content never rides to a webview — so typing a phrase that lives in
+a note's body found nothing, and the box read as a search that does not search. The panel now
+asks the host, which answers from the search index with every note the query matches by any
+field: title, path, alias, tag, or the text itself. Title and path matching still answers
+instantly between keystrokes; the content answer widens the list the moment it lands, is
+re-asked when the index moves, and an answer that arrives after further typing is recognised
+by the query it carries and ignored.
+
 ## 0.8.0 - 2026-08-03
 
 ### Changed — search answers from an index instead of rereading the vault
