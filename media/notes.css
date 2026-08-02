@@ -65,6 +65,52 @@
   white-space: nowrap;
 }
 
+/*
+ * A tag list wears its own tag's colour, so the whole panel reads as that tag rather than as a
+ * generic list of notes that happens to be filtered.
+ */
+.note-row .codicon.is-tag {
+  color: var(--tag-hue, var(--visp-brand));
+}
+
+/*
+ * What else a note is tagged with — the thing that tells one of a tag's notes from the next,
+ * and where the reader goes from here. Each carries the hue it wears in the sidebar, the note
+ * header and the task row, because a colour that changes between views means nothing.
+ */
+.note-row-tags {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: flex;
+  gap: 5px;
+  overflow: hidden;
+}
+
+.note-row-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 8px 0 6px;
+  border-radius: 999px;
+  background: var(--visp-chip);
+  color: var(--visp-muted-strong);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.note-row:hover .note-row-tag {
+  color: var(--visp-text);
+}
+
+.note-row-tag-dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--tag-hue, var(--visp-brand));
+}
+
 .note-row-path {
   min-width: 0;
   flex: 1;

@@ -139,24 +139,28 @@ export type TasksToHostMessage =
   | { readonly type: "tasks/ready" };
 
 /**
- * The note list: orphans, and links that land nowhere.
+ * The note list: orphans, links that land nowhere, and the notes carrying a tag.
  *
- * A panel rather than a quick pick, because neither of these is glanced at — they are lists
+ * A panel rather than a quick pick, because none of these is glanced at — they are lists
  * worked through, one row compared against the next.
  */
-export type NoteListMode = "orphans" | "broken";
+export type NoteListing =
+  | { readonly kind: "orphans" }
+  | { readonly kind: "broken" }
+  | { readonly kind: "tag"; readonly tag: string };
 
 export interface NoteListRow {
   readonly uri: string;
   readonly title: string;
   readonly path: string;
   readonly detail?: string;
+  readonly tags?: readonly string[];
   readonly start?: number;
   readonly line?: number;
 }
 
 export interface NotesState {
-  readonly mode: NoteListMode;
+  readonly listing: NoteListing;
   readonly rows: readonly NoteListRow[];
   readonly indexedAt: number;
 }

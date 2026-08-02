@@ -67,7 +67,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     openNote: (uri) => openNote(vscode.Uri.parse(uri), true),
     openTasks: (filter) => tasks.show(filter),
     openGraph: (focusUri) => graph.show(focusUri),
-    openNotesList: (mode) => notesList.show(mode),
+    openNotesList: (listing) => notesList.show(listing),
     revealTask: (noteUri, start) => revealTask(noteUri, start),
     toggleTask: (noteUri, start, taskId, completed, version) =>
       toggleTask(index, noteUri, start, taskId, completed, version),
@@ -137,7 +137,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     {
       openTasks: (filter) => tasks.show(filter),
       openGraph: (focusUri) => graph.show(focusUri),
-      openNotesList: (mode) => notesList.show(mode),
+      openNotesList: (listing) => notesList.show(listing),
       showBacklinks: (uri) => noteEditor.revealInspector(uri),
       toggleEditor: (uri) => noteEditor.toggle(uri),
       activeNoteUri: () => noteEditor.activeUri,

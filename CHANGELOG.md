@@ -11,6 +11,14 @@ landing today, oldest slip first, and its count turns warning-coloured while any
 overdue. It stays deliberately narrower than All Tasks: carrying next month's work and the
 undated as well would make it the backlog again under a second name.
 
+**A tag opens its notes in the window.** Clicking a tag chip ran the workspace search pre-filled
+with the tag — a dropdown over the palette, mixing notes, tasks and text matches, and gone the
+moment focus moved. A tag is a collection, so it now opens the same list every other collection
+here opens, each row carrying the note's *other* tags as chips: that is how you tell one of a
+tag's notes from the next, and where you go from there. Every chip wears the hue that tag wears
+in the sidebar, the note header and the task row, and the list's own icon takes the hue of the
+tag it is about, so the panel reads as that tag rather than as a filtered list of notes.
+
 **Orphan Notes and Broken Links open in the window.** Both were quick picks — a dropdown over
 the command palette, a dozen rows tall, gone the moment focus moved. Neither is glanced at;
 they are lists worked through, so they now open a panel built from the same toolbar, filter

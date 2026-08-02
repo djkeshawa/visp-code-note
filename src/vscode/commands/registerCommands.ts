@@ -54,7 +54,7 @@ export function registerCommands(
     (title, before, after) => views.showDiffPreview(title, before, after),
   ));
   register(COMMAND_IDS.deleteNote, (value) => deleteNote(index, value ?? views.activeNoteUri()));
-  register(COMMAND_IDS.findBrokenLinks, () => views.openNotesList("broken"));
+  register(COMMAND_IDS.findBrokenLinks, () => views.openNotesList({ kind: "broken" }));
   register(COMMAND_IDS.rebuildIndex, () => rebuildIndex(index));
   register(COMMAND_IDS.openTasks, (filter) => views.openTasks(filter === "today" ? "today" : "all"));
   register(COMMAND_IDS.openTodayTasks, () => views.openTasks("today"));

@@ -54,7 +54,7 @@ export async function insertWikiLink(index: CommandIndex, views: FeatureViews): 
  * and refreshes itself as each one starts resolving.
  */
 export function findBrokenLinks(views: FeatureViews): void {
-  views.openNotesList("broken");
+  views.openNotesList({ kind: "broken" });
 }
 
 export async function rebuildIndex(index: CommandIndex): Promise<void> {

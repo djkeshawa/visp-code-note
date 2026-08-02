@@ -1,22 +1,23 @@
 import * as vscode from "vscode";
-import type { HostToNotesMessage, NoteListMode } from "../../domain/protocol";
+import type { HostToNotesMessage, NoteListing } from "../../domain/protocol";
 import type { IndexSnapshot } from "../../domain/models";
 import { buildNoteListing, listingTitle } from "../../application/noteListing";
 import { createNotesHtml } from "../../ui";
 import { isNotesMessage } from "./messageValidation";
 
 /**
- * Orphan notes and broken links, in the window.
+ * Orphan notes, broken links and a tag's notes, in the window.
  *
- * Both were quick picks. A dropdown over the command palette is the right shape for choosing
- * one of a handful of things and the wrong shape for working through a list: it is a dozen
- * rows tall, it cannot be read beside anything, and it disappears the moment focus moves. One
- * panel serves both because they are the same shape — a note, a quiet detail, a way in.
+ * All three were quick picks. A dropdown over the command palette is the right shape for
+ * choosing one of a handful of things and the wrong shape for working through a list: it is a
+ * dozen rows tall, it cannot be read beside anything, and it disappears the moment focus moves.
+ * One panel serves all three because they are the same shape — a note, a quiet detail about it,
+ * and a way in.
  */
 export class NotesPanel implements vscode.Disposable {
   private panel: vscode.WebviewPanel | undefined;
   private panelSubscriptions: vscode.Disposable[] = [];
-  private mode: NoteListMode = "orphans";
+  private listing: NoteListing = { kind: "orphans" };
 
   public constructor(
     private readonly extensionUri: vscode.Uri,
@@ -24,8 +25,8 @@ export class NotesPanel implements vscode.Disposable {
     private readonly onOpen: (uri: string, start?: number) => Promise<void>,
   ) {}
 
-  public show(mode: NoteListMode): void {
-    this.mode = mode;
+  public show(listing: NoteListing): void {
+    this.listing = listing;
     if (this.panel) {
       this.panel.title = this.title;
       this.panel.reveal(vscode.ViewColumn.Active, false);
@@ -61,13 +62,8 @@ export class NotesPanel implements vscode.Disposable {
     this.clearPanel(this.panel);
   }
 
-  /** The state the panel would render right now. Used by the tests. */
-  public stateForTests(mode: NoteListMode) {
-    return { mode, rows: buildNoteListing(this.getSnapshot(), mode) };
-  }
-
   private get title(): string {
-    return `Visp Notes: ${listingTitle(this.mode)}`;
+    return `Visp Notes: ${listingTitle(this.listing)}`;
   }
 
   private handleMessage(value: unknown): void {
@@ -94,8 +90,8 @@ export class NotesPanel implements vscode.Disposable {
     await panel.webview.postMessage({
       type: "notes/state",
       state: {
-        mode: this.mode,
-        rows: buildNoteListing(snapshot, this.mode),
+        listing: this.listing,
+        rows: buildNoteListing(snapshot, this.listing),
         indexedAt: snapshot.indexedAt,
       },
     } satisfies HostToNotesMessage);

@@ -169,19 +169,23 @@ export type TasksToHostWire =
   | { readonly type: "tasks/open"; readonly noteUri: string; readonly start: number }
   | { readonly type: "tasks/ready" };
 
-export type NoteListModeWire = "orphans" | "broken";
+export type NoteListingWire =
+  | { readonly kind: "orphans" }
+  | { readonly kind: "broken" }
+  | { readonly kind: "tag"; readonly tag: string };
 
 export interface NoteListRowWire {
   readonly uri: string;
   readonly title: string;
   readonly path: string;
   readonly detail?: string;
+  readonly tags?: readonly string[];
   readonly start?: number;
   readonly line?: number;
 }
 
 export interface NotesStateWire {
-  readonly mode: NoteListModeWire;
+  readonly listing: NoteListingWire;
   readonly rows: readonly NoteListRowWire[];
   readonly indexedAt: number;
 }

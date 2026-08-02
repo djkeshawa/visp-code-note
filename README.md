@@ -17,7 +17,7 @@ Visp Notes turns ordinary workspace Markdown files into a connected note system 
 - Interactive one- and two-hop local graphs plus a live force-directed workspace graph, with spring motion, connection-scaled nodes, hover neighborhoods, pan, cursor-centered zoom, fit/center controls, non-destructive search, and connection details
 - Safe note rename choices with a native before/after diff preview
 - Broken-link diagnostics
-- A Due Today view holding overdue work as well as today's, and note lists for orphans and broken links
+- A Due Today view holding overdue work as well as today's, and note lists for orphans, broken links and any tag
 - Note folders, smart views, tags, full-text search, and index status in the Activity Bar
 
 Headings, quotes, callouts, tables, and fenced code read as themselves while the caret is

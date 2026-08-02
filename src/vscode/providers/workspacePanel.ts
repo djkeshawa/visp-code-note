@@ -3,6 +3,7 @@ import type {
   HostToWorkspaceMessage,
   WorkspaceFolderRow,
   WorkspaceMenuCommand,
+  NoteListing,
   WorkspaceNoteAction,
   WorkspaceNoteRow,
   WorkspacePanelState,
@@ -58,7 +59,7 @@ export interface WorkspacePanelActions {
   readonly openNote: (uri: string) => Promise<void>;
   readonly openTasks: (filter: "all" | "today") => void;
   readonly openGraph: (focusUri?: string) => void;
-  readonly openNotesList: (mode: "orphans" | "broken") => void;
+  readonly openNotesList: (listing: NoteListing) => void;
   readonly revealTask: (noteUri: string, start: number) => Promise<void>;
   readonly toggleTask: (
     noteUri: string,
@@ -165,7 +166,12 @@ export class WorkspacePanel implements vscode.WebviewViewProvider, vscode.Dispos
           this.openView(message.id);
           break;
         case "workspace/openTag":
-          await vscode.commands.executeCommand(COMMAND_IDS.search, `#${message.tag}`);
+          /*
+           * A tag is a collection, so it opens the list every other collection here opens.
+           * It used to run the workspace search pre-filled with the tag, which is a dropdown
+           * over the palette mixing notes, tasks and text matches together.
+           */
+          this.actions.openNotesList({ kind: "tag", tag: message.tag });
           break;
         case "workspace/revealTask":
           // Checked against the index first, as every other URI-bearing handler is.
@@ -222,10 +228,10 @@ export class WorkspacePanel implements vscode.WebviewViewProvider, vscode.Dispos
         this.actions.openGraph();
         break;
       case "broken":
-        this.actions.openNotesList("broken");
+        this.actions.openNotesList({ kind: "broken" });
         break;
       case "orphans":
-        this.actions.openNotesList("orphans");
+        this.actions.openNotesList({ kind: "orphans" });
         break;
     }
   }

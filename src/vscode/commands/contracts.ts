@@ -1,5 +1,6 @@
 import type * as vscode from "vscode";
 import type { IndexSnapshot, NoteRecord } from "../../domain/models";
+import type { NoteListing } from "../../domain/protocol";
 
 export interface CommandIndex {
   readonly snapshot: IndexSnapshot;
@@ -12,8 +13,8 @@ export interface CommandIndex {
 export interface FeatureViews {
   openTasks(filter?: "all" | "today"): void;
   openGraph(focusUri?: string): void;
-  /** Opens the note list in the window: orphan notes, or links that land nowhere. */
-  openNotesList(mode: "orphans" | "broken"): void;
+  /** Opens the note list in the window: orphans, broken links, or a tag's notes. */
+  openNotesList(listing: NoteListing): void;
   /** Opens the note in its rendered editor with the inspector showing. */
   showBacklinks(uri?: string): Promise<void>;
   toggleEditor(uri?: vscode.Uri): Promise<void>;

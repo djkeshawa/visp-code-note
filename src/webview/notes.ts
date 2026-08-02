@@ -1,14 +1,15 @@
-import type { NoteListRowWire, NotesStateWire, NotesToHostWire } from "./contracts.js";
+import type { NoteListingWire, NoteListRowWire, NotesStateWire, NotesToHostWire } from "./contracts.js";
 import { codicon, htmlElement, isRecord, requireElement, setNotice } from "./shared/dom.js";
 import { acquireWebviewApi } from "./shared/vscodeApi.js";
 import { formatIndexedAt } from "../application/indexFreshness.js";
+import { tagHueColor } from "../application/tagHue.js";
 
 /**
  * The note list.
  *
- * Two lists share this view — orphan notes, and links that land nowhere — because they are the
- * same shape: a note, something quiet about it, and a way in. Which one is showing comes from
- * the host, so the panel decides nothing except what the filter hides.
+ * Three lists share this view — orphan notes, links that land nowhere, and the notes carrying a
+ * tag — because they are the same shape: a note, something quiet about it, and a way in. Which
+ * one is showing comes from the host, so the panel decides nothing except what the filter hides.
  */
 
 const api = acquireWebviewApi<NotesToHostWire, unknown>();
@@ -19,21 +20,33 @@ const rowsRoot = requireElement("#note-rows", HTMLElement);
 const countText = requireElement("#note-count", HTMLElement);
 const errorNotice = requireElement("#notes-error", HTMLElement);
 
-const TITLES: Readonly<Record<NotesStateWire["mode"], string>> = {
-  orphans: "Orphan Notes",
-  broken: "Broken Links",
-};
-
-/** An empty list is good news for both of these, so it says so rather than showing nothing. */
-const EMPTY: Readonly<Record<NotesStateWire["mode"], string>> = {
-  orphans: "Every note is connected to another.",
-  broken: "Every wiki link lands somewhere.",
-};
-
-const ICONS: Readonly<Record<NotesStateWire["mode"], string>> = {
+const ICONS: Readonly<Record<NoteListingWire["kind"], string>> = {
   orphans: "circle-slash",
   broken: "warning",
+  tag: "tag",
 };
+
+function titleOf(listing: NoteListingWire): string {
+  switch (listing.kind) {
+    case "orphans": return "Orphan Notes";
+    case "broken": return "Broken Links";
+    case "tag": return `#${listing.tag}`;
+  }
+}
+
+/** An empty list is good news for two of these, so it says so rather than showing nothing. */
+function emptyText(listing: NoteListingWire): string {
+  switch (listing.kind) {
+    case "orphans": return "Every note is connected to another.";
+    case "broken": return "Every wiki link lands somewhere.";
+    case "tag": return `No note carries #${listing.tag}.`;
+  }
+}
+
+/** What one row is, for the count along the bottom. */
+function nounOf(listing: NoteListingWire): string {
+  return listing.kind === "broken" ? "broken link" : "note";
+}
 
 let state: NotesStateWire | undefined;
 
@@ -66,7 +79,7 @@ function render(): void {
     rowsRoot.replaceChildren(htmlElement("p", "notes-empty", "Building the index…"));
     return;
   }
-  title.textContent = TITLES[current.mode];
+  title.textContent = titleOf(current.listing);
 
   const query = search.value.trim().toLocaleLowerCase();
   const visible = query.length === 0
@@ -76,31 +89,50 @@ function render(): void {
 
   rowsRoot.replaceChildren(...(visible.length === 0
     ? [htmlElement("p", "notes-empty", query.length === 0
-      ? EMPTY[current.mode]
+      ? emptyText(current.listing)
       : "Nothing matches that filter.")]
-    : visible.map((row) => noteRow(row, current.mode))));
+    : visible.map((row) => noteRow(
+      row,
+      current.listing.kind,
+      current.listing.kind === "tag" ? current.listing.tag : undefined,
+    ))));
 
   const total = current.rows.length;
   summary.textContent = total === 0
-    ? EMPTY[current.mode]
-    : `${total} ${current.mode === "broken" ? "broken link" : "note"}${total === 1 ? "" : "s"}`;
+    ? emptyText(current.listing)
+    : `${total} ${nounOf(current.listing)}${total === 1 ? "" : "s"}`;
   countText.textContent = query.length === 0 || visible.length === total
     ? `${total} shown · indexed ${formatIndexedAt(current.indexedAt)}`
     : `${visible.length} of ${total} shown · indexed ${formatIndexedAt(current.indexedAt)}`;
 }
 
-function noteRow(row: NoteListRowWire, mode: NotesStateWire["mode"]): HTMLElement {
+function noteRow(
+  row: NoteListRowWire,
+  kind: NoteListingWire["kind"],
+  listingTag?: string,
+): HTMLElement {
   const button = htmlElement("button", "note-row");
   button.type = "button";
-  button.append(codicon(ICONS[mode]), htmlElement("span", "note-row-title", row.title));
+  const icon = codicon(ICONS[kind]);
+  if (listingTag !== undefined) {
+    // The whole list reads as the tag it is about, so its rows carry that tag's own hue.
+    icon.classList.add("is-tag");
+    icon.style.setProperty("--tag-hue", tagHueColor(listingTag));
+  }
+  button.append(icon, htmlElement("span", "note-row-title", row.title));
   if (row.detail !== undefined) {
     button.append(htmlElement("span", "note-row-detail", row.detail));
+  }
+  if (row.tags !== undefined && row.tags.length > 0) {
+    button.append(tagChips(row.tags));
   }
   button.append(htmlElement("span", "note-row-path", row.path));
   if (row.line !== undefined) {
     button.append(htmlElement("span", "note-row-line", `:${row.line}`));
   }
-  button.title = [row.title, row.path, row.detail].filter(Boolean).join("\n");
+  button.title = [row.title, row.path, row.detail, (row.tags ?? []).map((t) => `#${t}`).join(" ")]
+    .filter((part) => part !== undefined && part !== "")
+    .join("\n");
   button.addEventListener("click", () => api.postMessage({
     type: "notes/open",
     uri: row.uri,
@@ -109,9 +141,24 @@ function noteRow(row: NoteListRowWire, mode: NotesStateWire["mode"]): HTMLElemen
   return button;
 }
 
+/** A note's other tags, each in the hue it wears everywhere else in the extension. */
+function tagChips(tags: readonly string[]): HTMLElement {
+  const wrapper = htmlElement("span", "note-row-tags");
+  for (const tag of tags) {
+    const chip = htmlElement("span", "note-row-tag");
+    const dot = htmlElement("span", "note-row-tag-dot");
+    dot.style.setProperty("--tag-hue", tagHueColor(tag));
+    chip.append(dot, document.createTextNode(`#${tag}`));
+    wrapper.append(chip);
+  }
+  return wrapper;
+}
+
 function isNotesState(value: unknown): value is NotesStateWire {
   return isRecord(value) &&
-    (value.mode === "orphans" || value.mode === "broken") &&
+    isRecord(value.listing) &&
+    (value.listing.kind === "orphans" || value.listing.kind === "broken" ||
+      (value.listing.kind === "tag" && typeof value.listing.tag === "string")) &&
     typeof value.indexedAt === "number" &&
     Array.isArray(value.rows) &&
     value.rows.every((row: unknown) => isRecord(row) &&
