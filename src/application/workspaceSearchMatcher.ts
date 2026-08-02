@@ -3,6 +3,8 @@ export type SearchField = "title" | "path" | "alias" | "tag" | "body" | "task";
 export interface SearchCandidate {
   readonly field: SearchField;
   readonly value: string;
+  /** `value` lowercased with UTF-16 length preserved, so a match index maps back into `value`. */
+  readonly lower: string;
   readonly weight: number;
   readonly sourceStart: number;
   readonly sourceBacked: boolean;
@@ -15,14 +17,14 @@ export interface SearchMatch {
   readonly score: number;
 }
 
-interface SearchPattern {
+export interface SearchTerm {
   readonly raw: string;
-  readonly expression: RegExp;
+  readonly lower: string;
 }
 
 export interface SearchRequest {
-  readonly terms: readonly SearchPattern[];
-  readonly phrase: SearchPattern | undefined;
+  readonly terms: readonly SearchTerm[];
+  readonly phrase: SearchTerm | undefined;
 }
 
 export function createSearchRequest(query: string): SearchRequest {
@@ -30,13 +32,19 @@ export function createSearchRequest(query: string): SearchRequest {
   if (trimmed === "") {
     return { terms: [], phrase: undefined };
   }
-  const terms = trimmed.split(/\s+/u).map(createPattern);
+  const terms = trimmed.split(/\s+/u).map(createTerm);
   return {
     terms,
-    phrase: terms.length > 1 ? createPattern(trimmed) : undefined,
+    phrase: terms.length > 1 ? createTerm(trimmed) : undefined,
   };
 }
 
+/**
+ * Every term must match some candidate; the reported match is the highest-scoring one,
+ * with ties going to a phrase match over a term match, and otherwise to candidate order.
+ * This runs once per note per keystroke, so it tracks the best match as it scans instead
+ * of collecting and sorting every match — same selection, no per-note allocation.
+ */
 export function selectSearchMatch(
   candidates: readonly SearchCandidate[],
   request: SearchRequest,
@@ -48,58 +56,84 @@ export function selectSearchMatch(
       : { candidate, index: 0, length: 0, score: candidate.weight };
   }
 
-  const termMatchGroups = request.terms.map((term) => matchesForPattern(candidates, term, 1));
-  if (termMatchGroups.some((matches) => matches.length === 0)) {
-    return undefined;
+  let best = request.phrase === undefined
+    ? undefined
+    : bestTermMatch(candidates, request.phrase, request.terms.length, undefined);
+  for (const term of request.terms) {
+    const scanned = bestTermMatch(candidates, term, 1, best);
+    if (scanned === undefined) {
+      return undefined;
+    }
+    best = scanned;
   }
-
-  const phraseMatches = request.phrase === undefined
-    ? []
-    : matchesForPattern(candidates, request.phrase, request.terms.length);
-  return [...phraseMatches, ...termMatchGroups.flat()]
-    .sort((left, right) => right.score - left.score)[0];
+  return best;
 }
 
-export function valueOffset(content: string, value: string, fallback: number): number {
-  if (value === "") {
+export function lowerValueOffset(
+  haystackLower: string,
+  needleLower: string,
+  fallback: number,
+): number {
+  if (needleLower === "") {
     return fallback;
   }
-  return createPattern(value).expression.exec(content)?.index ?? fallback;
+  const index = haystackLower.indexOf(needleLower);
+  return index < 0 ? fallback : index;
 }
 
-function matchesForPattern(
+/**
+ * Lowercases without changing UTF-16 length, so an index into the result is also an index
+ * into the original. The handful of characters whose lowercase form grows (İ, some
+ * ligatures) are kept as written — they simply don't match case-insensitively, which is
+ * what the previous regex-based matcher did for characters outside simple case folding.
+ */
+export function lowercasePreservingLength(value: string): string {
+  const lower = value.toLowerCase();
+  if (lower.length === value.length) {
+    return lower;
+  }
+  let result = "";
+  for (const character of value) {
+    const lowered = character.toLowerCase();
+    result += lowered.length === character.length ? lowered : character;
+  }
+  return result;
+}
+
+function createTerm(raw: string): SearchTerm {
+  return { raw, lower: lowercasePreservingLength(raw) };
+}
+
+/*
+ * The same default-locale, accent-sensitive comparison `localeCompare(value, undefined,
+ * { sensitivity: "accent" })` makes — but a shared collator skips the per-call setup that
+ * dominates when every candidate of every note is checked on each keystroke.
+ */
+const exactComparer = new Intl.Collator(undefined, { sensitivity: "accent" });
+
+/**
+ * Scans every candidate for `term`. Returns `undefined` when the term matches nothing,
+ * otherwise the best of `best` and this term's matches — which may be `best` unchanged.
+ */
+function bestTermMatch(
   candidates: readonly SearchCandidate[],
-  pattern: SearchPattern,
+  term: SearchTerm,
   coverage: number,
-): readonly SearchMatch[] {
-  const matches: SearchMatch[] = [];
+  best: SearchMatch | undefined,
+): SearchMatch | undefined {
+  let found = false;
+  let result = best;
   for (const candidate of candidates) {
-    const index = findIndex(candidate.value, pattern);
+    const index = candidate.lower.indexOf(term.lower);
     if (index < 0) {
       continue;
     }
-    const exact = candidate.value.localeCompare(pattern.raw, undefined, { sensitivity: "accent" }) === 0;
-    matches.push({
-      candidate,
-      index,
-      length: pattern.raw.length,
-      score: candidate.weight + coverage * 20 + (exact ? 60 : index === 0 ? 30 : 0),
-    });
+    found = true;
+    const exact = exactComparer.compare(candidate.value, term.raw) === 0;
+    const score = candidate.weight + coverage * 20 + (exact ? 60 : index === 0 ? 30 : 0);
+    if (result === undefined || score > result.score) {
+      result = { candidate, index, length: term.raw.length, score };
+    }
   }
-  return matches;
-}
-
-function createPattern(raw: string): SearchPattern {
-  return {
-    raw,
-    expression: new RegExp(escapeRegExp(raw), "iu"),
-  };
-}
-
-function findIndex(value: string, pattern: SearchPattern): number {
-  return pattern.expression.exec(value)?.index ?? -1;
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return found ? result : undefined;
 }

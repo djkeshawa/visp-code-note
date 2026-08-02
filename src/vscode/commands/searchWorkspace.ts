@@ -4,6 +4,7 @@ import {
   type WorkspaceSearchField,
   type WorkspaceSearchResult,
 } from "../../application/workspaceSearch";
+import { warmWorkspaceSearchIndex } from "../../application/workspaceSearchIndex";
 import { revealOffset } from "../documentEdits";
 import type { CommandIndex } from "./contracts";
 
@@ -35,6 +36,12 @@ export async function searchWorkspace(
     picker.items = buildWorkspaceSearchResults(index.snapshot, picker.value).map(toQuickPickItem);
   };
   updateItems();
+  /*
+   * The narrowing index is built lazily on the first multi-character query, which in a large
+   * workspace would land that one-time cost on a keystroke. Building it here, queued behind
+   * the picker's initial render, spends the user's first moments of typing instead.
+   */
+  setTimeout(() => warmWorkspaceSearchIndex(index.snapshot.notes), 0);
 
   let selected: WorkspaceSearchResult | undefined;
   try {

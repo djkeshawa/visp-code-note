@@ -1,18 +1,24 @@
 import type { IndexSnapshot, NoteRecord } from "../domain/models";
 import {
   createSearchRequest,
+  lowercasePreservingLength,
+  lowerValueOffset,
   selectSearchMatch,
-  valueOffset,
 } from "./workspaceSearchMatcher";
 import type {
-  SearchCandidate as Candidate,
   SearchField as WorkspaceSearchField,
   SearchMatch as CandidateMatch,
-  SearchRequest,
 } from "./workspaceSearchMatcher";
+import {
+  narrowSearchableNotes,
+  noteSearchCandidates,
+  taskSearchCandidates,
+} from "./workspaceSearchIndex";
 import { sourceSearchSnippet, truncateSearchValue } from "./workspaceSearchPreview";
 
 export type { SearchField as WorkspaceSearchField } from "./workspaceSearchMatcher";
+
+type TaskRecord = IndexSnapshot["tasks"][number];
 
 export interface WorkspaceSearchResult {
   readonly kind: "note" | "task";
@@ -26,9 +32,14 @@ export interface WorkspaceSearchResult {
   readonly completed?: boolean;
 }
 
-interface RankedResult extends WorkspaceSearchResult {
-  readonly score: number;
-}
+/*
+ * Ranking needs only the score and the tie-break strings, so previews and offsets are
+ * built after the sort for just the returned slice — a broad query touches every note but
+ * renders at most `limit` snippets.
+ */
+type PendingResult =
+  | { readonly kind: "note"; readonly score: number; readonly note: NoteRecord; readonly match: CandidateMatch }
+  | { readonly kind: "task"; readonly score: number; readonly task: TaskRecord; readonly match: CandidateMatch };
 
 export function buildWorkspaceSearchResults(
   snapshot: Pick<IndexSnapshot, "notes" | "tasks">,
@@ -41,33 +52,50 @@ export function buildWorkspaceSearchResults(
   }
 
   const request = createSearchRequest(query);
-  const notesByUri = new Map(snapshot.notes.map((note) => [note.uri, note]));
-  const results: RankedResult[] = [];
+  const candidateUris = request.terms.length === 0
+    ? undefined
+    : narrowSearchableNotes(snapshot.notes, request.terms);
 
+  const pending: PendingResult[] = [];
   for (const note of snapshot.notes) {
-    const result = searchNote(note, request);
-    if (result !== undefined) {
-      results.push(result);
+    if (candidateUris !== undefined && !candidateUris.has(note.uri)) {
+      continue;
+    }
+    const match = selectSearchMatch(noteSearchCandidates(note), request);
+    if (match !== undefined) {
+      pending.push({
+        kind: "note",
+        note,
+        match,
+        score: request.terms.length === 0 ? 100 : match.score,
+      });
     }
   }
   for (const task of snapshot.tasks) {
-    const result = searchTask(task, notesByUri.get(task.noteUri), request);
-    if (result !== undefined) {
-      results.push(result);
+    const match = selectSearchMatch(taskSearchCandidates(task), request);
+    if (match !== undefined) {
+      pending.push({
+        kind: "task",
+        task,
+        match,
+        score: request.terms.length === 0 ? 90 : match.score,
+      });
     }
   }
 
-  results.sort(compareResults);
-  return results.slice(0, resultLimit).map(({ score: _score, ...result }) => result);
+  pending.sort(comparePending);
+
+  let notesByUri: Map<string, NoteRecord> | undefined;
+  return pending.slice(0, resultLimit).map((entry) => {
+    if (entry.kind === "note") {
+      return noteResult(entry.note, entry.match);
+    }
+    notesByUri ??= new Map(snapshot.notes.map((note) => [note.uri, note]));
+    return taskResult(entry.task, notesByUri.get(entry.task.noteUri), entry.match);
+  });
 }
 
-function searchNote(note: NoteRecord, request: SearchRequest): RankedResult | undefined {
-  const candidates = noteCandidates(note);
-  const match = selectSearchMatch(candidates, request);
-  if (match === undefined) {
-    return undefined;
-  }
-
+function noteResult(note: NoteRecord, match: CandidateMatch): WorkspaceSearchResult {
   const offset = match.candidate.sourceBacked
     ? match.candidate.sourceStart + match.index
     : noteStartOffset(note);
@@ -80,21 +108,14 @@ function searchNote(note: NoteRecord, request: SearchRequest): RankedResult | un
     preview: notePreview(note, match, offset),
     offset,
     matchedField: match.candidate.field,
-    score: request.terms.length === 0 ? 100 : match.score,
   };
 }
 
-function searchTask(
-  task: IndexSnapshot["tasks"][number],
+function taskResult(
+  task: TaskRecord,
   note: NoteRecord | undefined,
-  request: SearchRequest,
-): RankedResult | undefined {
-  const candidates = taskCandidates(task);
-  const match = selectSearchMatch(candidates, request);
-  if (match === undefined) {
-    return undefined;
-  }
-
+  match: CandidateMatch,
+): WorkspaceSearchResult {
   return {
     kind: "task",
     noteUri: task.noteUri,
@@ -105,62 +126,7 @@ function searchTask(
     offset: taskMatchOffset(task, note, match),
     matchedField: "task",
     completed: task.completed,
-    score: request.terms.length === 0 ? 90 : match.score,
   };
-}
-
-function noteCandidates(note: NoteRecord): readonly Candidate[] {
-  return [
-    metadataCandidate(note, "title", note.title, 1_000),
-    pathCandidate(note.path),
-    ...note.aliases.map((alias) => metadataCandidate(note, "alias", alias, 900)),
-    ...note.tags.flatMap((tag) => [
-      metadataCandidate(note, "tag", tag, 800),
-      metadataCandidate(note, "tag", `#${tag}`, 799),
-    ]),
-    sourceCandidate("body", note.content, 400, 0),
-  ];
-}
-
-function taskCandidates(task: IndexSnapshot["tasks"][number]): readonly Candidate[] {
-  return [
-    virtualCandidate("task", task.text, 780),
-    ...task.tags.map((tag) => virtualCandidate("task", `#${tag}`, 740)),
-    ...(task.due === undefined ? [] : [virtualCandidate("task", task.due, 720)]),
-    ...(task.priority === undefined ? [] : [virtualCandidate("task", task.priority, 700)]),
-    virtualCandidate("task", task.noteTitle, 650),
-    virtualCandidate("task", task.notePath, 620),
-    virtualCandidate("task", task.completed ? "completed done" : "open incomplete", 500),
-  ];
-}
-
-function sourceCandidate(
-  field: WorkspaceSearchField,
-  value: string,
-  weight: number,
-  sourceStart: number,
-): Candidate {
-  return { field, value, weight, sourceStart, sourceBacked: true };
-}
-
-function virtualCandidate(field: WorkspaceSearchField, value: string, weight: number): Candidate {
-  return { field, value, weight, sourceStart: 0, sourceBacked: false };
-}
-
-function pathCandidate(path: string): Candidate {
-  return virtualCandidate("path", path, 850);
-}
-
-function metadataCandidate(
-  note: NoteRecord,
-  field: WorkspaceSearchField,
-  value: string,
-  weight: number,
-): Candidate {
-  const offset = valueOffset(note.content, value, -1);
-  return offset < 0
-    ? virtualCandidate(field, value, weight)
-    : sourceCandidate(field, value, weight, offset);
 }
 
 function noteStartOffset(note: NoteRecord): number {
@@ -188,7 +154,7 @@ function withTagMarker(value: string): string {
   return value.startsWith("#") ? value : `#${value}`;
 }
 
-function taskPreview(task: IndexSnapshot["tasks"][number]): string {
+function taskPreview(task: TaskRecord): string {
   const metadata = [
     task.due === undefined ? undefined : `due ${task.due}`,
     task.priority,
@@ -198,7 +164,7 @@ function taskPreview(task: IndexSnapshot["tasks"][number]): string {
 }
 
 function taskMatchOffset(
-  task: IndexSnapshot["tasks"][number],
+  task: TaskRecord,
   note: NoteRecord | undefined,
   match: CandidateMatch,
 ): number {
@@ -206,16 +172,37 @@ function taskMatchOffset(
     return task.range.start;
   }
   const source = note.content.slice(task.range.start, task.range.end);
-  const matchText = match.candidate.value.slice(match.index, match.index + match.length);
-  const relativeOffset = matchText === "" ? 0 : valueOffset(source, matchText, 0);
+  const matchTextLower = match.candidate.lower.slice(match.index, match.index + match.length);
+  const relativeOffset = matchTextLower === ""
+    ? 0
+    : lowerValueOffset(lowercasePreservingLength(source), matchTextLower, 0);
   return task.range.start + relativeOffset;
 }
 
-function compareResults(left: RankedResult, right: RankedResult): number {
+/*
+ * `localeCompare` pays collator setup on every call, and a broad query produces thousands
+ * of equal-score ties that are ordered entirely by string comparison. A shared collator
+ * gives the same default-locale ordering at a fraction of the cost.
+ */
+const tieBreaker = new Intl.Collator();
+
+function comparePending(left: PendingResult, right: PendingResult): number {
   return (
     right.score - left.score ||
-    left.noteTitle.localeCompare(right.noteTitle) ||
-    left.displayText.localeCompare(right.displayText) ||
-    left.notePath.localeCompare(right.notePath)
+    tieBreaker.compare(pendingNoteTitle(left), pendingNoteTitle(right)) ||
+    tieBreaker.compare(pendingDisplayText(left), pendingDisplayText(right)) ||
+    tieBreaker.compare(pendingNotePath(left), pendingNotePath(right))
   );
+}
+
+function pendingNoteTitle(entry: PendingResult): string {
+  return entry.kind === "note" ? entry.note.title : entry.task.noteTitle;
+}
+
+function pendingDisplayText(entry: PendingResult): string {
+  return entry.kind === "note" ? entry.note.title : entry.task.text;
+}
+
+function pendingNotePath(entry: PendingResult): string {
+  return entry.kind === "note" ? entry.note.path : entry.task.notePath;
 }
