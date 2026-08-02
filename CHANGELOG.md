@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.9.1 - 2026-08-03
+
+### Fixed — filtering the sidebar no longer stutters
+
+**One paint per keystroke.** A settled query drew the list twice: once at the keystroke with
+title and path matches, and again milliseconds later when the host answered with the notes
+matching by content — rows appeared, then jumped as the set widened. The paint now waits the
+few milliseconds for that answer and draws the final list once; if the host is busy building
+its search index, title and path matches still appear within a quarter second rather than
+holding the list hostage. A paint whose rows come out identical to what is already on screen
+— the index republishing mid-typing, an answer that widens nothing — no longer rebuilds
+hundreds of identical elements, so the list holds still unless something about it changed.
+
 ## 0.9.0 - 2026-08-03
 
 ### Changed — the sidebar filter finds notes by what they say
