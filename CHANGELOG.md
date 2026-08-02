@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.8.0 - 2026-08-03
+
+### Changed — search answers from an index instead of rereading the vault
+
+**A search keystroke no longer rereads the vault.** Every character typed into workspace
+search walked every note and task, rebuilt each one's searchable fields from scratch, compiled
+the query into regular expressions and ran them over whole bodies — fine at two hundred notes,
+visibly behind the keystroke at a few thousand. The searchable text is now prepared once per
+note and kept until that file changes, and a trigram index narrows each query to the notes
+that could possibly contain its words before anything is checked exactly. The exact matcher
+still has the last word, so these are the same results in the same order; what changes is the
+cost of a keystroke in a large vault — from over a hundred milliseconds to under twenty in a
+five-thousand-note workspace, low single digits in typical ones.
+
+The index builds once, while the search picker is first painting rather than under a
+keystroke, and from there follows edits file by file: a save re-indexes the note saved, and
+only a change that would churn most of the index — switching workspaces — starts over.
+Snippets and jump offsets are built for the rows the list shows, not for every match ranked.
+
 ## 0.7.1 - 2026-08-02
 
 ### Changed — a tag opens its notes in the window
