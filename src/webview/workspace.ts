@@ -73,12 +73,26 @@ let filterTimer: number | undefined;
  * rides along so an answer that arrives after further typing is recognised as stale.
  */
 let contentMatches: { readonly query: string; readonly uris: ReadonlySet<string> } | undefined;
+/**
+ * How long a settled query waits for the host's content answer before painting without it.
+ * Painting immediately and again when the answer landed drew the list twice per keystroke —
+ * rows appeared, then jumped as content matches widened the set. The answer normally arrives
+ * well inside this window, so the list paints once; a host that is busy building its index
+ * still gets title and path matches on screen at the deadline.
+ */
+const CONTENT_ANSWER_GRACE_MS = 250;
+let answerTimer: number | undefined;
 filter.addEventListener("input", () => {
   if (filterTimer !== undefined) window.clearTimeout(filterTimer);
   filterTimer = window.setTimeout(() => {
     filterTimer = undefined;
     requestContentMatches();
-    render();
+    const query = filter.value.trim();
+    if (query.length === 0 || contentMatches?.query === query) {
+      render();
+    } else {
+      scheduleAnswerFallback();
+    }
   }, FILTER_DEBOUNCE_MS);
 });
 filter.addEventListener("keydown", (event) => {
@@ -87,10 +101,26 @@ filter.addEventListener("keydown", (event) => {
     filter.value = "";
     if (filterTimer !== undefined) window.clearTimeout(filterTimer);
     filterTimer = undefined;
+    clearAnswerFallback();
     contentMatches = undefined;
     render();
   }
 });
+
+function scheduleAnswerFallback(): void {
+  clearAnswerFallback();
+  answerTimer = window.setTimeout(() => {
+    answerTimer = undefined;
+    render();
+  }, CONTENT_ANSWER_GRACE_MS);
+}
+
+function clearAnswerFallback(): void {
+  if (answerTimer !== undefined) {
+    window.clearTimeout(answerTimer);
+    answerTimer = undefined;
+  }
+}
 
 function requestContentMatches(): void {
   const query = filter.value.trim();
@@ -124,6 +154,8 @@ function handleHostMessage(event: MessageEvent<unknown>): void {
   ) {
     if (message.query === filter.value.trim()) {
       contentMatches = { query: message.query, uris: new Set(message.uris) };
+      // The paint this answer belongs to is waiting on it; this render is that paint.
+      clearAnswerFallback();
       render();
     }
   } else if (
@@ -267,6 +299,13 @@ function taskRow(task: WorkspaceTaskRowWire, version: number): HTMLElement {
  * matching note is listed wherever it lives, because "where is that note" is the question the
  * field is being asked.
  */
+/**
+ * What the filtered list last drew. A filter paint can be asked for more than once with the
+ * same outcome — the index republishing mid-typing, a content answer that widens nothing —
+ * and rebuilding a few hundred identical rows makes the list shimmer. Identical rows stay.
+ */
+let filteredListSignature: string | undefined;
+
 function renderNotes(current: WorkspacePanelStateWire): void {
   noteCount.textContent = String(current.noteCount);
   const filtering = filter.value.trim().length > 0;
@@ -280,11 +319,21 @@ function renderNotes(current: WorkspacePanelStateWire): void {
     : "";
 
   if (filtering) {
+    const signature = visible
+      .map((note) => `${note.uri}|${note.title}|${note.path}|${note.links}`)
+      .join("\n");
+    if (signature === filteredListSignature) {
+      // The rows can stay, but which of them is the current note may still have moved.
+      markActiveNote();
+      return;
+    }
+    filteredListSignature = signature;
     notesRoot.replaceChildren(...(visible.length === 0
       ? [htmlElement("p", "workspace-empty", "No notes match.")]
       : capped(visible.map((note) => noteRow(note, true)), visible.length)));
     return;
   }
+  filteredListSignature = undefined;
 
   const rows: HTMLElement[] = [];
   for (const folder of current.folders) {
