@@ -1,4 +1,4 @@
-import { copyFile, mkdir, rm } from "node:fs/promises";
+import { copyFile, mkdir, readdir, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
@@ -10,7 +10,6 @@ const fontDirectory = join(projectRoot, "media", "fonts");
 
 await rm(outputDirectory, { force: true, recursive: true });
 await rm(codiconDirectory, { force: true, recursive: true });
-await rm(fontDirectory, { force: true, recursive: true });
 
 await build({
   absWorkingDir: projectRoot,
@@ -45,25 +44,16 @@ for (const asset of ["codicon.css", "codicon.ttf"]) {
 console.log(`  media/codicons/codicon.css, media/codicons/codicon.ttf`);
 
 /*
- * IBM Plex Sans is the face rendered prose is set in. It is bundled rather than named in a
- * font stack because a stack renders differently on every machine — whichever family happens
- * to be installed wins — and a note should look the same wherever it is opened.
+ * The prose typeface is checked in under `media/fonts/` rather than copied out of a package
+ * at build time, so nothing here needs to touch it.
  *
- * The `complete` cuts rather than the `split` Latin1 subsets: the subsets are a third of the
- * size but stop at basic Latin, so a Polish or Czech note would drop to a fallback face
- * partway through a word. These carry Latin, Greek and Cyrillic in about 66KB each.
+ * It used to come from `@ibm/plex-sans`, which drags in `@ibm/telemetry-js` and its
+ * `postinstall` — a script that runs and reports on every `npm install`. That is a poor
+ * trade for six static binaries that never change: a build-time dependency and an install
+ * hook, which is precisely the surface npm supply-chain worms are delivered through. Six
+ * files in the repository have no install step, no network, and no maintainer to be
+ * compromised. Still SIL OFL 1.1 — see THIRD_PARTY_NOTICES.md.
  */
-const fontSource = join(projectRoot, "node_modules", "@ibm", "plex-sans", "fonts", "complete", "woff2");
-await mkdir(fontDirectory, { recursive: true });
-const fontCuts = [
-  "IBMPlexSans-Regular.woff2",
-  "IBMPlexSans-Italic.woff2",
-  "IBMPlexSans-SemiBold.woff2",
-  "IBMPlexSans-SemiBoldItalic.woff2",
-  "IBMPlexSans-Bold.woff2",
-  "IBMPlexSans-BoldItalic.woff2",
-];
-for (const cut of fontCuts) {
-  await copyFile(join(fontSource, cut), join(fontDirectory, cut));
-}
-console.log(`  media/fonts/ — ${fontCuts.length} IBM Plex Sans cuts`);
+const fontCount = (await readdir(fontDirectory)).filter((name) => name.endsWith(".woff2")).length;
+if (fontCount === 0) throw new Error("media/fonts/ holds no woff2 files — the prose face is missing.");
+console.log(`  media/fonts/ — ${fontCount} checked-in IBM Plex Sans cuts`);
