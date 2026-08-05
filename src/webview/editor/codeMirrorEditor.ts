@@ -44,6 +44,8 @@ import {
 } from "./editorDocument.js";
 import { createEditorPatch } from "./editorPatch.js";
 import { hostSourceChange } from "./hostSourceChange.js";
+import { createSpellCheck, setSpellDictionary } from "./spellCheck.js";
+import { createSpellDictionary, parseDictionary } from "../../application/spellDictionary.js";
 import { createLivePreview, refreshLivePreview, revealLiveLine } from "./livePreview.js";
 import { isRecognizedWikiLink, markdownContext } from "./markdownContext.js";
 import { detectLineSeparator, rawOffsetToEditorOffset } from "./offsetMapping.js";
@@ -65,6 +67,8 @@ export interface CodeMirrorEditorDependencies {
   readonly openLink: (target: string, beside: boolean) => void;
   readonly openExternal: (url: string) => void;
   readonly noteTitle: () => string;
+  /** Words the reader has accepted, remembered by the host. */
+  readonly addDictionaryWord?: (word: string) => void;
 }
 
 /** The design gives a note, a heading and a block their own glyph in their own hue. */
@@ -99,6 +103,8 @@ export class CodeMirrorEditor {
   private mode: MarkdownEditorMode = "live";
   private readOnly = false;
   private revealTimer: number | undefined;
+  private dictionaryWords: readonly string[] = [];
+  private readonly personalWords = new Set<string>();
 
   public constructor(
     private readonly host: HTMLElement,
@@ -119,6 +125,54 @@ export class CodeMirrorEditor {
       parent: host,
       state: this.createState(source),
     });
+    void this.loadDictionary();
+  }
+
+  /**
+   * Fetches the bundled word list.
+   *
+   * The URL is put on the body by the page, because a webview URI is minted per session and
+   * cannot be constructed from inside the page. Deliberately not awaited by the constructor: the note is readable long
+   * before 672KB of dictionary has been read, and spelling simply appears when it lands.
+   */
+  private async loadDictionary(): Promise<void> {
+    try {
+      const url = document.body.dataset.dictionary;
+      if (url === undefined || url.length === 0) return;
+      const response = await fetch(url);
+      if (!response.ok) return;
+      this.dictionaryWords = parseDictionary(await response.text());
+      this.publishDictionary();
+    } catch {
+      // A missing dictionary means no spelling, which is not worth interrupting the reader for.
+    }
+  }
+
+  private publishDictionary(): void {
+    if (this.dictionaryWords.length === 0) return;
+    this.view.dispatch({
+      effects: setSpellDictionary.of(
+        createSpellDictionary(this.dictionaryWords, this.personalWords),
+      ),
+    });
+  }
+
+  /** Remembers a word the reader accepted, and tells the host so it outlives this panel. */
+  public acceptWord(word: string): void {
+    const normalized = word.trim().toLowerCase();
+    if (normalized.length === 0 || this.personalWords.has(normalized)) return;
+    this.personalWords.add(normalized);
+    this.publishDictionary();
+    this.dependencies.addDictionaryWord?.(normalized);
+  }
+
+  /** Words the host remembered from earlier sessions. */
+  public setPersonalWords(words: Iterable<string>): void {
+    for (const word of words) {
+      const normalized = word.trim().toLowerCase();
+      if (normalized.length > 0) this.personalWords.add(normalized);
+    }
+    this.publishDictionary();
   }
 
   public get source(): string {
@@ -291,6 +345,7 @@ export class CodeMirrorEditor {
       markdown({ base: markdownLanguage, completeHTMLTags: false, codeLanguages: [...codeLanguages] }),
       outlineFolding,
       markdownContext,
+      createSpellCheck({ addWord: (word) => this.acceptWord(word) }),
       history(),
       closeBrackets(),
       bracketMatching(),

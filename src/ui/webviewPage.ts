@@ -12,6 +12,13 @@ export interface WebviewPageDefinition {
   readonly styles: readonly string[];
   readonly script: string;
   readonly body: string;
+  /**
+   * Extra files under `media/` the page's script needs the URL of, as `name -> path`. Each
+   * becomes a `data-` attribute on the body carrying the resolved webview URI, which is the
+   * only way a script can learn where its own assets live: a webview URI is generated per
+   * session and cannot be constructed inside the page.
+   */
+  readonly assets?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -35,9 +42,18 @@ export function createWebviewPage(
     "default-src 'none'",
     `img-src ${options.webview.cspSource} data:`,
     `font-src ${options.webview.cspSource}`,
+    /*
+     * Only the extension's own resource origin, which is where the bundled spelling
+     * dictionary lives. It reaches nothing on the network.
+     */
+    `connect-src ${options.webview.cspSource}`,
     `style-src ${options.webview.cspSource} 'nonce-${nonce}'`,
     `script-src ${options.webview.cspSource} 'nonce-${nonce}'`,
   ].join("; ");
+
+  const assetAttributes = Object.entries(definition.assets ?? {})
+    .map(([name, file]) => ` data-${name}="${escapeAttribute(assetUri(options, file))}"`)
+    .join("");
 
   return `<!doctype html>
 <html lang="en">
@@ -48,7 +64,7 @@ export function createWebviewPage(
     <title>${escapeText(definition.title)}</title>
     ${styleLinks}
   </head>
-  <body data-csp-nonce="${escapeAttribute(nonce)}">
+  <body data-csp-nonce="${escapeAttribute(nonce)}"${assetAttributes}>
     ${definition.body}
     <script nonce="${nonce}" type="module" src="${escapeAttribute(scriptUri)}"></script>
   </body>

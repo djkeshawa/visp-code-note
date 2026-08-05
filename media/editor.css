@@ -1552,3 +1552,61 @@ body.vscode-high-contrast-light .live-wiki-link.is-unresolved {
     transition: none;
   }
 }
+
+/*
+ * A misspelling, marked the way every other application marks one. Drawn with a wavy
+ * underline rather than a colour change, because the word itself is still the reader's text
+ * and recolouring it would compete with the link and tag hues that mean something.
+ */
+.editor-host .live-misspelling {
+  text-decoration: underline wavy var(--visp-danger);
+  text-decoration-skip-ink: none;
+  text-underline-offset: 3px;
+}
+
+/* The correction menu, shaped like the completion popup so the editor has one vocabulary. */
+.editor-host .live-spell-menu {
+  display: flex;
+  min-width: 160px;
+  max-width: 280px;
+  flex-direction: column;
+  padding: 4px;
+  border: 1px solid var(--visp-border);
+  border-radius: var(--visp-radius);
+  background: var(--visp-surface);
+  box-shadow: var(--visp-shadow);
+  font-family: var(--visp-font);
+  font-size: 12px;
+}
+
+.editor-host .live-spell-option,
+.editor-host .live-spell-add {
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--visp-text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.editor-host .live-spell-option:hover,
+.editor-host .live-spell-add:hover {
+  background: var(--visp-surface-hover);
+}
+
+/* Adding a word is a different kind of act from choosing one, so it reads as one. */
+.editor-host .live-spell-add {
+  margin-top: 4px;
+  border-top: 1px solid var(--visp-hairline);
+  border-radius: 0 0 4px 4px;
+  color: var(--visp-muted-strong);
+  font-size: 11px;
+}
+
+.editor-host .live-spell-empty {
+  margin: 0;
+  padding: 5px 8px;
+  color: var(--visp-muted);
+  font-size: 11px;
+}

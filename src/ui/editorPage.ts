@@ -17,5 +17,7 @@ export function createEditorHtml(options: WebviewTemplateOptions): string {
     styles: ["base.css", "fonts.css", "editor.css", "editor-drafts.css"],
     script: "scripts/editor.js",
     body: EDITOR_BODY,
+    // The spell checker fetches this after the editor has painted.
+    assets: { dictionary: "dictionaries/en.txt" },
   });
 }
