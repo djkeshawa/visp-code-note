@@ -121,3 +121,28 @@ DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
 OTHER DEALINGS IN THE FONT SOFTWARE.
 ```
+
+## SCOWL (Spell Checker Oriented Word Lists)
+
+The bundled spelling dictionary (`media/dictionaries/en.txt`) is derived from SCOWL, by way of
+the Debian `wamerican` and `wbritish` word lists. It merges the American and British lists,
+lowercases and de-duplicates them, drops possessives and hyphenated forms (both of which the
+checker derives or tokenises instead), and adds a short supplement of computing vocabulary.
+
+The collective work is Copyright 2000-2011 by Kevin Atkinson.
+
+```
+Copyright 2000-2011 by Kevin Atkinson
+
+Permission to use, copy, modify, distribute and sell these word
+lists, the associated scripts, the output created from the scripts,
+and its documentation for any purpose is hereby granted without fee,
+provided that the above copyright notice appears in all copies and
+that both that copyright notice and this permission notice appear in
+supporting documentation. Kevin Atkinson makes no representations
+about the suitability of this array for any purpose. It is provided
+"as is" without express or implied warranty.
+```
+
+Alan Beale also deserves special credit for the 12Dicts package, his contributions to the
+ENABLE word list, and the Supplement lists.
