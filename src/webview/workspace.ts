@@ -238,7 +238,13 @@ function viewRow(
     row.append(twisty);
   }
   const icon = codicon(view.icon);
-  icon.classList.add("row-icon", `is-${view.tone}`);
+  /*
+   * The hue is the view's own, carried by its id, and the tone is its state. They are separate
+   * on purpose: an icon that changed colour whenever something needed attention would leave
+   * the row unrecognisable at rest, and one that never changed would lose the signal. The icon
+   * says which view this is; the count beside it says whether it wants anything.
+   */
+  icon.classList.add("row-icon", `is-${view.id}`);
   row.append(icon, htmlElement("span", "workspace-row-label", view.label));
   if (view.count !== undefined) {
     row.append(

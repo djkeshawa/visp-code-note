@@ -115,16 +115,51 @@
   font-size: 15px;
 }
 
-.workspace-row .row-icon.is-brand {
-  color: var(--visp-brand);
+/*
+ * Each view keeps its own hue, so a row is recognised by its colour before its label is read —
+ * which is what a list of five icons in a narrow column is for. Drawn from the palette's
+ * existing hues rather than new ones, and assigned by what the view is about: structure for
+ * the graph, work for tasks, time for what is due, an error colour for links that land
+ * nowhere, and the reference hue for notes nothing refers to.
+ *
+ * The hue is fixed. State lives on the count beside it — see `.workspace-row-count` — because
+ * an icon that changed colour whenever something needed attention would be unrecognisable at
+ * rest, and the panel would read as a row of warnings rather than a list of places to go.
+ */
+.workspace-row .row-icon.is-tasks {
+  color: var(--visp-hue-declare);
 }
 
-.workspace-row .row-icon.is-warning {
-  color: var(--visp-warning);
+.workspace-row .row-icon.is-due {
+  color: var(--visp-hue-literal);
 }
 
+.workspace-row .row-icon.is-graph {
+  color: var(--visp-hue-structure);
+}
+
+.workspace-row .row-icon.is-broken {
+  color: var(--visp-danger);
+}
+
+.workspace-row .row-icon.is-orphans {
+  color: var(--visp-hue-reference);
+}
+
+/*
+ * The fallback for anything without a hue of its own, and for the note and folder rows that
+ * share this class.
+ */
 .workspace-row .row-icon.is-default {
   color: var(--visp-muted);
+}
+
+.workspace-row .row-icon.is-tasks,
+.workspace-row .row-icon.is-due,
+.workspace-row .row-icon.is-graph,
+.workspace-row .row-icon.is-broken,
+.workspace-row .row-icon.is-orphans {
+  opacity: 0.92;
 }
 
 /*
