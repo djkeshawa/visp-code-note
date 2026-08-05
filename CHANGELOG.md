@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.10.2 - 2026-08-05
+
+### Added — a ceiling on how large a note may be before it is indexed
+
+**`vispNotes.maxNoteSizeKB` skips notes above five megabytes**, which is roughly a million
+words. The index keeps every note's full text in memory and the search index keeps a second
+structure beside it, so a workspace cost a multiple of its own Markdown with nothing bounding
+it — a repository carrying a few hundred megabytes of `.md` could exhaust the extension host
+before anything was opened. A skipped note is skipped completely: no note list entry, no
+graph node, no search result, no backlinks. Set it to `0` if you would rather spend the
+memory. Like the other settings that govern what gets read, a workspace cannot raise its own
+ceiling.
+
 ## 0.10.1 - 2026-08-05
 
 ### Fixed — a note cannot hang the window any more

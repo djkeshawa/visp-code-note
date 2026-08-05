@@ -4,6 +4,7 @@ import type { NoteRecord } from "../domain/models";
 import { noteStem } from "../domain/normalization";
 import { parseMarkdown } from "../markdown/parser";
 import { matchesAnyGlob } from "./glob";
+import { isWithinNoteSizeLimit, noteSizeLimitBytes } from "../application/noteSizeLimit";
 
 const DEFAULT_EXCLUDES = [
   "**/node_modules/**",
@@ -44,15 +45,32 @@ export function isIndexableMarkdown(uri: vscode.Uri): boolean {
   return !matchesAnyGlob(relativePath, readExcludes(folder.uri));
 }
 
-export async function readNoteRecord(uri: vscode.Uri): Promise<NoteRecord> {
+/**
+ * Reads a note, or returns `undefined` when it is too large to index — see `noteSizeLimit`.
+ * The caller already treats an absent record as a note that is not in the index, which is
+ * exactly what an oversized note should be.
+ */
+export async function readNoteRecord(uri: vscode.Uri): Promise<NoteRecord | undefined> {
   const openDocument = vscode.workspace.textDocuments.find(
     (document) => document.uri.toString() === uri.toString(),
   );
-  const [bytes, stat] = await Promise.all([
-    openDocument ? undefined : vscode.workspace.fs.readFile(uri),
-    vscode.workspace.fs.stat(uri),
-  ]);
+  /*
+   * Stat first rather than alongside the read. Reading the file and then deciding it is too
+   * big would have already spent the memory the limit exists to protect.
+   */
+  const stat = await vscode.workspace.fs.stat(uri);
+  const limit = noteSizeLimitBytes(
+    vscode.workspace.getConfiguration("vispNotes", uri).get<number>("maxNoteSizeKB"),
+  );
+  if (!isWithinNoteSizeLimit(stat.size, limit)) return undefined;
+
+  const bytes = openDocument ? undefined : await vscode.workspace.fs.readFile(uri);
   const content = openDocument?.getText() ?? new TextDecoder().decode(bytes);
+  /*
+   * An open document is measured again from its text: it may hold unsaved edits far larger
+   * than the file on disk, and it is that text the index would keep.
+   */
+  if (openDocument && !isWithinNoteSizeLimit(content.length, limit)) return undefined;
   const parsed = parseMarkdown(content);
   const fileName = posix.basename(uri.path);
   const includeRoot = (vscode.workspace.workspaceFolders?.length ?? 0) > 1;

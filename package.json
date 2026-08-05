@@ -3,7 +3,7 @@
   "displayName": "Visp Notes",
   "icon": "media/icon.png",
   "description": "A Markdown-first connected notes, tasks, backlinks, and graph workspace for VS Code.",
-  "version": "0.10.1",
+  "version": "0.10.2",
   "publisher": "visp-code-note",
   "license": "MIT",
   "repository": {
@@ -32,7 +32,8 @@
       "supported": true,
       "restrictedConfigurations": [
         "vispNotes.exclude",
-        "vispNotes.notesFolder"
+        "vispNotes.notesFolder",
+        "vispNotes.maxNoteSizeKB"
       ]
     },
     "virtualWorkspaces": {
@@ -454,6 +455,13 @@
           "type": "boolean",
           "default": true,
           "description": "Show the inspector beside a note — its outline, what links to it, its tasks, and what it links out to. Also toggled from the note's header."
+        },
+        "vispNotes.maxNoteSizeKB": {
+          "type": "number",
+          "minimum": 0,
+          "default": 5120,
+          "scope": "window",
+          "markdownDescription": "Largest note, in kilobytes, that Visp Notes will index. A note above this is skipped entirely — it will not appear in the note list, the graph, search results or backlinks. The index keeps every note's full text in memory, so this bounds what a very large workspace can cost. Set to `0` for no limit."
         }
       }
     }
