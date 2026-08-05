@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { DraftRecoveryStore } from "./application/draftRecoveryStore";
 import { ReminderStore } from "./application/reminderStore";
+import { PersonalDictionaryStore } from "./application/personalDictionaryStore";
 import { upcomingReminders } from "./application/reminderSchedule";
 import { WorkspaceIndex } from "./indexing/workspaceIndex";
 import { WikiLinkDiagnostics } from "./vscode/diagnostics";
@@ -21,6 +22,7 @@ import { TextDiffPreviewProvider } from "./vscode/providers/textDiffPreviewProvi
 const MARKDOWN_FILE_SELECTOR: vscode.DocumentSelector = { scheme: "file", language: "markdown" };
 let draftRecoveryStore: DraftRecoveryStore | undefined;
 let reminderStore: ReminderStore | undefined;
+let personalDictionary: PersonalDictionaryStore | undefined;
 let activeNoteEditor: NoteEditorProvider | undefined;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
@@ -91,6 +93,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     (title, before, after) => diffPreview.show(title, before, after),
     draftRecoveries,
     output,
+    /*
+     * Global rather than workspace state: a word you have vouched for is a fact about your own
+     * vocabulary, not about a repository, and re-accepting your own surname in every workspace
+     * would be tedious enough that nobody would use the feature.
+     */
+    personalDictionary = new PersonalDictionaryStore(
+      context.globalState,
+      (error) => output.error(`Personal dictionary persistence failed: ${String(error)}`),
+    ),
   );
   activeNoteEditor = noteEditor;
   const diagnostics = new WikiLinkDiagnostics(index);
@@ -197,7 +208,12 @@ export async function deactivate(): Promise<void> {
   activeNoteEditor = undefined;
   // Both stores, for the same reason: a write still in flight when the window goes would
   // otherwise show a reminder again that has already been answered.
-  await Promise.all([draftRecoveryStore?.flush(), reminderStore?.flush()]);
+  await Promise.all([
+    draftRecoveryStore?.flush(),
+    reminderStore?.flush(),
+    personalDictionary?.flush(),
+  ]);
   draftRecoveryStore = undefined;
   reminderStore = undefined;
+  personalDictionary = undefined;
 }

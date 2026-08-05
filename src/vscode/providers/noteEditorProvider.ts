@@ -20,6 +20,7 @@ import { createMissingNote } from "../commands/createMissingNote";
 import { openNote } from "../commands/openNote";
 import { COMMAND_IDS, NOTE_EDITOR_VIEW_TYPE } from "../ids";
 import { isEditorMessage } from "./messageValidation";
+import { PersonalDictionaryStore } from "../../application/personalDictionaryStore";
 import { pickTag } from "./tagPicker";
 import { buildNoteSuggestions } from "./noteEditorSupport";
 import { NoteEditorEdits } from "./noteEditorEdits";
@@ -45,6 +46,7 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
     private readonly showDiffPreview: DiffPreview,
     recoveryStore = new DraftRecoveryStore(),
     private readonly output?: vscode.LogOutputChannel,
+    private readonly personalDictionary = new PersonalDictionaryStore(),
   ) {
     this.edits = new NoteEditorEdits(recoveryStore);
     this.panels = new NoteEditorPanelRegistry(
@@ -253,6 +255,15 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
            */
           await updateSetting(SHOW_INSPECTOR_SETTING, message.showInspector);
           break;
+        case "editor/addDictionaryWord":
+          /*
+           * Stored and nothing more. The editor has already accepted the word and cleared the
+           * mark itself, so this is only about the next session — and republishing the state
+           * would resend the note's whole source, which would move the caret out from under
+           * someone in the middle of a sentence.
+           */
+          this.personalDictionary.add(message.word);
+          break;
         case "editor/requestLink":
           await this.promptForLink(document, panel);
           break;
@@ -413,6 +424,7 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
         noteSuggestions: buildNoteSuggestions(this.index.snapshot.notes, document.uri.toString()),
         contentWidth: contentWidthSetting(),
         showInspector: showInspectorSetting(),
+        personalDictionary: this.personalDictionary.words,
         brokenLinkCount: getBrokenLinks(this.index.snapshot).length,
         ...(proseFontSetting() === undefined ? {} : { proseFont: proseFontSetting() }),
         ...(recoveredDraft === undefined ? {} : { recoveredDraft }),

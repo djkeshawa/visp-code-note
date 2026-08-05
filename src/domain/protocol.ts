@@ -28,6 +28,8 @@ export interface EditorState extends EditorDocumentState {
   readonly brokenLinkCount: number;
   /** Whether the inspector column beside the note is showing. */
   readonly showInspector: boolean;
+  /** Words the reader has accepted, so the checker knows them on open. */
+  readonly personalDictionary: readonly string[];
 }
 
 /**
@@ -113,6 +115,7 @@ export type EditorToHostMessage =
   | { readonly type: "editor/compareDraft"; readonly source: string }
   | { readonly type: "editor/setContentWidth"; readonly contentWidth: EditorContentWidth }
   | { readonly type: "editor/setInspectorVisible"; readonly showInspector: boolean }
+  | { readonly type: "editor/addDictionaryWord"; readonly word: string }
   | { readonly type: "editor/ready" };
 
 export type HostToTasksMessage =

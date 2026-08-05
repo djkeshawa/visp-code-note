@@ -50,6 +50,8 @@ export interface EditorStateWire extends EditorDocumentStateWire {
   readonly recoveredDraft?: RecoveredDraftWire;
   readonly brokenLinkCount: number;
   readonly showInspector: boolean;
+  /** Words the reader has accepted, so the checker knows them on open. */
+  readonly personalDictionary: readonly string[];
 }
 
 export type EditorMenuCommandWire =
@@ -125,6 +127,7 @@ export type EditorToHostWire =
   | { readonly type: "editor/requestTag" }
   | { readonly type: "editor/setContentWidth"; readonly contentWidth: EditorContentWidthWire }
   | { readonly type: "editor/setInspectorVisible"; readonly showInspector: boolean }
+  | { readonly type: "editor/addDictionaryWord"; readonly word: string }
   | { readonly type: "editor/ready" };
 
 interface NoteTaskWire {

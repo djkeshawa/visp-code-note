@@ -166,6 +166,12 @@ function acceptEditorState(nextState: EditorStateWire): void {
   inspectorPreference = nextState.showInspector;
   applyInspectorVisibility();
   acceptEditorDocumentState(nextState);
+  /*
+   * After the document, because that is what creates the editor on the first state message —
+   * and the first message is exactly when these matter, since a word accepted in an earlier
+   * session should be known before anything is typed.
+   */
+  editor?.setPersonalWords(nextState.personalDictionary);
   if (nextState.recoveredDraft !== undefined) {
     runTransition(sync.recoverDraft(
       nextState.recoveredDraft.source,
@@ -249,6 +255,7 @@ function mountOrReplaceEditor(source: string): void {
       ...(beside ? { beside: true } : {}),
     }),
     openExternal: (url) => api.postMessage({ type: "editor/openExternal", url }),
+    addDictionaryWord: (word) => api.postMessage({ type: "editor/addDictionaryWord", word }),
   });
   updateMenuAvailability();
   renderInspector();

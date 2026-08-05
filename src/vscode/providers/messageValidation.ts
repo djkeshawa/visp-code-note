@@ -43,6 +43,13 @@ export function isEditorMessage(value: unknown): value is EditorToHostMessage {
       return EDITOR_CONTENT_WIDTHS.some((width) => width === value.contentWidth);
     case "editor/setInspectorVisible":
       return typeof value.showInspector === "boolean";
+    /*
+     * The word is bounded here as well as in the store: a webview is not trusted, and a
+     * message is the one place a length can arrive from outside.
+     */
+    case "editor/addDictionaryWord":
+      return typeof value.word === "string" &&
+        value.word.length > 0 && value.word.length <= 64;
     case "editor/stashDraft":
       return isSource(value.source) && typeof value.saveRequested === "boolean";
     case "editor/openExternal":
