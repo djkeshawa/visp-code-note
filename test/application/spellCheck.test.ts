@@ -91,3 +91,38 @@ test("the commonest word wins when several are equally close", () => {
   const andLike = createSpellDictionary(["and", "ad", "an", "end", "ana"]);
   assert.equal(spellSuggestions("adn", andLike)[0], "and");
 });
+
+/*
+ * The bundled list carries no apostrophes at all, so without a rule for them every
+ * contraction in ordinary prose is a misspelling. Thirteen of sixteen in a normal sentence
+ * were flagged before this — enough noise that a reader would switch the feature off rather
+ * than use it.
+ */
+test("contractions are not misspellings", () => {
+  const english = createSpellDictionary([
+    "they", "we", "do", "is", "can", "you", "that", "should", "the", "note", "he", "it",
+  ]);
+  const flagged = (source: string): string[] =>
+    misspelledWords(source, english).map((found) => found.word);
+
+  assert.deepEqual(
+    flagged("they're we'll can't don't isn't you'd that'll shouldn't the note's"),
+    [],
+  );
+  // Both apostrophes people actually type.
+  assert.deepEqual(flagged("they’re don’t"), []);
+});
+
+test("contractions whose stem is not a word are known outright", () => {
+  const english = createSpellDictionary(["will", "shall"]);
+  assert.deepEqual(misspelledWords("won't shan't o'clock", english).map((f) => f.word), []);
+});
+
+test("the contraction rule does not wave through a real misspelling", () => {
+  const english = createSpellDictionary(["they", "receive"]);
+  assert.deepEqual(
+    misspelledWords("thay're recieve'll receive'll", english).map((found) => found.word),
+    ["thay're", "recieve'll"],
+    "an unknown stem is still flagged; only a known one is waved through",
+  );
+});
