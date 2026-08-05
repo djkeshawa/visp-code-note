@@ -134,7 +134,10 @@ export interface TaskReminder {
 
 export interface TasksState {
   readonly tasks: IndexSnapshot["tasks"];
+  /** The soonest few, capped — see `ACTIVE_REMINDER_LIMIT`. */
   readonly reminders: readonly TaskReminder[];
+  /** How many are actually armed, which is what the panel counts. */
+  readonly reminderCount: number;
   readonly version: number;
   readonly indexedAt: number;
   readonly filter: "all" | "today";

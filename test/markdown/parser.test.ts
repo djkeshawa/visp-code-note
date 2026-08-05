@@ -21,7 +21,13 @@ test("parses simple YAML frontmatter and gives its title precedence", () => {
 
   assert.equal(note.title, "Project Atlas");
   assert.deepEqual(note.aliases, ["Atlas", "World, Map"]);
-  assert.deepEqual(note.frontmatter, {
+  /*
+   * Spread before comparing: frontmatter is built on a bare object so a `__proto__:` line in a
+   * note cannot reach a prototype, and a null-prototype object is never deep-equal to a literal.
+   * The spread compares the same keys and values without asserting the prototype.
+   */
+  assert.equal(Object.getPrototypeOf(note.frontmatter), null, "frontmatter has no prototype");
+  assert.deepEqual({ ...note.frontmatter }, {
     title: "Project Atlas",
     aliases: ["Atlas", "World, Map"],
     tags: ["planning", "Deep Work"],

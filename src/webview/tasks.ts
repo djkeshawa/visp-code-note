@@ -116,7 +116,7 @@ function render(): void {
     direction,
   });
   if (snapshot.reminders.length > 0) {
-    groupsRoot.append(reminderSection(snapshot.reminders));
+    groupsRoot.append(reminderSection(snapshot.reminders, snapshot.reminderCount));
   }
   // Tag grouping lists a multi-tag task under each of its tags, so count identities.
   const visibleCount = new Set(
@@ -156,14 +156,27 @@ function render(): void {
  * The reminders the host has armed, pinned above the task groups. They are host state rather
  * than a view of the filtered list, so the search box and status segments leave them alone.
  */
-function reminderSection(reminders: readonly TaskReminderWire[]): HTMLElement {
+function reminderSection(
+  reminders: readonly TaskReminderWire[],
+  total: number,
+): HTMLElement {
   const section = htmlElement("section", "task-group task-reminders");
   const heading = htmlElement("h2", "task-group-title", "Active reminders");
   heading.append(
-    htmlElement("span", "task-group-count", String(reminders.length)),
+    // The true number armed, which is not the number of rows when the host has capped them.
+    htmlElement("span", "task-group-count", String(total)),
     htmlElement("span", "task-group-rule"),
   );
   section.append(heading, ...reminders.map(createReminderRow));
+  if (total > reminders.length) {
+    section.append(
+      htmlElement(
+        "p",
+        "reminder-overflow",
+        `Showing the ${reminders.length} soonest of ${total}.`,
+      ),
+    );
+  }
   return section;
 }
 
@@ -351,6 +364,8 @@ function isTasksSnapshot(value: unknown): value is TasksSnapshotWire {
     value.tasks.every(isTask) &&
     Array.isArray(value.reminders) &&
     value.reminders.every(isReminder) &&
+    isOffset(value.reminderCount) &&
+    value.reminderCount >= value.reminders.length &&
     isOffset(value.version) &&
     isOffset(value.indexedAt) &&
     (value.filter === "all" || value.filter === "today")

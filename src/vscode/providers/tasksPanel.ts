@@ -4,6 +4,9 @@ import type { IndexSnapshot } from "../../domain/models";
 import { createTasksHtml } from "../../ui";
 import { isTasksMessage } from "./messageValidation";
 
+/** The panel lists the soonest reminders; nobody reads a thousand of them. */
+const ACTIVE_REMINDER_LIMIT = 50;
+
 export class TasksPanel implements vscode.Disposable {
   private panel: vscode.WebviewPanel | undefined;
   private panelSubscriptions: vscode.Disposable[] = [];
@@ -100,11 +103,20 @@ export class TasksPanel implements vscode.Disposable {
   }
 
   private async publish(): Promise<void> {
-    await this.panel?.webview.postMessage({
+    if (this.panel === undefined) return;
+    const reminders = this.getReminders();
+    await this.panel.webview.postMessage({
       type: "tasks/state",
       snapshot: {
         tasks: this.getSnapshot().tasks,
-        reminders: this.getReminders(),
+        /*
+         * Capped before it crosses to the webview. Every incomplete task carrying a due date
+         * is an armed reminder, and a workspace decides how many of those there are — 100,000
+         * of them serialised to 25MB per publish, and a publish follows every index change.
+         * The panel lists the soonest few; the count beside the heading stays honest.
+         */
+        reminders: reminders.slice(0, ACTIVE_REMINDER_LIMIT),
+        reminderCount: reminders.length,
         version: this.getSnapshot().version,
         indexedAt: this.getSnapshot().indexedAt,
         filter: this.filter,

@@ -52,6 +52,15 @@ const RESERVED_DEVICE_NAMES = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
 export function titleToFileName(title: string): string {
   const safeName = title
     .normalize("NFKC")
+    /*
+     * Control characters, NUL first among them. A title comes from a note's own text or from
+     * a wiki link, so a cloned repository picks it. Node refuses a path containing NUL rather
+     * than truncating at it the way C does, so this was never a way out of the workspace —
+     * but it turned a link into an unexplained failure deep in the file system layer instead
+     * of a file with a slightly tidied name.
+     */
+    // eslint-disable-next-line no-control-regex -- matching control characters is the point
+    .replace(/[\u0000-\u001f\u007f]/g, "")
     .replace(/[\\/:*?"<>|]/g, "-")
     .replace(/\s+/g, " ")
     .trim()

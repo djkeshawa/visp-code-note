@@ -162,7 +162,9 @@ export interface TaskReminderWire {
 
 export interface TasksSnapshotWire {
   readonly tasks: readonly TaskWire[];
+  /** The soonest few, capped by the host; `reminderCount` is the true total. */
   readonly reminders: readonly TaskReminderWire[];
+  readonly reminderCount: number;
   readonly version: number;
   readonly indexedAt: number;
   readonly filter: "all" | "today";

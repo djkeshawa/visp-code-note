@@ -31,7 +31,15 @@ export function parseFrontmatter(lines: readonly SourceLine[]): FrontmatterResul
     return { lineCount: 0 };
   }
 
-  const values: Record<string, FrontmatterValue> = {};
+  /*
+   * No prototype, so a key cannot reach one. `__proto__: ` in a note's frontmatter passes the
+   * key pattern like any other, and against an ordinary object literal that assignment
+   * replaces what the parsed object inherits from rather than adding a property to it. Nothing
+   * reads frontmatter by an attacker-chosen key today, so it was not exploitable — but the
+   * safety of that rests on every future reader also not doing so, which is not a thing to
+   * rely on. A bare object makes `__proto__` an ordinary key that means nothing.
+   */
+  const values = Object.create(null) as Record<string, FrontmatterValue>;
   let listKey: string | undefined;
   for (let index = 1; index < closingIndex; index += 1) {
     const text = lines[index]?.text ?? "";

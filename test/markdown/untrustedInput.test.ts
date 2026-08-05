@@ -2,6 +2,7 @@ import assert = require("node:assert/strict");
 import { test } from "node:test";
 import { parseMarkdown } from "../../src/markdown/parser";
 import { tableBlocks } from "../../src/markdown/tables";
+import { titleToFileName } from "../../src/domain/normalization";
 
 /**
  * A note is workspace content, and this extension declares that it supports untrusted
@@ -90,4 +91,30 @@ test("real delimiter rows are still recognised, and near misses still rejected",
   for (const delimiter of ["--- | abc", "abc", "--- |-- x", "| |"]) {
     assert.equal(isTable(delimiter), false, `should not be a delimiter: ${JSON.stringify(delimiter)}`);
   }
+});
+
+/*
+ * A note's frontmatter keys are workspace content. `__proto__` is the one key whose assignment
+ * has meaning beyond adding a property, and against an ordinary object literal it replaces
+ * what the parsed object inherits from. Nothing reads frontmatter by an attacker-chosen key
+ * today, so this was never exploitable — the point is that it stops depending on that.
+ */
+test("a __proto__ key in frontmatter reaches no prototype", () => {
+  const parsed = parseMarkdown("---\n__proto__:\n  - x\ntitle: Real\n---\n# H\n");
+
+  assert.equal(Object.getPrototypeOf(parsed.frontmatter), null);
+  assert.equal(({} as Record<string, unknown>)["length"], undefined, "Object.prototype is clean");
+  assert.equal(parsed.title, "Real", "and the real properties are still read");
+});
+
+test("a title's control characters do not reach the file system", () => {
+  const nul = String.fromCharCode(0);
+  const del = String.fromCharCode(0x7f);
+
+  assert.equal(titleToFileName(`a${nul}b`), "ab.md");
+  assert.equal(titleToFileName(`a${del}b`), "ab.md");
+  // Ordinary titles are untouched, and the existing protections still apply.
+  assert.equal(titleToFileName("My Note - draft"), "My Note - draft.md");
+  assert.equal(titleToFileName("a/b"), "a-b.md");
+  assert.equal(titleToFileName("CON"), "CON_.md");
 });

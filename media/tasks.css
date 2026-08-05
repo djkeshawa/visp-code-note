@@ -290,3 +290,10 @@
     display: none;
   }
 }
+
+/* Said plainly when the host has capped the list, so the count above is not read as the rows. */
+.reminder-overflow {
+  margin: 6px 0 0;
+  color: var(--visp-muted);
+  font-size: 11px;
+}
