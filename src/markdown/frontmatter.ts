@@ -39,7 +39,18 @@ export function parseFrontmatter(lines: readonly SourceLine[]): FrontmatterResul
     if (listKey !== undefined && listItem !== null) {
       const current = values[listKey];
       const item = parseScalar(listItem[1] ?? "");
-      values[listKey] = isValueList(current) ? [...current, item] : [item];
+      /*
+       * Appended in place. Rebuilding the array per item — `[...current, item]` — copies
+       * everything accumulated so far on every line, so a sequence of k items costs k²
+       * copies: 20,000 aliases in a note's frontmatter took two and a half seconds, and
+       * frontmatter is workspace content that is parsed during indexing on startup. The
+       * arrays are frozen once at the end of the loop, as they already were.
+       */
+      if (Array.isArray(current)) {
+        (current as FrontmatterValue[]).push(item);
+      } else {
+        values[listKey] = [item];
+      }
       continue;
     }
 

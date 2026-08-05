@@ -17,10 +17,40 @@ export interface SetextHeading {
   readonly endLine: SourceLine;
 }
 
+function isSpaceOrTab(character: string | undefined): boolean {
+  return character === " " || character === "\t";
+}
+
+/**
+ * Removes a heading's optional closing run of `#`, as in `## Notes ##`.
+ *
+ * Scanned backwards rather than matched with `/[ \t]+#+[ \t]*$/`. That pattern has no anchor
+ * fixing where its leading whitespace run begins, so on a heading ending in a long run of
+ * spaces with no `#` after it the engine retries from every offset and backtracks the whole
+ * run each time — quadratic. A note is workspace content, so its headings are untrusted: a
+ * single heading padded with 100,000 spaces blocked the extension host for six seconds during
+ * indexing, and indexing runs on startup without anyone opening the file.
+ */
+export function atxClosingSequenceStart(text: string): number | undefined {
+  let end = text.length;
+  while (end > 0 && isSpaceOrTab(text[end - 1])) end -= 1;
+  const hashesEnd = end;
+  while (end > 0 && text[end - 1] === "#") end -= 1;
+  // A closing sequence has to exist and to be preceded by whitespace; `# foo#` keeps its hash.
+  if (end === hashesEnd || end === 0 || !isSpaceOrTab(text[end - 1])) return undefined;
+  while (end > 0 && isSpaceOrTab(text[end - 1])) end -= 1;
+  return end;
+}
+
+function stripClosingSequence(text: string): string {
+  const start = atxClosingSequenceStart(text);
+  return start === undefined ? text : text.slice(0, start);
+}
+
 export function matchAtxHeading(line: SourceLine): Heading | undefined {
   const match = /^ {0,3}(#{1,6})(?:[ \t]+(.*?)|[ \t]*)$/.exec(line.text);
   if (match === null) return undefined;
-  const text = (match[2] ?? "").replace(/[ \t]+#+[ \t]*$/, "").trim();
+  const text = stripClosingSequence(match[2] ?? "").trim();
   return {
     level: match[1]?.length ?? 1,
     text,

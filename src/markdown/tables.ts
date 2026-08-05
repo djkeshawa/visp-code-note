@@ -19,15 +19,48 @@ export interface TableLine {
   readonly kind: TableLineKind;
 }
 
-const DELIMITER = /^\s*\|?\s*:?-{1,}:?\s*(\|\s*:?-{1,}:?\s*)*\|?\s*$/;
 const FENCE = /^(\s*)(```+|~~~+)/;
 
 function looksLikeRow(line: string): boolean {
   return line.includes("|") && line.trim() !== "";
 }
 
+/**
+ * `| --- | :-: |` — the row under a table's header that makes it a table.
+ *
+ * Scanned rather than matched against `/^\s*\|?\s*:?-+:?\s*(…)*\|?\s*$/`. Two whitespace runs
+ * either side of an optional pipe give the engine no single way to divide a run of spaces, so
+ * a line of many spaces that then fails to be a delimiter is retried from every offset —
+ * quadratic, and reached from the note renderer with the whole note as input. A scan answers
+ * the same question in one pass.
+ */
 function isDelimiterRow(line: string): boolean {
-  return line.includes("-") && DELIMITER.test(line);
+  if (!line.includes("-")) return false;
+  const length = line.length;
+  let index = 0;
+  const skipSpaces = (): void => {
+    while (index < length && (line[index] === " " || line[index] === "\t")) index += 1;
+  };
+
+  skipSpaces();
+  if (line[index] === "|") index += 1;
+  let cells = 0;
+  for (;;) {
+    skipSpaces();
+    if (line[index] === ":") index += 1;
+    let dashes = 0;
+    while (index < length && line[index] === "-") { index += 1; dashes += 1; }
+    if (dashes === 0) return false;
+    if (line[index] === ":") index += 1;
+    skipSpaces();
+    cells += 1;
+    if (line[index] !== "|") break;
+    index += 1;
+    // A trailing pipe closes the row; anything after it opens another cell.
+    skipSpaces();
+    if (index >= length) return true;
+  }
+  return index >= length && cells > 0;
 }
 
 /**

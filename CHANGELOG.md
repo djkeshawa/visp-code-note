@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.10.1 - 2026-08-05
+
+### Fixed — a note cannot hang the window any more
+
+**Three parsing paths took time proportional to the square of their input**, and all three
+read workspace content — which this extension declares it accepts from untrusted workspaces,
+so a cloned repository chose the input.
+
+A heading followed by a long run of spaces made the scan for its optional closing `#`
+restart at every offset: 100,000 spaces took 6.3 seconds, a million took an estimated eleven
+minutes, and it now takes 46ms. This one needed nobody to open anything — indexing runs on
+startup, so cloning the repository was enough, and it blocked the extension host for every
+extension in the window. Frontmatter rebuilt its alias list on every item, costing 2.5
+seconds for 20,000 aliases and now 19ms. A line of spaces that failed to be a table's
+delimiter row was retried from every offset, freezing the note renderer for two seconds at
+50,000 spaces and now taking one millisecond. All three are single-pass scans, and the
+regression tests give them a budget a hundredfold looser than they need.
+
+The typeface no longer arrives through a package with an install-time script, and
+`brace-expansion` is raised to 5.0.9 for a build-only advisory.
+
 ## 0.10.0 - 2026-08-05
 
 ### Fixed — undo works while a note is being written in

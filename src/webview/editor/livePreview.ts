@@ -10,6 +10,7 @@ import type { DecorationSet, ViewUpdate } from "@codemirror/view";
 import { parseCalloutBlock } from "../../markdown/callouts.js";
 import { isExternalLink } from "../../application/externalLink.js";
 import { indentColumns } from "../../markdown/outline.js";
+import { atxClosingSequenceStart } from "../../markdown/blockSyntax.js";
 import { findTags } from "../../markdown/tags.js";
 import { dueUrgency, formatDueDate } from "../tasks/grouping.js";
 import type { CalloutHeader } from "../../markdown/callouts.js";
@@ -570,11 +571,13 @@ function decorateLine(
         );
         /*
          * A closing sequence — `## Notes ##` — is decoration the parser strips from the
-         * heading's text, so the rendered line strips it too.
+         * heading's text, so the rendered line strips it too. Located by the parser's own
+         * backwards scan rather than by a regex, which backtracked quadratically over a
+         * heading padded with a long run of trailing spaces.
          */
-        const closing = /[ \t]+#+[ \t]*$/.exec(text);
-        if (closing !== null) {
-          addHiddenMarkup(ranges, from + closing.index, closing[0].length, active);
+        const closing = atxClosingSequenceStart(text);
+        if (closing !== undefined) {
+          addHiddenMarkup(ranges, from + closing, text.length - closing, active);
         }
       }
     } else {
