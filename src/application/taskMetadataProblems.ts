@@ -23,8 +23,9 @@ export interface TaskMetadataProblem {
   readonly code: string;
 }
 
-const DUE_TOKEN = /@due\(\s*[^)]*?\s*\)/i;
-const REMIND_TOKEN = /@remind\(\s*[^)]*?\s*\)/i;
+// Unambiguous by construction — see the note on `duePattern` in markdown/tasks.ts.
+const DUE_TOKEN = /@due\([^)]*\)/i;
+const REMIND_TOKEN = /@remind\([^)]*\)/i;
 
 export function taskMetadataProblems(
   source: string,

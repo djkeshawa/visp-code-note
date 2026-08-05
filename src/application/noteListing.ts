@@ -1,4 +1,4 @@
-import type { IndexSnapshot } from "../domain/models";
+import type { IndexSnapshot, WikiLink } from "../domain/models";
 import { getBrokenLinks, getOrphanNotes } from "../indexing/projections";
 
 /**
@@ -102,18 +102,30 @@ function orphanRows(snapshot: IndexSnapshot): readonly NoteListRow[] {
 
 function brokenRows(snapshot: IndexSnapshot): readonly NoteListRow[] {
   const notes = new Map(snapshot.notes.map((note) => [note.uri, note]));
-  const rows: NoteListRow[] = [];
+  // Grouped by note so each note's line numbers are counted in one pass over its text.
+  const byNote = new Map<string, { readonly link: WikiLink }[]>();
   for (const broken of getBrokenLinks(snapshot)) {
-    const note = notes.get(broken.sourceUri);
+    if (!notes.has(broken.sourceUri)) continue;
+    const existing = byNote.get(broken.sourceUri);
+    if (existing === undefined) byNote.set(broken.sourceUri, [{ link: broken.link }]);
+    else existing.push({ link: broken.link });
+  }
+
+  const rows: NoteListRow[] = [];
+  for (const [uri, broken] of byNote) {
+    const note = notes.get(uri);
     if (note === undefined) continue;
-    rows.push({
-      uri: note.uri,
-      title: note.title,
-      path: note.path,
-      detail: broken.link.raw,
-      start: broken.link.range.start,
-      line: lineOf(note.content, broken.link.range.start),
-    });
+    const lines = lineNumbers(note.content, broken.map((entry) => entry.link.range.start));
+    for (const [index, entry] of broken.entries()) {
+      rows.push({
+        uri: note.uri,
+        title: note.title,
+        path: note.path,
+        detail: entry.link.raw,
+        start: entry.link.range.start,
+        line: lines[index] ?? 1,
+      });
+    }
   }
   return rows.sort((left, right) => byPath(left, right) || (left.start ?? 0) - (right.start ?? 0));
 }
@@ -123,11 +135,25 @@ function byPath(left: NoteListRow, right: NoteListRow): number {
     left.title.localeCompare(right.title, undefined, { sensitivity: "base" });
 }
 
-/** One-based line number of an offset, counted the way an editor's gutter counts. */
-function lineOf(content: string, offset: number): number {
+/**
+ * One-based line numbers for offsets within one note, counted the way an editor's gutter
+ * counts. Built once per note rather than per row: counting from the start of the file for
+ * every broken link made a note with many of them quadratic — 8,000 took two seconds, and a
+ * note may hold far more than that inside the size limit.
+ */
+function lineNumbers(content: string, offsets: readonly number[]): readonly number[] {
+  const ordered = offsets.map((offset, index) => ({ offset, index }))
+    .sort((left, right) => left.offset - right.offset);
+  const lines = new Array<number>(offsets.length).fill(1);
+  let cursor = 0;
   let line = 1;
-  for (let index = 0; index < offset && index < content.length; index += 1) {
-    if (content[index] === "\n") line += 1;
+  for (const entry of ordered) {
+    const limit = Math.min(entry.offset, content.length);
+    while (cursor < limit) {
+      if (content[cursor] === "\n") line += 1;
+      cursor += 1;
+    }
+    lines[entry.index] = line;
   }
-  return line;
+  return lines;
 }

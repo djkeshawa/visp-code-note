@@ -156,8 +156,27 @@ export function reminderMoment(
  * character until the window was buried in undismissed toasts. Two unidentified tasks in one
  * note due at the same moment now share a reminder, which is a far smaller cost.
  */
+/**
+ * A task id is written by the extension, but a note is workspace content and can carry any
+ * `<!-- task:… -->` it likes, at any length. The store that remembers delivered reminders
+ * refuses a key past its budget — and refusing it means the reminder is never recorded as
+ * delivered, so it fires again on every index change, as an un-dismissable toast, forever.
+ * Folding a long id to a fixed-width digest keeps every key inside the budget.
+ */
+const MAX_KEY_ID_LENGTH = 128;
+
+function boundedId(id: string): string {
+  if (id.length <= MAX_KEY_ID_LENGTH) return id;
+  // Not a security digest — only a stable, short stand-in for an unreasonable id.
+  let hash = 5381;
+  for (let index = 0; index < id.length; index += 1) {
+    hash = ((hash * 33) ^ id.charCodeAt(index)) >>> 0;
+  }
+  return `${id.slice(0, MAX_KEY_ID_LENGTH)}~${hash.toString(36)}`;
+}
+
 export function reminderKey(noteUri: string, id: string | undefined, at: number): string {
-  return `${noteUri} ${id ?? ""} ${at}`;
+  return `${noteUri} ${id === undefined ? "" : boundedId(id)} ${at}`;
 }
 
 /** A due moment written the way a toast should say it. */

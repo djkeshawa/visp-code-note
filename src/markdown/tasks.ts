@@ -13,8 +13,16 @@ import { collectTagNames, removeTagTokens } from "./tags";
  */
 const taskPattern = /^([ \t]*(?:[-+*]|\d+[.)])[ \t]+\[)([ xX])(\])(?=[ \t]+|$)/;
 const taskIdPattern = /<!--\s*task:([A-Za-z0-9][\w.-]*)\s*-->/i;
-const duePattern = /@due\(\s*([^)]+?)\s*\)/i;
-const remindPattern = /@remind\(\s*([^)]+?)\s*\)/i;
+/*
+ * `\s*([^)]+?)\s*` looks like "the trimmed contents", and is three mutually ambiguous
+ * quantifiers: whitespace is a subset of `[^)]`, so with no closing paren on the line the
+ * engine tries every division of the run against every other. It was cubic — `@due(` followed
+ * by 2,000 spaces took five seconds, and a task line is read for every note during indexing
+ * and again on every keystroke in an open one. `[^)]*` cannot cross a `)`, so there is exactly
+ * one way to match and the trimming is done in code where it costs nothing.
+ */
+const duePattern = /@due\(([^)]*)\)/i;
+const remindPattern = /@remind\(([^)]*)\)/i;
 const priorityPattern = /@priority\(\s*(low|medium|high)\s*\)/i;
 
 export interface TaskLineMatch {
@@ -65,8 +73,9 @@ export function parseTasks(
     const end = hasIdLine ? nextLine.end : line.end;
     const taskSource = source.slice(line.start, end);
     const body = line.text.slice(match.bodyOffset).trim();
-    const due = duePattern.exec(body)?.[1]?.trim();
-    const remind = remindPattern.exec(body)?.[1]?.trim();
+    // An empty `@due()` is a marker with no value, which is no due date rather than a blank one.
+    const due = duePattern.exec(body)?.[1]?.trim() || undefined;
+    const remind = remindPattern.exec(body)?.[1]?.trim() || undefined;
     const priority = priorityPattern.exec(body)?.[1]?.toLocaleLowerCase() as TaskPriority | undefined;
     const tags = Object.freeze([...collectTagNames(body)]);
     const text = cleanTaskText(body);

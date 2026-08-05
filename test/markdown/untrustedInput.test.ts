@@ -3,6 +3,10 @@ import { test } from "node:test";
 import { parseMarkdown } from "../../src/markdown/parser";
 import { tableBlocks } from "../../src/markdown/tables";
 import { titleToFileName } from "../../src/domain/normalization";
+import { parseTasks } from "../../src/markdown/tasks";
+import { scanLines } from "../../src/markdown/lines";
+import { reminderKey } from "../../src/application/dueDate";
+import { ReminderStore } from "../../src/application/reminderStore";
 
 /**
  * A note is workspace content, and this extension declares that it supports untrusted
@@ -117,4 +121,46 @@ test("a title's control characters do not reach the file system", () => {
   assert.equal(titleToFileName("My Note - draft"), "My Note - draft.md");
   assert.equal(titleToFileName("a/b"), "a-b.md");
   assert.equal(titleToFileName("CON"), "CON_.md");
+});
+
+/*
+ * The worst of the set: `\s*([^)]+?)\s*` inside `@due(…)` is three mutually ambiguous
+ * quantifiers, and a task line is read for every note during indexing and again on every
+ * keystroke in an open one. It was cubic — 2,000 spaces took five seconds, 4,000 took forty.
+ */
+test("an unclosed @due( followed by a huge run of spaces parses promptly", () => {
+  const source = `- [ ] job @due(${" ".repeat(200_000)}x\n`;
+  const elapsed = millisecondsFor(() => {
+    const tasks = parseTasks(source, scanLines(source), []);
+    assert.equal(tasks.length, 1, "it is still read as a task");
+    assert.equal(tasks[0]?.due, undefined, "with no due date, since the marker never closes");
+  });
+  assert.ok(elapsed < BUDGET_MS, `took ${elapsed}ms, which suggests the ambiguous quantifiers`);
+});
+
+test("a well-formed due and remind are still read, and an empty one is not a date", () => {
+  const source = "- [ ] a @due( 2026-09-01 ) @remind(2h)\n- [ ] b @due()\n";
+  const tasks = parseTasks(source, scanLines(source), []);
+  assert.equal(tasks[0]?.due, "2026-09-01", "surrounding spaces are still trimmed");
+  assert.equal(tasks[0]?.remind, "2h");
+  assert.equal(tasks[1]?.due, undefined, "an empty marker is no due date rather than a blank one");
+});
+
+/*
+ * A task id is written by the extension, but a note can carry any `<!-- task:… -->` it likes.
+ * An id past the store's key budget was refused outright, which meant the reminder was never
+ * recorded as delivered and fired again on every index change — as a toast that does not
+ * auto-dismiss.
+ */
+test("a reminder for a task with an absurd id is still remembered as delivered", () => {
+  const key = reminderKey("file:///n.md", "a".repeat(5_000), 1_234_567);
+  const store = new ReminderStore(undefined, () => undefined);
+
+  store.markDelivered([key]);
+  assert.equal(store.has(key), true, "or the toast repeats forever");
+  assert.notEqual(
+    key,
+    reminderKey("file:///n.md", "b".repeat(5_000), 1_234_567),
+    "and two different tasks are still two different reminders",
+  );
 });

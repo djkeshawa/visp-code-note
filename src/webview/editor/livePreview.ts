@@ -49,7 +49,7 @@ const FRONTMATTER_PROPERTY = /^([\t ]*)([A-Za-z0-9_][\w.-]*)[\t ]*:[\t ]*/;
  * space before it in the document so the badge does not collide with the word it follows;
  * the priority marker takes its own leading space with it, since it disappears entirely.
  */
-const DUE_MARKER = /@due\(\s*([^)]+?)\s*\)/i;
+const DUE_MARKER = /@due\(([^)]*)\)/i;
 const PRIORITY_MARKER = /\s*@priority\(\s*(?:low|medium|high)\s*\)/i;
 /** Mirrors `taskIdPattern` in the parser: the id the extension writes, never the author. */
 const TASK_ID_MARKER = /\s*<!--\s*task:[A-Za-z0-9][\w.-]*\s*-->/i;
@@ -263,6 +263,40 @@ class TableSpacerWidget extends WidgetType {
     spacer.setAttribute("aria-hidden", "true");
     return spacer;
   }
+}
+
+/**
+ * Every `[[…]]` on a line, found by scanning rather than by `/\[\[([^\]\r\n]+)\]\]/g`.
+ *
+ * That pattern is the one `parseWikiLinks` documents having removed for being quadratic, and
+ * it survived here: with unclosed openers the engine retries the run from every offset. This
+ * runs in the webview on every decoration rebuild — every keystroke, scroll and caret move —
+ * so a single long line of `[[` cost seconds per frame.
+ *
+ * Linear because the cursor only ever moves forward: when a candidate fails, it fails at a
+ * `]` or a line break, and every later opener before that character would fail at it too, so
+ * the scan resumes past it rather than at the next opener.
+ */
+function wikiLinkSpans(text: string): readonly { readonly start: number; readonly end: number }[] {
+  const spans: { start: number; end: number }[] = [];
+  let index = 0;
+  while (index < text.length) {
+    const open = text.indexOf("[[", index);
+    if (open < 0) break;
+    let scan = open + 2;
+    while (scan < text.length) {
+      const character = text[scan];
+      if (character === "]" || character === "\r" || character === "\n") break;
+      scan += 1;
+    }
+    if (text[scan] === "]" && text[scan + 1] === "]" && scan > open + 2) {
+      spans.push({ start: open, end: scan + 2 });
+      index = scan + 2;
+    } else {
+      index = scan + 1;
+    }
+  }
+  return spans;
 }
 
 function buildDecorations(
@@ -730,17 +764,17 @@ function decorateInlineMarkup(
     }
   }
 
-  for (const match of text.matchAll(/\[\[([^\]\r\n]+)\]\]/g)) {
-    if (match.index === undefined) continue;
-    const linkFrom = from + match.index;
-    const linkTo = linkFrom + match[0].length;
+  for (const span of wikiLinkSpans(text)) {
+    const linkFrom = from + span.start;
+    const linkTo = from + span.end;
+    const raw = text.slice(span.start, span.end);
     const link = findRecognizedWikiLink(view.state, linkFrom, linkTo);
     if (link === undefined) continue;
     const classes = unresolvedLinks.has(link.raw)
       ? "live-wiki-link is-unresolved"
       : "live-wiki-link";
     ranges.push(Decoration.mark({ class: classes }).range(linkFrom, linkTo));
-    const display = wikiLinkDisplayRange(match[0], link.alias !== undefined);
+    const display = wikiLinkDisplayRange(raw, link.alias !== undefined);
     if (display === undefined) {
       addHiddenMarkup(ranges, linkFrom, 2, active);
       addHiddenMarkup(ranges, linkTo - 2, 2, active);
@@ -811,7 +845,8 @@ function decorateTaskMetadata(
   text: string,
 ): void {
   const due = DUE_MARKER.exec(text);
-  if (due?.[1] !== undefined) {
+  const dueValue = due?.[1]?.trim();
+  if (due !== null && dueValue !== undefined && dueValue !== "") {
     /*
      * The marker is only ever replaced by something that still shows its value. Hiding it
      * when the value could not be parsed erased the due date from the rendered note while
@@ -821,8 +856,8 @@ function decorateTaskMetadata(
     ranges.push(
       Decoration.replace({
         widget: new DueDateWidget(
-          formatDueDate(due[1]) ?? due[1],
-          dueUrgency(due[1]),
+          formatDueDate(dueValue) ?? dueValue,
+          dueUrgency(dueValue),
         ),
       }).range(from + due.index, from + due.index + due[0].length),
     );
