@@ -1,5 +1,51 @@
 # Changelog
 
+## 0.10.3 - 2026-08-05
+
+### Fixed — a task's own metadata could hang the window
+
+**`@due(…)` took time proportional to the cube of what followed it.** The marker was read with
+`\s*([^)]+?)\s*` between its parentheses, which looks like "the trimmed contents" and is three
+mutually ambiguous quantifiers — whitespace is a subset of "not a bracket", so with no closing
+parenthesis on the line the engine tried every division of the run against every other. Two
+thousand spaces after `@due(` took five seconds and four thousand took forty, so a single 4KB
+file was enough to pin the extension host: a task line is read for every note while indexing
+and again on every keystroke in an open one. It now takes a millisecond. `@remind(…)` and the
+editor's own copy of the marker carried the same shape and are fixed with it.
+
+### Fixed — three more paths that grew faster than their input
+
+**The live preview scanned wiki links with a pattern the parser had already discarded** for
+being quadratic, and did it on every decoration rebuild — every keystroke, scroll and caret
+move. A quarter of a million unclosed `[[` now takes fourteen milliseconds.
+
+**Find Broken Links counted line numbers from the top of the file for every result**, so a
+note with many of them cost the square of their number; eight thousand goes from 1.9 seconds
+to 82 milliseconds.
+
+**A reminder whose task carried an unusually long identifier repeated forever.** The store that
+remembers what has already been shown refuses a key past its budget, and refusing it meant the
+reminder was never recorded as delivered — so it fired again on every index change, as a toast
+that does not dismiss itself. Long identifiers now fold to a fixed-width digest, so every key
+stays inside the budget and two tasks remain two reminders.
+
+### Changed — the task panel sends the soonest reminders rather than every one
+
+Every incomplete task carrying a due date is an armed reminder, and the panel serialised all of
+them each time the index moved. A hundred thousand of them came to 25MB per message, which is a
+frozen panel rather than a slow one. It now sends the fifty soonest, as the note inspector
+already does with backlinks, and carries the true total beside them — so the count stays honest
+and the section says when it is showing a subset.
+
+### Fixed — two parsing edges that depended on assumptions
+
+Frontmatter is built on an object with no prototype, so a `__proto__:` line in a note is an
+ordinary key that means nothing rather than a change to what the parsed object inherits from.
+Nothing read frontmatter by a key a note could choose, so this was never exploitable — it
+simply no longer depends on that staying true. A note title's control characters are stripped
+before it becomes a file name, which turns an unexplained failure deep in the file system into
+a file with a slightly tidied name.
+
 ## 0.10.2 - 2026-08-05
 
 ### Added — a ceiling on how large a note may be before it is indexed
