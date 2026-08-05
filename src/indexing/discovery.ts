@@ -63,6 +63,11 @@ export async function readNoteRecord(uri: vscode.Uri): Promise<NoteRecord> {
     path: vscode.workspace.asRelativePath(uri, includeRoot).replace(/\\/g, "/"),
     fileName,
     title: parsed.title?.trim() || noteStem(fileName),
+    /*
+     * `ctime` is creation time in the VS Code API, but some file systems cannot record one
+     * and report zero; leaving it out keeps "unknown" distinguishable from 1970.
+     */
+    ...(stat.ctime > 0 ? { createdAt: stat.ctime } : {}),
     modifiedAt: stat.mtime,
     content,
   };

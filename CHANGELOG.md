@@ -1,5 +1,80 @@
 # Changelog
 
+## 0.10.0 - 2026-08-05
+
+### Fixed — undo works while a note is being written in
+
+**Ctrl+Z did nothing on the note you were typing into.** Every edit is sent to the host,
+written, and confirmed back, and the editor applied that confirmation by replacing the whole
+document. Undo history is a set of positions into the document, so rewriting every position at
+once left it with nothing to point at and it was discarded. Because a confirmation follows
+every keystroke, undo was dead on any note in use — inserting a table was simply where it was
+noticed. The confirmation now applies only the span that actually differs, so the untouched
+text, and the history pointing at it, survive.
+
+### Fixed — a frozen note can no longer be edited
+
+**Enter still added list items to a note held for a draft conflict.** Read-only was advisory:
+a flag every command is expected to consult, which the Markdown keymap does not. Freezing a
+note is how a conflict is held still until you choose which version wins, so an edit reaching
+it there is the worst place for one. Read-only is now enforced against the document itself —
+the host may still write, because that is how the conflict resolves; the keyboard cannot.
+
+### Fixed — bullets are bullets, and headings line up
+
+**A list marker is drawn whether or not the caret is on its line.** The marker was revealed
+while the line was being edited, so every list looked like a list except the one being
+written, which showed a literal `-`. The glyphs are now the disc, circle and square every
+Markdown renderer uses, at full size at every depth, and a task line draws its checkbox
+without a bullet beside it. Headings lost a stray leading space that sat them a few pixels
+right of their own paragraphs, underline-style (`Setext`) headings render instead of showing
+their `===`, and a closing `## Notes ##` sequence is hidden like its opening one.
+
+Also fixed: a second fenced code block was shredded into rounded strips by a stylesheet rule
+that leaked past its own block; table delimiter rows, closing fences and `---` rules collapsed
+to nothing even with the caret on them, leaving lines that could not be seen while being
+edited; the `<!-- task:… -->` identifier written by the extension is no longer shown; wiki
+links, tags, code and emphasis inside table cells render as themselves rather than as source;
+empty and space-padded table cells no longer pull their columns out of line; and a blockquote
+has room between its rule and its words.
+
+### Added — tasks sort, and reminders are visible
+
+**The task list sorts by due date, by the date its note was created, or by the task's own
+text, in either direction.** Grouping is unchanged and sorting applies within each group,
+completed work always sinks below open work, and a task missing whatever is being sorted on
+sits last in both directions rather than pretending to be an early or a late one.
+
+**An "Active reminders" section lists what is armed and when it will ring**, above the groups
+and unaffected by the filter box, because a reminder is something the host is holding rather
+than a view of the list. The two controls that both offered "Due date" now say which is
+Grouping and which is Sorting, a low-priority task shows the margin bar the editor promises it
+when it hides `@priority(low)`, and clicking a task's due date or note name no longer
+completes it.
+
+### Changed — the reading face is bundled, and the type is retuned
+
+**Notes are set in IBM Plex Sans, which now ships with the extension**, so a note reads the
+same on every machine instead of in whichever family happened to be installed. Text is drawn
+with grayscale antialiasing: subpixel antialiasing addresses the red, green and blue stripes
+of an LCD pixel separately, and QD-OLED lays its subpixels out in a triangle, so that trick
+drove the wrong lamps and fringed every edge in colour.
+
+Leading comes in from 1.78 to 1.62, near what VS Code's own Markdown preview and GitHub use,
+and the heading scale is spaced so every level is distinguishable — the third and fourth
+levels previously differed by a hundredth of an em, so a note with four levels of structure
+showed two. The top two levels close with a hairline, the lower ones separate by colour
+instead of by a size difference too small to see, list markers align on a right edge with
+tabular figures so a numbered list does not shift at ten, a tag no longer shrinks mid-sentence,
+and a checkbox stands in the same margin as a bullet.
+
+### Fixed — saving reports honestly
+
+**A note with nothing to write is no longer treated as a failed save.** When a write genuinely
+fails, the message now names the file and the two causes worth checking — a read-only file, or
+an extension that formats on save refusing it — rather than saying only that something went
+wrong.
+
 ## 0.9.1 - 2026-08-03
 
 ### Fixed — filtering the sidebar no longer stutters

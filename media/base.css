@@ -105,6 +105,26 @@
   --visp-radius: 6px;
   --visp-font: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
   --visp-mono: var(--vscode-editor-font-family, "SFMono-Regular", Consolas, monospace);
+
+  /*
+   * The face rendered prose is set in, which is deliberately not the interface font.
+   *
+   * Chrome should look like VS Code, so toolbars and lists keep `--visp-font`. A note is read
+   * for minutes at a time rather than glanced at, so it gets IBM Plex Sans, which the
+   * extension bundles — see `fonts.css`. Bundling is the point: a font *stack* renders
+   * differently on every machine, because whichever family happens to be installed wins, and
+   * two people reading the same note should see the same note. Plex is humanist with sturdy
+   * stems and a large x-height, which is what survives the grayscale antialiasing below.
+   *
+   * The families after it matter only if the bundled files fail to load, and are the
+   * optically-sized text faces each platform ships for reading.
+   *
+   * Overridden per-user by `vispNotes.editor.proseFont`.
+   */
+  --visp-prose-face:
+    "IBM Plex Sans", "Segoe UI Variable Text", -apple-system, BlinkMacSystemFont,
+    "Source Sans 3", "Noto Sans", "Cantarell", "Ubuntu", "Helvetica Neue", system-ui,
+    sans-serif;
 }
 
 body {
@@ -188,6 +208,19 @@ body {
   color: var(--visp-text);
   font-family: var(--visp-font);
   font-size: var(--vscode-font-size, 13px);
+
+  /*
+   * Grayscale antialiasing rather than the platform default.
+   *
+   * Subpixel antialiasing wins its extra sharpness by addressing the red, green and blue
+   * stripes of an LCD pixel separately. QD-OLED does not lay its subpixels out in a stripe —
+   * it uses a triangle — so that trick addresses the wrong lamps and edges come out fringed
+   * in red and green, worst of all on the light-on-dark text an editor is mostly made of.
+   * Grayscale antialiasing modulates the whole pixel instead, which costs a little crispness
+   * on an RGB-stripe LCD and removes the fringing everywhere else.
+   */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 button,

@@ -1,0 +1,68 @@
+/*
+ * IBM Plex Sans, bundled.
+ *
+ * The prose face ships with the extension rather than being named in a font stack, so a note
+ * is set in the same face on every machine instead of in whatever happened to be installed.
+ * Plex is a humanist face with sturdy stems and a large x-height, which is what survives the
+ * grayscale antialiasing `base.css` turns on for QD-OLED panels — a thin geometric face goes
+ * pale and fuzzy under it.
+ *
+ * The files are copied into `media/fonts/` by `scripts/build-webviews.mjs`, and the URLs here
+ * are relative to this stylesheet, which the host loads through `asWebviewUri` — the same
+ * arrangement the bundled codicon font uses. `font-src` already names the webview's own
+ * origin in the content security policy.
+ *
+ * Only the cuts the editor can actually reach are shipped: regular and semibold and bold, each
+ * with its italic, because a heading may contain emphasis. Weights are declared exactly, so a
+ * heading asking for 600 gets the SemiBold cut rather than a browser's synthesised one.
+ *
+ * Licensed under the SIL Open Font License 1.1 — see THIRD_PARTY_NOTICES.md.
+ */
+
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/IBMPlexSans-Regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/IBMPlexSans-Italic.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("fonts/IBMPlexSans-SemiBold.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: italic;
+  font-weight: 600;
+  font-display: swap;
+  src: url("fonts/IBMPlexSans-SemiBoldItalic.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/IBMPlexSans-Bold.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: italic;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/IBMPlexSans-BoldItalic.woff2") format("woff2");
+}

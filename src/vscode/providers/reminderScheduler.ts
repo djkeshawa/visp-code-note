@@ -58,7 +58,7 @@ export class ReminderScheduler implements vscode.Disposable {
   ) {
     this.runner = new ReminderRunner({
       snapshot: () => index.snapshot,
-      settings,
+      settings: readReminderSettings,
       delivered: store,
       clock,
       presenter: {
@@ -135,8 +135,10 @@ async function showReminder(candidate: ReminderCandidate): Promise<ReminderActio
  * settings.json — `get` returns the raw value. An unbounded lead pushed every reminder moment
  * into the deep past, where it aged out of the catch-up window: reminders off, and nothing
  * anywhere saying why.
+ *
+ * Exported so the tasks panel reads the same clamped values when it lists what is armed.
  */
-function settings(): ReminderSettings {
+export function readReminderSettings(): ReminderSettings {
   const config = vscode.workspace.getConfiguration("vispNotes.reminders");
   return {
     enabled: config.get<boolean>("enabled", true),

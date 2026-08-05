@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import type { HostToTasksMessage } from "../../domain/protocol";
+import type { HostToTasksMessage, TaskReminder } from "../../domain/protocol";
 import type { IndexSnapshot } from "../../domain/models";
 import { createTasksHtml } from "../../ui";
 import { isTasksMessage } from "./messageValidation";
@@ -20,6 +20,7 @@ export class TasksPanel implements vscode.Disposable {
       version: number,
     ) => Promise<void>,
     private readonly onOpen: (noteUri: string, start: number) => Promise<void>,
+    private readonly getReminders: () => readonly TaskReminder[] = () => [],
   ) {}
 
   public show(filter: "all" | "today" = "all"): void {
@@ -103,6 +104,7 @@ export class TasksPanel implements vscode.Disposable {
       type: "tasks/state",
       snapshot: {
         tasks: this.getSnapshot().tasks,
+        reminders: this.getReminders(),
         version: this.getSnapshot().version,
         indexedAt: this.getSnapshot().indexedAt,
         filter: this.filter,

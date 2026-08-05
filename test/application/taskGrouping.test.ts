@@ -56,3 +56,71 @@ test("a due with a time of day still buckets and sorts by its date", () => {
     "within a day the time orders them",
   );
 });
+
+test("a descending due sort reverses the dated tasks but never surfaces the undated", () => {
+  const tasks: readonly TaskWire[] = [
+    { ...baseTask, text: "No date" },
+    { ...baseTask, text: "Sooner", due: "2026-07-23" },
+    { ...baseTask, text: "Later", due: "2026-07-30" },
+  ];
+
+  const groups = groupTasks(
+    tasks,
+    { query: "", status: "all", view: "all", groupBy: "note", sortBy: "due", direction: "desc" },
+    "2026-07-22",
+  );
+
+  assert.deepEqual(
+    groups[0]?.tasks.map((task) => task.text),
+    ["Later", "Sooner", "No date"],
+    "the far date leads, and a task with no date stays at the end either way",
+  );
+});
+
+test("sorting by note created date orders tasks by the note's age", () => {
+  const tasks: readonly TaskWire[] = [
+    { ...baseTask, text: "From the new note", noteCreatedAt: 3_000 },
+    { ...baseTask, text: "From the old note", noteCreatedAt: 1_000 },
+    { ...baseTask, text: "From a note with no birth date" },
+  ];
+  const filter = {
+    query: "",
+    status: "all",
+    view: "all",
+    groupBy: "note",
+    sortBy: "created",
+  } as const;
+
+  const ascending = groupTasks(tasks, filter, "2026-07-22");
+  assert.deepEqual(
+    ascending[0]?.tasks.map((task) => task.text),
+    ["From the old note", "From the new note", "From a note with no birth date"],
+    "oldest note first; a note the file system cannot date sits at the end",
+  );
+
+  const descending = groupTasks(tasks, { ...filter, direction: "desc" }, "2026-07-22");
+  assert.deepEqual(
+    descending[0]?.tasks.map((task) => task.text),
+    ["From the new note", "From the old note", "From a note with no birth date"],
+    "newest note first, and the undatable note still stays at the end",
+  );
+});
+
+test("a completed task sinks below open ones whatever the sort says", () => {
+  const tasks: readonly TaskWire[] = [
+    { ...baseTask, text: "Alpha done", completed: true },
+    { ...baseTask, text: "Zulu open" },
+  ];
+
+  const groups = groupTasks(
+    tasks,
+    { query: "", status: "all", view: "all", groupBy: "note", sortBy: "text", direction: "asc" },
+    "2026-07-22",
+  );
+
+  assert.deepEqual(
+    groups[0]?.tasks.map((task) => task.text),
+    ["Zulu open", "Alpha done"],
+    "alphabetical order applies within the open tasks, not across the done divide",
+  );
+});

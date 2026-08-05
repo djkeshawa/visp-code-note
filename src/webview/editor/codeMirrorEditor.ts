@@ -43,6 +43,7 @@ import {
   serializeEditorDocument,
 } from "./editorDocument.js";
 import { createEditorPatch } from "./editorPatch.js";
+import { hostSourceChange } from "./hostSourceChange.js";
 import { createLivePreview, refreshLivePreview, revealLiveLine } from "./livePreview.js";
 import { isRecognizedWikiLink, markdownContext } from "./markdownContext.js";
 import { detectLineSeparator, rawOffsetToEditorOffset } from "./offsetMapping.js";
@@ -165,8 +166,20 @@ export class CodeMirrorEditor {
       return;
     }
     const anchor = Math.min(this.view.state.selection.main.head, this.view.state.doc.length);
+    /*
+     * Only the span that differs. A whole-document replacement reached the same text but took
+     * the reader's undo history with it — see `hostSourceChange`.
+     */
+    const changes = hostSourceChange(
+      this.view.state.doc.toString(),
+      normalizeEditorInput(source),
+    );
+    if (changes === undefined) {
+      this.rawSource = source;
+      return;
+    }
     this.view.dispatch({
-      changes: { from: 0, to: this.view.state.doc.length, insert: createEditorDocument(source) },
+      changes,
       selection: { anchor: Math.min(anchor, editorLength(source)) },
       annotations: [hostTransaction.of(true), Transaction.addToHistory.of(false)],
     });
@@ -341,6 +354,7 @@ export class CodeMirrorEditor {
         ...closeBracketsKeymap,
         ...searchKeymap,
         ...historyKeymap,
+        
         ...defaultKeymap,
         indentWithTab,
       ]),
@@ -387,6 +401,21 @@ function readOnlyExtensions(readOnly: boolean): Extension {
   return [
     EditorState.readOnly.of(readOnly),
     EditorView.contentAttributes.of({ "aria-readonly": String(readOnly) }),
+    /*
+     * `EditorState.readOnly` is advisory: it is a flag every command is expected to consult,
+     * and the Markdown keymap does not consult it. Pressing Enter inside a list therefore
+     * still edited a note that had been frozen — which is exactly the note a reader must not
+     * be able to change, since freezing it is how a draft conflict is held still until they
+     * choose which version wins.
+     *
+     * The filter is the enforcement rather than the flag. The host may still write, because
+     * that is how the conflict is resolved; nothing reaching the document from the keyboard
+     * can.
+     */
+    ...(readOnly
+      ? [EditorState.changeFilter.of((transaction) =>
+          transaction.annotation(hostTransaction) === true)]
+      : []),
   ];
 }
 

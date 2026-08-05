@@ -128,6 +128,7 @@ export const TASKS_BODY = `
           <label class="toolbar-select" title="Group tasks by">
             <span class="codicon codicon-list-tree" aria-hidden="true"></span>
             <span class="sr-only">Group tasks by</span>
+            <span class="toolbar-select-label" aria-hidden="true">Group</span>
             <select id="task-group-by">
               <option value="due">Due date</option>
               <option value="note">Note</option>
@@ -135,6 +136,24 @@ export const TASKS_BODY = `
             </select>
             <span class="codicon codicon-chevron-down" aria-hidden="true"></span>
           </label>
+          <div class="toolbar-sort">
+            <label class="toolbar-select" title="Sort tasks by">
+              <span class="codicon codicon-sort-precedence" aria-hidden="true"></span>
+              <span class="sr-only">Sort tasks by</span>
+              <span class="toolbar-select-label" aria-hidden="true">Sort</span>
+              <select id="task-sort-by">
+                <option value="due">Due date</option>
+                <option value="created">Note created</option>
+                <option value="text">Task text</option>
+              </select>
+              <span class="codicon codicon-chevron-down" aria-hidden="true"></span>
+            </label>
+            <button id="task-sort-direction" class="icon-button" type="button"
+              title="Ascending — switch to descending" aria-pressed="false">
+              <span class="codicon codicon-arrow-up" aria-hidden="true"></span>
+              <span class="sr-only">Toggle sort direction</span>
+            </button>
+          </div>
         </header>
         <div id="tasks-error" class="notice notice-error" role="alert" hidden></div>
         <main id="task-groups" class="task-groups view-body" aria-live="polite"></main>

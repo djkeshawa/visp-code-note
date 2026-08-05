@@ -61,6 +61,7 @@ export function buildSnapshot(
           noteUri: note.uri,
           noteTitle: note.title,
           notePath: note.path,
+          ...(note.createdAt === undefined ? {} : { noteCreatedAt: note.createdAt }),
         }),
       );
     }

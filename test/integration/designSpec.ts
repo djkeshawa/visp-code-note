@@ -142,8 +142,12 @@ export const STYLE_RULES: readonly StyleRule[] = [
   {
     file: "editor.css",
     selector: ".is-live-mode .live-heading-1",
-    declaration: "padding-block: 34px 14px",
-    because: "The prototype gives h1 a 34px approach and 14px below it.",
+    declaration: "padding-block: 22px 10px",
+    because:
+      "The prototype's 34px approach was measured without counting the blank source line " +
+      "above a heading, which renders as a full line of leading and put the real gap near " +
+      "54px — half again what GitHub and VS Code's own preview leave above a section head. " +
+      "22px plus that line lands near their 40px.",
   },
   {
     file: "editor.css",

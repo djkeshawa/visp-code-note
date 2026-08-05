@@ -1,4 +1,9 @@
-import type { TaskWire, TasksSnapshotWire, TasksToHostWire } from "./contracts.js";
+import type {
+  TaskReminderWire,
+  TaskWire,
+  TasksSnapshotWire,
+  TasksToHostWire,
+} from "./contracts.js";
 import { tagHueColor } from "../application/tagHue.js";
 import {
   emptyState,
@@ -13,12 +18,15 @@ import {
   formatDueDate,
   groupTasks,
   parseTaskGrouping,
+  parseTaskSortKey,
 } from "./tasks/grouping.js";
-import type { TaskStatusFilter } from "./tasks/grouping.js";
+import type { TaskSortDirection, TaskStatusFilter } from "./tasks/grouping.js";
 
 const api = acquireMessageSender<TasksToHostWire>();
 const search = requireElement("#task-search", HTMLInputElement);
 const groupBy = requireElement("#task-group-by", HTMLSelectElement);
+const sortBy = requireElement("#task-sort-by", HTMLSelectElement);
+const sortDirection = requireElement("#task-sort-direction", HTMLButtonElement);
 const title = requireElement("#task-view-title", HTMLHeadingElement);
 const summary = requireElement("#task-summary", HTMLElement);
 const groupsRoot = requireElement("#task-groups", HTMLElement);
@@ -30,9 +38,12 @@ const statusSegments = Array.from(
 
 let snapshot: TasksSnapshotWire | undefined;
 let status: TaskStatusFilter = "open";
+let direction: TaskSortDirection = "asc";
 
 search.addEventListener("input", render);
 groupBy.addEventListener("change", render);
+sortBy.addEventListener("change", render);
+sortDirection.addEventListener("click", toggleSortDirection);
 for (const segment of statusSegments) {
   segment.addEventListener("click", () => setStatus(parseStatus(segment.dataset.status)));
 }
@@ -65,6 +76,19 @@ function handleHostMessage(event: MessageEvent<unknown>): void {
   }
 }
 
+function toggleSortDirection(): void {
+  direction = direction === "asc" ? "desc" : "asc";
+  const ascending = direction === "asc";
+  sortDirection.title = ascending
+    ? "Ascending — switch to descending"
+    : "Descending — switch to ascending";
+  sortDirection.setAttribute("aria-pressed", String(!ascending));
+  const arrow = sortDirection.querySelector(".codicon");
+  arrow?.classList.toggle("codicon-arrow-up", ascending);
+  arrow?.classList.toggle("codicon-arrow-down", !ascending);
+  render();
+}
+
 function setStatus(next: TaskStatusFilter): void {
   status = next;
   for (const segment of statusSegments) {
@@ -88,7 +112,12 @@ function render(): void {
     status,
     view: snapshot.filter,
     groupBy: parseTaskGrouping(groupBy.value),
+    sortBy: parseTaskSortKey(sortBy.value),
+    direction,
   });
+  if (snapshot.reminders.length > 0) {
+    groupsRoot.append(reminderSection(snapshot.reminders));
+  }
   // Tag grouping lists a multi-tag task under each of its tags, so count identities.
   const visibleCount = new Set(
     groups.flatMap((group) => group.tasks.map((task) => `${task.noteUri}:${task.range.start}`)),
@@ -121,6 +150,54 @@ function render(): void {
   if (!groups.some((group) => group.name === "Later")) {
     groupsRoot.append(nothingElseScheduled());
   }
+}
+
+/**
+ * The reminders the host has armed, pinned above the task groups. They are host state rather
+ * than a view of the filtered list, so the search box and status segments leave them alone.
+ */
+function reminderSection(reminders: readonly TaskReminderWire[]): HTMLElement {
+  const section = htmlElement("section", "task-group task-reminders");
+  const heading = htmlElement("h2", "task-group-title", "Active reminders");
+  heading.append(
+    htmlElement("span", "task-group-count", String(reminders.length)),
+    htmlElement("span", "task-group-rule"),
+  );
+  section.append(heading, ...reminders.map(createReminderRow));
+  return section;
+}
+
+function createReminderRow(reminder: TaskReminderWire): HTMLElement {
+  const taskText = reminder.text || "Untitled task";
+  const row = htmlElement("div", "reminder-row");
+  const bell = htmlElement("span", "codicon codicon-bell reminder-bell");
+  bell.setAttribute("aria-hidden", "true");
+
+  const open = htmlElement("button", "task-text", taskText);
+  open.type = "button";
+  open.title = `${taskText}\nOpen in ${reminder.noteTitle}`;
+  open.dataset.action = "open";
+  open.dataset.uri = reminder.noteUri;
+  open.dataset.start = String(reminder.start);
+
+  const meta = htmlElement("span", "task-meta");
+  meta.append(htmlElement("span", "task-meta-note", reminder.noteTitle));
+  const when = htmlElement("span", "reminder-when", `rings ${formatReminderMoment(reminder.at)}`);
+  when.title = `Due ${reminder.due ?? formatReminderMoment(reminder.dueAt)}`;
+  meta.append(when);
+
+  row.append(bell, open, meta);
+  return row;
+}
+
+/** A reminder is a moment, so the row always says the time as well as the day. */
+function formatReminderMoment(at: number): string {
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(at));
 }
 
 function nothingElseScheduled(): HTMLElement {
@@ -157,7 +234,11 @@ function emptyGroups(): HTMLElement {
 
 function createTaskRow(task: TaskWire): HTMLElement {
   const taskText = task.text || "Untitled task";
-  const row = htmlElement("label", task.completed ? "task-row is-completed" : "task-row");
+  /*
+   * A div, not a label: a label forwards a click anywhere in the row to the checkbox, so
+   * reading a due date completed the task. The checkbox and the text keep their own targets.
+   */
+  const row = htmlElement("div", task.completed ? "task-row is-completed" : "task-row");
 
   const priority = htmlElement(
     "span",
@@ -268,9 +349,24 @@ function isTasksSnapshot(value: unknown): value is TasksSnapshotWire {
     isRecord(value) &&
     Array.isArray(value.tasks) &&
     value.tasks.every(isTask) &&
+    Array.isArray(value.reminders) &&
+    value.reminders.every(isReminder) &&
     isOffset(value.version) &&
     isOffset(value.indexedAt) &&
     (value.filter === "all" || value.filter === "today")
+  );
+}
+
+function isReminder(value: unknown): value is TaskReminderWire {
+  return (
+    isRecord(value) &&
+    typeof value.noteUri === "string" &&
+    typeof value.noteTitle === "string" &&
+    isOffset(value.start) &&
+    typeof value.text === "string" &&
+    (value.due === undefined || typeof value.due === "string") &&
+    isOffset(value.at) &&
+    isOffset(value.dueAt)
   );
 }
 
@@ -285,6 +381,7 @@ function isTask(value: unknown): value is TaskWire {
     typeof value.noteUri === "string" &&
     typeof value.noteTitle === "string" &&
     typeof value.notePath === "string" &&
+    (value.noteCreatedAt === undefined || isOffset(value.noteCreatedAt)) &&
     isOffset(value.line) &&
     isOffsetRange(value.range) &&
     isOffsetRange(value.checkboxRange) &&

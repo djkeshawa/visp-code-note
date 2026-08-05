@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { DraftRecoveryStore } from "./application/draftRecoveryStore";
 import { ReminderStore } from "./application/reminderStore";
+import { upcomingReminders } from "./application/reminderSchedule";
 import { WorkspaceIndex } from "./indexing/workspaceIndex";
 import { WikiLinkDiagnostics } from "./vscode/diagnostics";
 import { registerCommands } from "./vscode/commands/registerCommands";
@@ -10,7 +11,7 @@ import { GraphPanel } from "./vscode/providers/graphPanel";
 import { IndexStatusItem } from "./vscode/providers/indexStatusItem";
 import { NoteEditorProvider } from "./vscode/providers/noteEditorProvider";
 import { NotesPanel } from "./vscode/providers/notesPanel";
-import { ReminderScheduler } from "./vscode/providers/reminderScheduler";
+import { ReminderScheduler, readReminderSettings } from "./vscode/providers/reminderScheduler";
 import { WorkspacePanel } from "./vscode/providers/workspacePanel";
 import { TasksPanel } from "./vscode/providers/tasksPanel";
 import { WikiCompletionProvider } from "./vscode/providers/wikiCompletionProvider";
@@ -36,6 +37,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     (noteUri, start, taskId, completed, version) =>
       toggleTask(index, noteUri, start, taskId, completed, version),
     (noteUri, start) => revealTask(noteUri, start),
+    () => upcomingReminders(index.snapshot, readReminderSettings(), Date.now())
+      .map(({ noteUri, noteTitle, start, text, due, at, dueAt }) => ({
+        noteUri,
+        noteTitle,
+        start,
+        text,
+        ...(due === undefined ? {} : { due }),
+        at,
+        dueAt,
+      })),
   );
   const graph = new GraphPanel(
     context.extensionUri,

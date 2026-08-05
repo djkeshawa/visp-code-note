@@ -478,11 +478,26 @@
   tab-size: var(--vscode-editor-tab-size, 2);
 }
 
+/*
+ * The reading measure.
+ *
+ * 1.78 was set for a page of headings and short list items, where loose leading looks
+ * generous. On a paragraph it reads as a gap between every sentence rather than a document:
+ * the eye has to travel back too far to find the next line. VS Code's own preview sets
+ * 22px on 14px — 1.57 — and GitHub the same; 1.62 sits just above both, which keeps the
+ * air this design wants at 15px without the lines drifting apart.
+ *
+ * A blank line is a real line the caret visits, so a paragraph break is one full line of
+ * this leading. That is where paragraph separation comes from here, rather than from the
+ * `p` margin a rendered document would use.
+ */
 .editor-host.is-live-mode .cm-content {
   color: var(--visp-prose);
-  font-family: var(--visp-prose-font, var(--visp-font));
+  font-family: var(--visp-prose-font, var(--visp-prose-face));
   font-size: 15px;
-  line-height: 1.78;
+  line-height: 1.62;
+  /* Lets a variable text face pick the cut drawn for this size rather than scaling one. */
+  font-optical-sizing: auto;
 }
 
 .editor-host .cm-line {
@@ -711,7 +726,12 @@
 .is-live-mode .live-heading-5,
 .is-live-mode .live-heading-6 {
   color: var(--visp-text);
-  font-weight: 650;
+  /*
+   * 600 and 700 exactly, because those are cuts the bundled face actually has. 650 was
+   * written for a variable font; against static cuts CSS rounds it up to 700, so every
+   * heading came out Bold and the weight axis stopped separating the levels.
+   */
+  font-weight: 600;
   letter-spacing: -0.012em;
 }
 
@@ -732,63 +752,117 @@
   color: color-mix(in srgb, var(--visp-hue-structure) 58%, var(--visp-text));
 }
 
+/*
+ * One step per level, and every step visible.
+ *
+ * The old scale ran 1.93 / 1.27 / 1.13 / 1.12: a cliff from the title to the section head,
+ * then three sizes a reader cannot tell apart — h3 and h4 differed by a hundredth of an em,
+ * so a note with four levels of structure showed two. These are spaced by roughly a 1.15
+ * ratio the whole way down, which is the smallest step that still reads as a step, and the
+ * weight climbs as the size falls so the deep levels stay distinct once the size runs out.
+ */
+/*
+ * The space above each level is smaller than it looks here: a blank source line already sits
+ * above most headings and contributes a full line of leading, so the rendered gap is this
+ * padding plus about 24px. Tuned so the total lands near the 40px GitHub and VS Code's
+ * preview put above a section head, rather than the 54px the first pass produced.
+ */
 .is-live-mode .live-heading-1 {
-  padding-block: 34px 14px;
-  font-size: 1.93em;
-  letter-spacing: -0.021em;
-  line-height: 1.22;
+  padding-block: 22px 10px;
+  font-size: 1.85em;
+  letter-spacing: -0.022em;
+  line-height: 1.25;
 }
 
 .is-live-mode .live-heading-2 {
-  padding-block: 30px 12px;
-  font-size: 1.27em;
-  line-height: 1.35;
+  padding-block: 18px 8px;
+  font-size: 1.42em;
+  letter-spacing: -0.014em;
+  line-height: 1.32;
 }
 
 .is-live-mode .live-heading-3 {
-  padding-block: 12px 4px;
-  font-size: 1.13em;
+  padding-block: 13px 5px;
+  font-size: 1.18em;
+  letter-spacing: -0.008em;
   line-height: 1.4;
 }
 
+/*
+ * Below the third level the size steps are too small to carry the hierarchy alone, so the
+ * colour fades instead: full strength, secondary, then muted and lettered out. h4 and h5 were
+ * both bold white a tenth of an em apart, which read as one level typed twice.
+ */
 .is-live-mode .live-heading-4 {
-  padding-block: 5px 2px;
-  font-size: 1.12em;
+  padding-block: 9px 3px;
+  font-size: 1.02em;
   font-weight: 700;
   line-height: 1.45;
 }
 
 .is-live-mode .live-heading-5 {
-  padding-block: 4px 1px;
-  font-size: 1em;
+  padding-block: 7px 2px;
+  color: var(--visp-muted-strong);
+  font-size: 0.92em;
   font-weight: 700;
-  letter-spacing: 0.01em;
+  letter-spacing: 0.012em;
 }
 
 .is-live-mode .live-heading-6 {
-  padding-block: 4px 1px;
+  padding-block: 7px 2px;
   color: var(--visp-muted);
-  font-size: 0.86em;
+  font-size: 0.82em;
   font-weight: 700;
   letter-spacing: 0.07em;
   text-transform: uppercase;
 }
 
+/*
+ * A hairline under the two top levels, the way VS Code's preview and GitHub both close a
+ * section head. It does the work the old 34px gap was doing — saying where a section starts —
+ * with far less vertical space, and it is drawn from the palette's quietest rule so it reads
+ * as a division rather than as a box.
+ */
+.is-live-mode .live-heading-1,
+.is-live-mode .live-heading-2 {
+  border-bottom: 1px solid var(--visp-hairline);
+}
+
+/*
+ * The first line of a note already has the content's own top padding above it, so a heading
+ * there does not need its section gap as well.
+ */
+.editor-host.is-live-mode .cm-content > .cm-line:first-child {
+  padding-top: 0;
+}
+
+/*
+ * A list item is a line of prose and takes the same leading, so a paragraph and the list
+ * beneath it sit on one rhythm instead of two.
+ */
 .is-live-mode .live-list-line {
-  line-height: 1.78;
+  line-height: 1.62;
 }
 
 /*
  * Bullets are punctuation, repeated dozens of times per note and carrying no meaning. They
  * used to be accent-coloured and semi-bold, which made a long list read as a column of
  * bright dots competing with the words beside them.
+ *
+ * Right-aligned in a fixed box, which is what a numbered list needs: centred in 1.25em, `10.`
+ * overflowed its box and every item past nine started a few pixels further right than the
+ * ones above it. Tabular figures hold the same column for every number.
  */
 .is-live-mode .live-list-marker {
   display: inline-block;
-  min-width: 1.25em;
+  /* Wide enough for a two-digit ordinal and its period, which is where the drift started. */
+  min-width: 1.62em;
+  padding-right: 0.1em;
   color: var(--visp-muted);
-  opacity: 0.75;
-  text-align: center;
+  font-feature-settings: "tnum" 1;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.9;
+  text-align: right;
 }
 
 /*
@@ -805,7 +879,13 @@
   --live-indent-step: 22px;
 }
 
+/*
+ * The rule needs air between it and the words. It carried none, so a quote read as text
+ * jammed against a bar rather than as an indented passage — the callout beside it has had
+ * its 14px all along.
+ */
 .is-live-mode .live-quote-line {
+  padding-left: 14px;
   border-left: 3px solid color-mix(in srgb, var(--visp-muted) 55%, transparent);
   color: var(--vscode-textBlockQuote-foreground, var(--visp-muted-strong));
 }
@@ -896,6 +976,12 @@
   overflow: hidden;
 }
 
+/* The caret brings the delimiter row back, like every other hidden mark. */
+.is-live-mode .live-table-line.is-delimiter.is-active {
+  height: auto;
+  overflow: visible;
+}
+
 /* Each cell carries its column's width inline, which is what lines the columns up. */
 .is-live-mode .live-table-cell {
   display: inline-block;
@@ -931,6 +1017,26 @@
   height: 0;
   margin-block: 12px;
   border-top: 1px solid var(--visp-border);
+}
+
+/* The caret brings the `---` back above its rule so it can be edited. */
+.is-live-mode .live-thematic-break.is-active {
+  height: auto;
+}
+
+/*
+ * A setext heading's underline. The line above it already reads as the heading, so the
+ * `===` says nothing the type size has not said; it collapses like a closing code fence.
+ */
+.is-live-mode .live-setext-underline {
+  height: 0;
+  overflow: hidden;
+}
+
+.is-live-mode .live-setext-underline.is-active {
+  height: auto;
+  overflow: visible;
+  color: var(--visp-muted);
 }
 
 .is-live-mode .live-inline-code {
@@ -1060,11 +1166,22 @@
   overflow: hidden;
 }
 
-/* The block's bottom edge is the last line of code, so it carries the cap. */
-.is-live-mode .live-code-line.is-close ~ .live-code-line,
-.is-live-mode .live-code-line:has(+ .live-code-line.is-close) {
+/*
+ * The block's bottom edge is the last line of code, so it carries the cap. Only `:has` can
+ * say "the line before the collapsed fence": a general-sibling selector reached every code
+ * line after the first block's close, and shredded the second block into rounded strips.
+ */
+.is-live-mode .live-code-line:has(+ .live-code-line.is-close:not(.is-active)) {
   padding-bottom: 14px;
   border-radius: 0 0 6px 6px;
+}
+
+/* An active closing fence is being edited, so it stands in as the block's bottom edge. */
+.is-live-mode .live-code-line.is-close.is-active {
+  height: auto;
+  padding-bottom: 6px;
+  border-radius: 0 0 6px 6px;
+  overflow: visible;
 }
 
 /*
@@ -1104,11 +1221,18 @@
   text-decoration-thickness: 1px;
 }
 
+/*
+ * The checkbox stands in the same gutter a bullet does — same width, same right edge — so a
+ * note that mixes list items and tasks keeps one left margin. It used to start hard against
+ * the line's edge, about fifteen pixels left of the bullets above it.
+ */
 .is-live-mode .live-task-widget {
   display: inline-flex;
+  min-width: 1.62em;
+  padding-right: 0.1em;
   align-items: center;
-  justify-content: center;
-  margin: 0 10px 0 0;
+  justify-content: flex-end;
+  margin: 0 6px 0 0;
   vertical-align: baseline;
 }
 
@@ -1138,9 +1262,13 @@
   color: var(--visp-warning);
 }
 
+/*
+ * A tag steps back by colour, not by size. At 0.87em it shrank mid-sentence, and a size
+ * change inside a line is the one thing that makes a paragraph look broken — the letters
+ * stop sharing a rhythm with the words either side of them.
+ */
 .is-live-mode .live-tag {
   color: var(--visp-muted);
-  font-size: 0.87em;
 }
 
 .is-live-mode .live-task-completed {

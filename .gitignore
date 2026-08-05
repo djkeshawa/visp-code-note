@@ -5,6 +5,7 @@ out-integration/
 .vscode-test/
 media/scripts/
 media/codicons/
+media/fonts/
 *.vsix
 *-harness.local.html
 *.log

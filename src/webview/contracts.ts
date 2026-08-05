@@ -144,10 +144,25 @@ export type TaskWire = NoteTaskWire & {
   readonly noteUri: string;
   readonly noteTitle: string;
   readonly notePath: string;
+  readonly noteCreatedAt?: number;
 };
+
+/** An upcoming reminder, already decided by the host so the panel only has to draw it. */
+export interface TaskReminderWire {
+  readonly noteUri: string;
+  readonly noteTitle: string;
+  readonly start: number;
+  readonly text: string;
+  readonly due?: string;
+  /** When the reminder fires. */
+  readonly at: number;
+  /** When the task is due, which is what the row says. */
+  readonly dueAt: number;
+}
 
 export interface TasksSnapshotWire {
   readonly tasks: readonly TaskWire[];
+  readonly reminders: readonly TaskReminderWire[];
   readonly version: number;
   readonly indexedAt: number;
   readonly filter: "all" | "today";

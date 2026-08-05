@@ -1,8 +1,10 @@
+import { posix } from "node:path";
 import * as vscode from "vscode";
 import { DraftBuffer } from "../../application/draftBuffer";
 import { DraftRecoveryStore } from "../../application/draftRecoveryStore";
 import type { RecoverableDraft } from "../../application/draftRecoveryStore";
 import { createTextPatch } from "../../application/textPatch";
+import { saveOutcome } from "../../application/saveOutcome";
 import { toRange } from "../documentEdits";
 
 export interface NoteEditorEditRequest {
@@ -284,9 +286,25 @@ export class NoteEditorEdits {
     const before = session.buffer.snapshot.acceptedSource;
     session.applying = true;
     try {
-      if (!(await session.document.save())) {
+      /*
+       * `save()` reports false for a note with nothing unsaved, having written nothing. That
+       * is not a failure, and reading it as one raised "VS Code could not save the note."
+       * over a note already safe on disk — see `saveOutcome`.
+       */
+      const hadUnsavedChanges = session.document.isDirty;
+      const reportedSaved = hadUnsavedChanges ? await session.document.save() : false;
+      if (saveOutcome(hadUnsavedChanges, reportedSaved, session.document.isDirty) === "failed") {
         session.buffer.requestSave();
-        throw new Error("VS Code could not save the note.");
+        /*
+         * Reaching here means VS Code tried to write a note that had changes and did not
+         * manage it, which it reports as a bare `false` with no reason attached. The banner
+         * has room for one sentence, so it spends it on the causes a reader can actually act
+         * on rather than repeating that something went wrong.
+         */
+        throw new Error(
+          `VS Code could not write ${posix.basename(session.document.uri.path)}. ` +
+          "The file may be read-only, or an extension that formats on save may have refused it.",
+        );
       }
     } finally {
       session.applying = false;

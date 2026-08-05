@@ -50,6 +50,8 @@ const FRONTMATTER_PROPERTY = /^([\t ]*)([A-Za-z0-9_][\w.-]*)[\t ]*:[\t ]*/;
  */
 const DUE_MARKER = /@due\(\s*([^)]+?)\s*\)/i;
 const PRIORITY_MARKER = /\s*@priority\(\s*(?:low|medium|high)\s*\)/i;
+/** Mirrors `taskIdPattern` in the parser: the id the extension writes, never the author. */
+const TASK_ID_MARKER = /\s*<!--\s*task:[A-Za-z0-9][\w.-]*\s*-->/i;
 
 const LINKING_PROPERTIES: ReadonlySet<string> = new Set(["tags", "aliases", "alias"]);
 
@@ -208,9 +210,10 @@ class CalloutIconWidget extends WidgetType {
 }
 
 /**
- * A bullet is punctuation, and one repeated at every depth says nothing about depth. A rule
- * for the top level and a point beneath it means a nested list reads as a nested list even
- * where the indentation is shallow. Ordered markers keep their own numbers.
+ * Unordered markers are drawn with the glyphs every markdown renderer uses — disc, circle,
+ * square by depth — so the live view reads the same as the rendered note. Each is a full-size
+ * bullet: an em dash read as a minus, and a middle dot was small enough that a nested item
+ * looked demoted rather than nested. Ordered markers keep their own numbers.
  */
 class ListMarkerWidget extends WidgetType {
   public constructor(
@@ -228,10 +231,36 @@ class ListMarkerWidget extends WidgetType {
     const marker = document.createElement("span");
     marker.className = "live-list-marker";
     marker.textContent = /^[-+*]$/.test(this.marker)
-      ? (this.depth === 0 ? "—" : "·")
+      ? (this.depth === 0 ? "•" : this.depth === 1 ? "◦" : "▪")
       : this.marker;
     marker.setAttribute("aria-hidden", "true");
     return marker;
+  }
+}
+
+/**
+ * Holds a column open where a row's cell is empty. There is no text to carry the column's
+ * `min-width`, so without this the column collapsed in that row and every cell to its right
+ * slid left out of line.
+ */
+class TableSpacerWidget extends WidgetType {
+  public constructor(
+    private readonly widthCh: number,
+    private readonly first: boolean,
+  ) {
+    super();
+  }
+
+  public override eq(other: TableSpacerWidget): boolean {
+    return this.widthCh === other.widthCh && this.first === other.first;
+  }
+
+  public override toDOM(): HTMLElement {
+    const spacer = document.createElement("span");
+    spacer.className = this.first ? "live-table-cell is-first" : "live-table-cell";
+    spacer.style.minWidth = `${this.widthCh}ch`;
+    spacer.setAttribute("aria-hidden", "true");
+    return spacer;
   }
 }
 
@@ -254,7 +283,16 @@ function buildDecorations(
         if (frontmatter !== undefined && line.from < frontmatter.end) {
           decorateFrontmatterLine(view, line.from, line.to, line.text, frontmatter, ranges);
         } else if (tableRole !== undefined) {
-          decorateTableLine(view, line.from, line.to, line.text, tableRole, ranges);
+          decorateTableLine(
+            view,
+            line.from,
+            line.to,
+            line.text,
+            tableRole,
+            unresolvedLinks,
+            noteTitle,
+            ranges,
+          );
         } else {
           decorateLine(view, line.from, line.to, line.text, unresolvedLinks, noteTitle, ranges);
         }
@@ -386,12 +424,16 @@ function decorateTableLine(
   to: number,
   text: string,
   layout: TableRowLayout,
+  unresolvedLinks: ReadonlySet<string>,
+  noteTitle: string,
   ranges: Range<Decoration>[],
 ): void {
   const active = view.state.selection.ranges.some((selection) =>
     selection.from <= to && selection.to >= from);
   ranges.push(
-    Decoration.line({ class: `live-table-line is-${layout.kind}` }).range(from),
+    Decoration.line({
+      class: active ? `live-table-line is-${layout.kind} is-active` : `live-table-line is-${layout.kind}`,
+    }).range(from),
   );
   if (layout.kind === "delimiter" && !active) {
     // Hidden entirely; the header line's bottom border stands in for it.
@@ -405,12 +447,40 @@ function decorateTableLine(
    */
   for (const cell of rowCells(text)) {
     const width = layout.columnWidths[cell.column];
-    if (width === undefined || cell.end <= cell.start) continue;
+    if (width === undefined) continue;
+    const content = text.slice(cell.start, cell.end);
+    const leading = content.length - content.trimStart().length;
+    const trimmedLength = content.trim().length;
+    if (trimmedLength === 0) {
+      // No text to carry the column's width, so a spacer widget holds it open instead.
+      if (!active) {
+        addHiddenMarkup(ranges, from + cell.start, content.length, false);
+        ranges.push(
+          Decoration.widget({
+            widget: new TableSpacerWidget(width + 2, cell.column === 0),
+            side: 1,
+          }).range(from + cell.start),
+        );
+      }
+      continue;
+    }
+    /*
+     * The column width is measured on trimmed text (`tableBlocks`), so it is applied to the
+     * trimmed span too. Styling the raw span let a source-padded cell overflow the shared
+     * floor and shove the row's later columns out of line; the padding hides with the pipes
+     * and comes back with the caret.
+     */
+    const contentFrom = from + cell.start + leading;
+    const contentTo = contentFrom + trimmedLength;
+    if (!active) {
+      addHiddenMarkup(ranges, from + cell.start, leading, false);
+      addHiddenMarkup(ranges, contentTo, from + cell.end - contentTo, false);
+    }
     ranges.push(
       Decoration.mark({
         class: cell.column === 0 ? "live-table-cell is-first" : "live-table-cell",
         attributes: { style: `min-width: ${width + 2}ch` },
-      }).range(from + cell.start, from + cell.end),
+      }).range(contentFrom, contentTo),
     );
   }
   /*
@@ -427,6 +497,21 @@ function decorateTableLine(
       addHiddenMarkup(ranges, from + offset, 1, false);
     }
   }
+  /*
+   * A cell's content is still prose: a wiki link, a tag or a span of code means the same
+   * thing inside a table as outside one, so the same inline pass runs here.
+   */
+  decorateInlineMarkup(
+    view,
+    from,
+    to,
+    text,
+    unresolvedLinks,
+    noteTitle,
+    active,
+    markdownBlockAtPosition(view.state, from),
+    ranges,
+  );
 }
 
 /**
@@ -463,14 +548,46 @@ function decorateLine(
     ranges.push(Decoration.line({ class: "live-code-line" }).range(from));
     decorateCodeFence(ranges, from, to, text, block, active);
   }
-  if (block?.kind === "heading" && block.range.start === from) {
-    const heading = /^(\s{0,3})(#{1,6})(?:\s+|$)/.exec(text);
-    const level = block.headingLevel ?? heading?.[2]?.length;
-    if (level !== undefined) {
-      ranges.push(Decoration.line({ class: `live-heading-${level}` }).range(from));
-    }
-    if (heading?.[2] !== undefined) {
-      addHiddenMarkup(ranges, from + (heading[1]?.length ?? 0), heading[2].length, active);
+  if (block?.kind === "heading") {
+    if (block.range.start === from) {
+      const heading = /^(\s{0,3})(#{1,6})([ \t]*)/.exec(text);
+      const level = block.headingLevel ?? heading?.[2]?.length;
+      if (level !== undefined) {
+        ranges.push(Decoration.line({ class: `live-heading-${level}` }).range(from));
+      }
+      if (heading?.[2] !== undefined) {
+        /*
+         * The space after the hashes goes with them. Hiding only the `#` left the heading
+         * starting one space in, so every heading sat a few pixels right of the paragraphs
+         * beneath it — the one misalignment on the page, and visible precisely because a
+         * heading is what the eye lands on first.
+         */
+        addHiddenMarkup(
+          ranges,
+          from + (heading[1]?.length ?? 0),
+          heading[2].length + (heading[3]?.length ?? 0),
+          active,
+        );
+        /*
+         * A closing sequence — `## Notes ##` — is decoration the parser strips from the
+         * heading's text, so the rendered line strips it too.
+         */
+        const closing = /[ \t]+#+[ \t]*$/.exec(text);
+        if (closing !== null) {
+          addHiddenMarkup(ranges, from + closing.index, closing[0].length, active);
+        }
+      }
+    } else {
+      /*
+       * The underline of a setext heading. The line above already reads as the heading, so
+       * the `===` collapses the way a closing code fence does, and comes back with the caret.
+       */
+      ranges.push(
+        Decoration.line({
+          class: active ? "live-setext-underline is-active" : "live-setext-underline",
+        }).range(from),
+      );
+      addHiddenMarkup(ranges, from, to - from, active);
     }
   }
   if (block?.kind === "list" || block?.kind === "task") {
@@ -479,8 +596,21 @@ function decorateLine(
       ranges.push(Decoration.line({ class: "live-list-line" }).range(from));
       const indent = list[1] ?? "";
       addIndentWidth(ranges, from, indent);
-      if (!active) {
-        const markerFrom = from + indent.length;
+      /*
+       * The marker is drawn whether or not the caret is on the line. It is punctuation the
+       * author never edits character by character — unlike an emphasis mark, which has to be
+       * seen to be removed — and revealing it meant the line being typed on was the one line
+       * showing a literal `-`. Every list looked like a list except the one being written.
+       */
+      const markerFrom = from + indent.length;
+      if (block.kind === "task" && /^[-+*]$/.test(list[2])) {
+        /*
+         * A task's marker is its checkbox. Drawing a bullet beside it said the line twice,
+         * which no rendered task list does; the number of an ordered task stays, because
+         * a numbered checkbox still means something.
+         */
+        addHiddenMarkup(ranges, markerFrom, list[2].length + (list[3]?.length ?? 0), false);
+      } else {
         ranges.push(Decoration.replace({
           widget: new ListMarkerWidget(list[2], Math.round(indentColumns(indent) / 2)),
         }).range(markerFrom, markerFrom + list[2].length));
@@ -530,14 +660,18 @@ function decorateLine(
     }
   }
   if (block?.kind === "thematic-break") {
-    ranges.push(Decoration.line({ class: "live-thematic-break" }).range(from));
+    ranges.push(
+      Decoration.line({
+        class: active ? "live-thematic-break is-active" : "live-thematic-break",
+      }).range(from),
+    );
     // Hiding the characters lets the line's CSS border be the rule itself.
     addHiddenMarkup(ranges, from, to - from, active);
   }
 
   if (block?.kind === "task") {
     const task = /^(\s*(?:(?:[-+*])|(?:\d+[.)]))\s+)\[([ xX])\]/.exec(text);
-    if (!active && task?.[1] !== undefined && task[2] !== undefined) {
+    if (task?.[1] !== undefined && task[2] !== undefined) {
       const checkboxFrom = from + task[1].length;
       const checkboxTo = checkboxFrom + 3;
       const label = text.slice(task[0].length).trim();
@@ -553,10 +687,35 @@ function decorateLine(
       if (task[2].toLowerCase() === "x") {
         ranges.push(Decoration.line({ class: "live-task-completed" }).range(from));
       }
-      decorateTaskMetadata(ranges, from, text);
+      /*
+       * The checkbox stays drawn on the active line — it is a control, not markup — but the
+       * due date goes back to being text there, since editing the date is the reason for
+       * putting the caret on the line at all.
+       */
+      if (!active) decorateTaskMetadata(ranges, from, text);
     }
   }
 
+  decorateInlineMarkup(view, from, to, text, unresolvedLinks, noteTitle, active, block, ranges);
+}
+
+/**
+ * The inline marks that mean the same thing on any line: tags, wiki links, formatting marks,
+ * the trailing block anchor, inline code and markdown links. Shared between ordinary lines
+ * and table rows — a cell's content is prose, and rendering it as raw source made a table
+ * the one place a link had no affordance.
+ */
+function decorateInlineMarkup(
+  view: EditorView,
+  from: number,
+  to: number,
+  text: string,
+  unresolvedLinks: ReadonlySet<string>,
+  noteTitle: string,
+  active: boolean,
+  block: MarkdownBlock | undefined,
+  ranges: Range<Decoration>[],
+): void {
   /*
    * `#tag` is an address the rest of the tool navigates by, not a word in the sentence, so
    * it steps back from the prose the way a block anchor does. Kept out of code, where a `#`
@@ -669,6 +828,14 @@ function decorateTaskMetadata(
   if (priority !== null) {
     addHiddenMarkup(ranges, from + priority.index, priority[0].length, false);
   }
+  /*
+   * The `<!-- task:… -->` id is machine-written bookkeeping — fifty characters of UUID the
+   * author never typed and should never have to read.
+   */
+  const taskId = TASK_ID_MARKER.exec(text);
+  if (taskId !== null) {
+    addHiddenMarkup(ranges, from + taskId.index, taskId[0].length, false);
+  }
 }
 
 /**
@@ -756,7 +923,11 @@ function decorateCodeFence(
      * A closing fence says nothing — the box ends where it ends — so it collapses to the
      * block's bottom edge unless the caret is on it.
      */
-    ranges.push(Decoration.line({ class: "live-code-line is-close" }).range(from));
+    ranges.push(
+      Decoration.line({
+        class: active ? "live-code-line is-close is-active" : "live-code-line is-close",
+      }).range(from),
+    );
   }
 }
 

@@ -4,6 +4,7 @@ import { runRegisteredTests } from "../harness";
 export async function run(): Promise<void> {
   // Importing a suite registers its tests.
   await import("./fileWrites.test.js");
+  await import("./saveNote.test.js");
   await import("./rename.test.js");
   await import("./deleteNote.test.js");
   await import("./design.test.js");

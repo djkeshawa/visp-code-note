@@ -78,6 +78,8 @@ export interface NoteRecord extends ParsedNote {
   readonly path: string;
   readonly fileName: string;
   readonly title: string;
+  /** File creation time, absent where the file system cannot say. */
+  readonly createdAt?: number;
   readonly modifiedAt: number;
   readonly content: string;
 }
@@ -173,6 +175,7 @@ export interface IndexSnapshot {
     readonly noteUri: string;
     readonly noteTitle: string;
     readonly notePath: string;
+    readonly noteCreatedAt?: number;
   })[];
   readonly version: number;
   readonly indexedAt: number;

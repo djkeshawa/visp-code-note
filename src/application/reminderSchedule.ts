@@ -79,6 +79,23 @@ export function reminderCandidates(
 }
 
 /**
+ * The reminders still ahead of now, soonest first — what a panel means by "active".
+ *
+ * Delivered keys are deliberately not consulted: delivery only ever concerns moments already
+ * past, and everything here is in the future.
+ */
+export function upcomingReminders(
+  snapshot: IndexSnapshot,
+  settings: ReminderSettings,
+  now: number,
+): readonly ReminderCandidate[] {
+  if (!settings.enabled) return [];
+  return reminderCandidates(snapshot, settings)
+    .filter((candidate) => candidate.at > now)
+    .sort((left, right) => left.at - right.at);
+}
+
+/**
  * What to do about those candidates right now.
  *
  * A candidate already delivered is neither shown nor scheduled — that is what stops a reminder

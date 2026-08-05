@@ -5,6 +5,7 @@ import { dueMoment } from "../../src/application/dueDate";
 import {
   decideReminders,
   reminderCandidates,
+  upcomingReminders,
   type ReminderSettings,
 } from "../../src/application/reminderSchedule";
 
@@ -162,6 +163,31 @@ test("nothing happens at all when reminders are switched off", () => {
     settings,
   );
   assert.deepEqual(decision, { deliver: [], suppress: [] });
+});
+
+test("the active list holds only what is still ahead, soonest first", () => {
+  const now = dueMoment("2026-08-15", NINE_AM)!;
+  const active = upcomingReminders(
+    snapshot([
+      task({ text: "Next week", due: "2026-08-22 14:00" }),
+      task({ text: "Tomorrow", due: "2026-08-16 14:00" }),
+      task({ text: "Already fired", due: "2026-08-14 14:00" }),
+      task({ text: "Done", due: "2026-08-22", completed: true }),
+      task({ text: "Undated" }),
+    ]),
+    SETTINGS,
+    now,
+  );
+  assert.deepEqual(active.map((candidate) => candidate.text), ["Tomorrow", "Next week"]);
+});
+
+test("the active list is empty when reminders are switched off", () => {
+  const active = upcomingReminders(
+    snapshot([task({ text: "Ship", due: "2026-08-22 14:00" })]),
+    { ...SETTINGS, enabled: false },
+    dueMoment("2026-08-15", NINE_AM)!,
+  );
+  assert.deepEqual(active, []);
 });
 
 test("a lead brings the reminder forward of the due moment", () => {

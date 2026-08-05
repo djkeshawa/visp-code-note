@@ -119,8 +119,22 @@ export type HostToTasksMessage =
   | { readonly type: "tasks/state"; readonly snapshot: TasksState }
   | { readonly type: "tasks/error"; readonly message: string };
 
+/** An upcoming reminder, already decided by the host so the panel only has to draw it. */
+export interface TaskReminder {
+  readonly noteUri: string;
+  readonly noteTitle: string;
+  readonly start: number;
+  readonly text: string;
+  readonly due?: string;
+  /** When the reminder fires. */
+  readonly at: number;
+  /** When the task is due, which is what the row says. */
+  readonly dueAt: number;
+}
+
 export interface TasksState {
   readonly tasks: IndexSnapshot["tasks"];
+  readonly reminders: readonly TaskReminder[];
   readonly version: number;
   readonly indexedAt: number;
   readonly filter: "all" | "today";

@@ -2,9 +2,12 @@ import type { TaskWire } from "../contracts.js";
 
 export type TaskStatusFilter = "open" | "all" | "completed";
 export type TaskGrouping = "due" | "note" | "tag";
+export type TaskSortKey = "due" | "created" | "text";
+export type TaskSortDirection = "asc" | "desc";
 export type DueGroupName = "Overdue" | "Today" | "This week" | "Later" | "No due date" | "Completed";
 
 const TASK_GROUPINGS: readonly TaskGrouping[] = ["due", "note", "tag"];
+const TASK_SORT_KEYS: readonly TaskSortKey[] = ["due", "created", "text"];
 
 export interface TaskFilter {
   readonly query: string;
@@ -12,6 +15,9 @@ export interface TaskFilter {
   readonly view: "all" | "today";
   /** Defaults to due-date buckets, the order most task lists are read in. */
   readonly groupBy?: TaskGrouping;
+  /** How rows order within a group. Defaults to due date, soonest first. */
+  readonly sortBy?: TaskSortKey;
+  readonly direction?: TaskSortDirection;
 }
 
 export interface TaskGroup {
@@ -38,26 +44,42 @@ export function parseTaskGrouping(value: unknown): TaskGrouping {
   return TASK_GROUPINGS.find((grouping) => grouping === value) ?? "due";
 }
 
+export function parseTaskSortKey(value: unknown): TaskSortKey {
+  return TASK_SORT_KEYS.find((key) => key === value) ?? "due";
+}
+
+export function parseTaskSortDirection(value: unknown): TaskSortDirection {
+  return value === "desc" ? "desc" : "asc";
+}
+
 export function groupTasks(
   tasks: readonly TaskWire[],
   filter: TaskFilter,
   today = localDateKey(new Date()),
 ): readonly TaskGroup[] {
   const visible = tasks.filter((task) => matchesFilter(task, filter, today));
+  const compare = taskComparator(filter.sortBy ?? "due", filter.direction ?? "asc");
   switch (filter.groupBy ?? "due") {
     case "note":
-      return groupByKeys(visible, (task) => [task.noteTitle]);
+      return groupByKeys(visible, (task) => [task.noteTitle], compare);
     case "tag":
       return groupByKeys(
         visible,
         (task) => task.tags.length === 0 ? [NO_TAG] : task.tags.map((tag) => `#${tag}`),
+        compare,
       );
     case "due":
-      return groupByDueDate(visible, today);
+      return groupByDueDate(visible, today, compare);
   }
 }
 
-function groupByDueDate(tasks: readonly TaskWire[], today: string): readonly TaskGroup[] {
+type TaskCompare = (left: TaskWire, right: TaskWire) => number;
+
+function groupByDueDate(
+  tasks: readonly TaskWire[],
+  today: string,
+  compare: TaskCompare,
+): readonly TaskGroup[] {
   const groups = new Map<DueGroupName, TaskWire[]>();
   for (const task of tasks) {
     const name = classifyTask(task, today);
@@ -67,7 +89,7 @@ function groupByDueDate(tasks: readonly TaskWire[], today: string): readonly Tas
   }
   return dueGroupOrder.flatMap((name) => {
     const groupedTasks = groups.get(name);
-    return groupedTasks === undefined ? [] : [{ name, tasks: groupedTasks.sort(compareTasks) }];
+    return groupedTasks === undefined ? [] : [{ name, tasks: groupedTasks.sort(compare) }];
   });
 }
 
@@ -78,6 +100,7 @@ function groupByDueDate(tasks: readonly TaskWire[], today: string): readonly Tas
 function groupByKeys(
   tasks: readonly TaskWire[],
   keysOf: (task: TaskWire) => readonly string[],
+  compare: TaskCompare,
 ): readonly TaskGroup[] {
   const groups = new Map<string, TaskWire[]>();
   for (const task of tasks) {
@@ -93,7 +116,7 @@ function groupByKeys(
       if (right === NO_TAG) return -1;
       return left.localeCompare(right, undefined, { sensitivity: "base" });
     })
-    .map(([name, groupedTasks]) => ({ name, tasks: groupedTasks.sort(compareTasks) }));
+    .map(([name, groupedTasks]) => ({ name, tasks: groupedTasks.sort(compare) }));
 }
 
 export type DueUrgency = "overdue" | "soon" | "later" | "none";
@@ -179,12 +202,45 @@ function classifyTask(task: TaskWire, today: string): DueGroupName {
   return dueUrgency(due, today) === "soon" ? "This week" : "Later";
 }
 
-function compareTasks(left: TaskWire, right: TaskWire): number {
-  if (left.completed !== right.completed) {
-    return left.completed ? 1 : -1;
+/**
+ * Row order within a group. A completed task always sinks below the open ones — the list is
+ * read for what is left to do — and a task missing the sorted-on value always sits at the
+ * end, whichever direction the sort runs: "no date" is an absence, not a large or small date.
+ */
+function taskComparator(sortBy: TaskSortKey, direction: TaskSortDirection): TaskCompare {
+  const sign = direction === "desc" ? -1 : 1;
+  return (left, right) => {
+    if (left.completed !== right.completed) {
+      return left.completed ? 1 : -1;
+    }
+    return sortedValueOrder(left, right, sortBy, sign) ||
+      (left.due ?? "9999").localeCompare(right.due ?? "9999") ||
+      left.text.localeCompare(right.text);
+  };
+}
+
+function sortedValueOrder(
+  left: TaskWire,
+  right: TaskWire,
+  sortBy: TaskSortKey,
+  sign: number,
+): number {
+  switch (sortBy) {
+    case "due":
+      return left.due === undefined || right.due === undefined
+        ? absentLast(left.due, right.due)
+        : sign * left.due.localeCompare(right.due);
+    case "created":
+      return left.noteCreatedAt === undefined || right.noteCreatedAt === undefined
+        ? absentLast(left.noteCreatedAt, right.noteCreatedAt)
+        : sign * Math.sign(left.noteCreatedAt - right.noteCreatedAt);
+    case "text":
+      return sign * left.text.localeCompare(right.text, undefined, { sensitivity: "base" });
   }
-  return (left.due ?? "9999").localeCompare(right.due ?? "9999") ||
-    left.text.localeCompare(right.text);
+}
+
+function absentLast(left: unknown, right: unknown): number {
+  return left === right ? 0 : left === undefined ? 1 : -1;
 }
 
 function localDateKey(date: Date): string {
