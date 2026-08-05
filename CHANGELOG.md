@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.11.0 - 2026-08-06
+
+### Added — spelling, checked and corrected in the note editor
+
+**Misspelled words are underlined, and clicking one offers corrections.** The menu also carries
+"Add to dictionary", and a word accepted there is remembered for good — in global rather than
+workspace state, because a word you have vouched for is a fact about your vocabulary rather
+than about a repository.
+
+The extension carries its own dictionary because it has no choice: switching on the editor's
+built-in spellchecker means `setSpellCheckerEnabled`, which lives in the main process and which
+an extension has no route to. That is why the `spellcheck` attribute this editor has always set
+does nothing, and why the most-installed spell checker for VS Code ships its own engine too.
+
+**What is not prose is never underlined**, which is most of what makes this bearable in a notes
+app rather than a wall of red. The target of a wiki link is a file name, a tag is an address, a
+fenced block is source code, frontmatter is configuration, a link's destination is a URL, and
+`@due(…)`, `@remind(…)`, `@priority(…)` and the identifier the extension writes are all syntax.
+Contractions are not misspellings either — `they're`, `can't` and `won't` are left alone while
+`theyre` and `dont` are still caught.
+
+Corrections are ranked by what a typo usually is rather than by edit distance alone, since
+every candidate for `teh` is one edit away and only `the` is ever the answer. `recieve` offers
+`receive`, `definately` offers `definitely`, `seperate` offers `separate`. Casing carries
+through, so `Recieve` corrects to `Receive`.
+
+The dictionary is 75,017 words merged from the American and British SCOWL lists, about 199KB
+compressed. It is checked into the repository rather than pulled from a package, so it brings
+no dependency and no install script with it. Only the lines on screen are ever checked, and
+suggestions are worked out when a word is clicked rather than for every misspelling at once —
+checking 50KB of prose takes four milliseconds.
+
 ## 0.10.3 - 2026-08-05
 
 ### Fixed — a task's own metadata could hang the window
