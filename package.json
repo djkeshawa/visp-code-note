@@ -462,6 +462,12 @@
           "default": 5120,
           "scope": "window",
           "markdownDescription": "Largest note, in kilobytes, that Visp Notes will index. A note above this is skipped entirely — it will not appear in the note list, the graph, search results or backlinks. The index keeps every note's full text in memory, so this bounds what a very large workspace can cost. Set to `0` for no limit."
+        },
+        "vispNotes.spelling.enabled": {
+          "type": "boolean",
+          "default": true,
+          "scope": "window",
+          "markdownDescription": "Underline misspelled words in the note editor, and offer corrections when one is clicked. Uses a bundled English word list; code, wiki links, tags and frontmatter are never checked. Turning this off also stops the word list being loaded."
         }
       }
     }

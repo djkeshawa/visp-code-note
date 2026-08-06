@@ -41,6 +41,13 @@ let status: TaskStatusFilter = "open";
 let direction: TaskSortDirection = "asc";
 
 search.addEventListener("input", render);
+// Escape clears the filter here too — notes, graph and the workspace panel all already do.
+search.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape" || search.value === "") return;
+  event.preventDefault();
+  search.value = "";
+  render();
+});
 groupBy.addEventListener("change", render);
 sortBy.addEventListener("change", render);
 sortDirection.addEventListener("click", toggleSortDirection);
@@ -107,11 +114,12 @@ function render(): void {
     return;
   }
   summary.textContent = summaryText(snapshot);
+  const grouping = parseTaskGrouping(groupBy.value);
   const groups = groupTasks(snapshot.tasks, {
     query: search.value,
     status,
     view: snapshot.filter,
-    groupBy: parseTaskGrouping(groupBy.value),
+    groupBy: grouping,
     sortBy: parseTaskSortKey(sortBy.value),
     direction,
   });
@@ -144,10 +152,12 @@ function render(): void {
     groupsRoot.append(section);
   }
   /*
-   * The design closes the list with a note rather than leaving it to run out. It is only true
-   * when nothing is dated beyond the week the list is read against, so it is only shown then.
+   * The design closes the list with a note rather than letting it run out, but only when it is
+   * true: nothing dated beyond the week the list is read against. "Later" is a due-date bucket,
+   * so grouping by note or tag never produces one — and the note then claimed nothing was
+   * scheduled while sitting directly under rows dated months ahead.
    */
-  if (!groups.some((group) => group.name === "Later")) {
+  if (grouping === "due" && !groups.some((group) => group.name === "Later")) {
     groupsRoot.append(nothingElseScheduled());
   }
 }
@@ -213,12 +223,23 @@ function formatReminderMoment(at: number): string {
   }).format(new Date(at));
 }
 
+/** A date a week out, so the hint never tells anyone to schedule something in the past. */
+function exampleDueDate(): string {
+  const when = new Date();
+  when.setDate(when.getDate() + 7);
+  return [
+    String(when.getFullYear()).padStart(4, "0"),
+    String(when.getMonth() + 1).padStart(2, "0"),
+    String(when.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
 function nothingElseScheduled(): HTMLElement {
   const state = emptyState("pass", "Nothing else is scheduled.");
   const hint = htmlElement("p", "empty-state-hint");
   hint.append(
     document.createTextNode("Add "),
-    htmlElement("code", "inline-code", "@due(2026-08-14)"),
+    htmlElement("code", "inline-code", `@due(${exampleDueDate()})`),
     document.createTextNode(" to any checkbox to schedule one."),
   );
   state.append(hint);

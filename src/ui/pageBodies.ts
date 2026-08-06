@@ -156,9 +156,9 @@ export const TASKS_BODY = `
           </div>
         </header>
         <div id="tasks-error" class="notice notice-error" role="alert" hidden></div>
-        <main id="task-groups" class="task-groups view-body" aria-live="polite"></main>
+        <main id="task-groups" class="task-groups view-body"></main>
         <footer class="view-footer">
-          <span id="task-count">Waiting for index…</span>
+          <span id="task-count" role="status" aria-live="polite">Waiting for index…</span>
           <span class="footer-hint">Space toggles · Enter opens the note</span>
         </footer>
       </div>`;
@@ -178,9 +178,9 @@ export const NOTES_BODY = `
           </label>
         </header>
         <div id="notes-error" class="notice notice-error" role="alert" hidden></div>
-        <main id="note-rows" class="note-rows view-body" aria-live="polite"></main>
+        <main id="note-rows" class="note-rows view-body"></main>
         <footer class="view-footer">
-          <span id="note-count">Waiting for index…</span>
+          <span id="note-count" role="status" aria-live="polite">Waiting for index…</span>
           <span class="footer-hint">Enter opens the note</span>
         </footer>
       </div>`;

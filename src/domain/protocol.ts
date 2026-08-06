@@ -30,6 +30,8 @@ export interface EditorState extends EditorDocumentState {
   readonly showInspector: boolean;
   /** Words the reader has accepted, so the checker knows them on open. */
   readonly personalDictionary: readonly string[];
+  /** Whether misspellings are underlined at all. */
+  readonly spellingEnabled: boolean;
 }
 
 /**
@@ -69,6 +71,7 @@ export type HostToEditorMessage =
   | { readonly type: "editor/proseFont"; readonly fontFamily?: string }
   | { readonly type: "editor/contentWidth"; readonly contentWidth: EditorContentWidth }
   | { readonly type: "editor/showInspector"; readonly showInspector: boolean }
+  | { readonly type: "editor/spelling"; readonly enabled: boolean }
   | {
       /*
        * Everything about a note that comes from the index rather than from its own text.

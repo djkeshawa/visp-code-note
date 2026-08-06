@@ -121,6 +121,8 @@ function handleHostMessage(event: MessageEvent<unknown>): void {
     setProseFont(message.fontFamily);
   } else if (message.type === "editor/contentWidth") {
     setContentWidth(parseEditorContentWidth(message.contentWidth));
+  } else if (message.type === "editor/spelling" && typeof message.enabled === "boolean") {
+    editor?.setSpellingEnabled(message.enabled);
   } else if (message.type === "editor/showInspector" && typeof message.showInspector === "boolean") {
     inspectorPreference = message.showInspector;
     applyInspectorVisibility();
@@ -171,6 +173,7 @@ function acceptEditorState(nextState: EditorStateWire): void {
    * and the first message is exactly when these matter, since a word accepted in an earlier
    * session should be known before anything is typed.
    */
+  editor?.setSpellingEnabled(nextState.spellingEnabled);
   editor?.setPersonalWords(nextState.personalDictionary);
   if (nextState.recoveredDraft !== undefined) {
     runTransition(sync.recoverDraft(

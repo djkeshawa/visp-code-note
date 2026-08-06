@@ -105,6 +105,12 @@ export class CodeMirrorEditor {
   private revealTimer: number | undefined;
   private dictionaryWords: readonly string[] = [];
   private readonly personalWords = new Set<string>();
+  /*
+   * Off until the host says otherwise. The setting arrives with the first state message,
+   * which is after this object exists, so starting hopefully and correcting later would
+   * already have fetched the word list a reader who turned spelling off never wanted.
+   */
+  private spellingEnabled = false;
 
   public constructor(
     private readonly host: HTMLElement,
@@ -125,7 +131,6 @@ export class CodeMirrorEditor {
       parent: host,
       state: this.createState(source),
     });
-    void this.loadDictionary();
   }
 
   /**
@@ -136,6 +141,8 @@ export class CodeMirrorEditor {
    * before 672KB of dictionary has been read, and spelling simply appears when it lands.
    */
   private async loadDictionary(): Promise<void> {
+    // Nothing is fetched at all when spelling is off — 672KB not read rather than read and ignored.
+    if (!this.spellingEnabled || this.dictionaryWords.length > 0) return;
     try {
       const url = document.body.dataset.dictionary;
       if (url === undefined || url.length === 0) return;
@@ -149,12 +156,27 @@ export class CodeMirrorEditor {
   }
 
   private publishDictionary(): void {
+    if (!this.spellingEnabled) {
+      this.view.dispatch({ effects: setSpellDictionary.of(undefined) });
+      return;
+    }
     if (this.dictionaryWords.length === 0) return;
     this.view.dispatch({
       effects: setSpellDictionary.of(
         createSpellDictionary(this.dictionaryWords, this.personalWords),
       ),
     });
+  }
+
+  /**
+   * Turns spelling on or off without reopening the note. Switching it on for the first time
+   * fetches the word list then, rather than at startup for a reader who never wants it.
+   */
+  public setSpellingEnabled(enabled: boolean): void {
+    if (enabled === this.spellingEnabled) return;
+    this.spellingEnabled = enabled;
+    if (enabled) void this.loadDictionary();
+    this.publishDictionary();
   }
 
   /** Remembers a word the reader accepted, and tells the host so it outlives this panel. */

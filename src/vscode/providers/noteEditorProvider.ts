@@ -63,6 +63,9 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
         if (event.affectsConfiguration(PROSE_FONT_SETTING)) {
           this.publishProseFont();
         }
+        if (event.affectsConfiguration(SPELLING_SETTING)) {
+          this.publishSpelling();
+        }
         if (event.affectsConfiguration(SHOW_INSPECTOR_SETTING)) {
           this.publishInspectorVisibility();
         }
@@ -425,6 +428,7 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
         contentWidth: contentWidthSetting(),
         showInspector: showInspectorSetting(),
         personalDictionary: this.personalDictionary.words,
+        spellingEnabled: spellingSetting(),
         brokenLinkCount: getBrokenLinks(this.index.snapshot).length,
         ...(proseFontSetting() === undefined ? {} : { proseFont: proseFontSetting() }),
         ...(recoveredDraft === undefined ? {} : { recoveredDraft }),
@@ -521,6 +525,19 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
     return fileName.replace(/\.md$/i, "");
   }
 
+  /** Turning spelling on or off takes effect in every open note without reopening it. */
+  private publishSpelling(): void {
+    const enabled = spellingSetting();
+    for (const [, panels] of this.panels.entries()) {
+      for (const panel of panels) {
+        void panel.webview.postMessage({
+          type: "editor/spelling",
+          enabled,
+        } satisfies HostToEditorMessage);
+      }
+    }
+  }
+
   private publishProseFont(): void {
     const fontFamily = proseFontSetting();
     for (const [, panels] of this.panels.entries()) {
@@ -602,6 +619,7 @@ function proseFontSetting(): string | undefined {
 }
 
 const SHOW_INSPECTOR_SETTING = "vispNotes.editor.showInspector";
+const SPELLING_SETTING = "vispNotes.spelling.enabled";
 
 /**
  * Writes a setting to the scope that currently decides its value.
@@ -623,6 +641,10 @@ async function updateSetting(section: string, value: unknown): Promise<void> {
 
 function showInspectorSetting(): boolean {
   return vscode.workspace.getConfiguration().get<boolean>(SHOW_INSPECTOR_SETTING) !== false;
+}
+
+function spellingSetting(): boolean {
+  return vscode.workspace.getConfiguration().get<boolean>(SPELLING_SETTING) !== false;
 }
 
 function contentWidthSetting(): EditorContentWidth {

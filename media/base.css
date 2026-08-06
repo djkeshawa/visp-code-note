@@ -632,3 +632,14 @@ label > .codicon {
   scrollbar-color: var(--vscode-scrollbarSlider-background, #5558) transparent;
   scrollbar-width: thin;
 }
+
+/*
+ * A disabled segment has to look disabled. The task view locks the status switch while Due
+ * Today is showing — that view is already a status filter — but the buttons looked live, so
+ * clicking them appeared to do nothing at all. The depth control in the graph has always
+ * dimmed this way; this makes every segmented control agree.
+ */
+.segment:disabled {
+  cursor: default;
+  opacity: 0.4;
+}

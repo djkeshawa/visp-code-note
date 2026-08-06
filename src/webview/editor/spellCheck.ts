@@ -1,6 +1,6 @@
-import { StateEffect, StateField } from "@codemirror/state";
+import { Prec, StateEffect, StateField } from "@codemirror/state";
 import type { EditorState, Extension, Range } from "@codemirror/state";
-import { Decoration, EditorView, ViewPlugin, showTooltip } from "@codemirror/view";
+import { Decoration, EditorView, ViewPlugin, keymap, showTooltip } from "@codemirror/view";
 import type { DecorationSet, Tooltip, ViewUpdate } from "@codemirror/view";
 import { misspelledWords } from "../../application/spellCheckText.js";
 import { spellSuggestions } from "../../application/spellSuggestions.js";
@@ -27,7 +27,7 @@ import { wikiLinkSpans } from "./wikiLinkSpans.js";
  * is exactly where that becomes noticeable.
  */
 
-export const setSpellDictionary = StateEffect.define<SpellDictionary>();
+export const setSpellDictionary = StateEffect.define<SpellDictionary | undefined>();
 const setSpellTooltip = StateEffect.define<Tooltip | null>();
 
 const misspellingMark = Decoration.mark({ class: "live-misspelling" });
@@ -134,6 +134,7 @@ function correctionTooltip(
   word: string,
   suggestions: readonly string[],
   onAddWord: (word: string) => void,
+  fromKeyboard: boolean,
 ): Tooltip {
   return {
     pos: from,
@@ -141,6 +142,12 @@ function correctionTooltip(
     create: () => {
       const dom = document.createElement("div");
       dom.className = "live-spell-menu";
+      /*
+       * A menu, said as one. Without the role a screen reader announces a stack of unrelated
+       * buttons floating in the document rather than a list of corrections for a word.
+       */
+      dom.setAttribute("role", "menu");
+      dom.setAttribute("aria-label", `Corrections for ${word}`);
       const apply = (replacement: string): void => {
         view.dispatch({
           changes: { from, to, insert: replacement },
@@ -160,26 +167,98 @@ function correctionTooltip(
         option.type = "button";
         option.className = "live-spell-option";
         option.textContent = suggestion;
+        option.setAttribute("role", "menuitem");
         option.addEventListener("mousedown", (event) => {
           event.preventDefault();
           apply(suggestion);
         });
+        option.addEventListener("click", () => apply(suggestion));
         dom.append(option);
       }
       const add = document.createElement("button");
       add.type = "button";
       add.className = "live-spell-add";
       add.textContent = `Add “${word}” to dictionary`;
-      add.addEventListener("mousedown", (event) => {
-        event.preventDefault();
+      add.setAttribute("role", "menuitem");
+      const accept = (): void => {
         onAddWord(word);
         view.dispatch({ effects: setSpellTooltip.of(null) });
         view.focus();
+      };
+      add.addEventListener("mousedown", (event) => {
+        event.preventDefault();
+        accept();
       });
+      add.addEventListener("click", accept);
       dom.append(add);
+
+      /*
+       * Arrow keys move between corrections and Escape abandons the menu, returning the caret
+       * to the note. Without this the menu can be opened from the keyboard and then not
+       * escaped from, which is worse than not opening it at all.
+       */
+      dom.addEventListener("keydown", (event) => {
+        const items = Array.from(dom.querySelectorAll<HTMLButtonElement>("button"));
+        const current = items.indexOf(document.activeElement as HTMLButtonElement);
+        if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+          event.preventDefault();
+          const step = event.key === "ArrowDown" ? 1 : -1;
+          const next = (current + step + items.length) % items.length;
+          items[next]?.focus();
+        } else if (event.key === "Escape") {
+          event.preventDefault();
+          view.dispatch({ effects: setSpellTooltip.of(null) });
+          view.focus();
+        }
+      });
+
+      // Opened by pointer, the caret stays in the note; opened by key, the menu takes focus.
+      if (fromKeyboard) {
+        queueMicrotask(() => dom.querySelector<HTMLButtonElement>("button")?.focus());
+      }
       return { dom };
     },
   };
+}
+
+/**
+ * Opens the correction menu for whatever misspelling sits at `position`, if any.
+ *
+ * Suggestions are generated here rather than while decorating: building every word one edit
+ * away is cheap for one word and pointless for every misspelling on screen.
+ */
+function openCorrections(
+  view: EditorView,
+  position: number,
+  addWord: (word: string) => void,
+  fromKeyboard: boolean,
+): boolean {
+  const dictionary = view.state.field(dictionaryField, false);
+  if (dictionary === undefined) return false;
+
+  const line = view.state.doc.lineAt(position);
+  const skip = nonProseRanges(view.state, line.from, line.to, line.text);
+  const found = misspelledWords(line.text, dictionary, skip, line.from)
+    .find((candidate) => position >= candidate.start && position <= candidate.end);
+  if (found === undefined) {
+    if (view.state.field(tooltipField, false) !== null) {
+      view.dispatch({ effects: setSpellTooltip.of(null) });
+    }
+    return false;
+  }
+
+  view.dispatch({
+    effects: setSpellTooltip.of(correctionTooltip(
+      view,
+      found.start,
+      found.end,
+      found.word,
+      spellSuggestions(found.word, dictionary),
+      addWord,
+      fromKeyboard,
+    )),
+  });
+  return true;
 }
 
 export interface SpellCheckOptions {
@@ -194,39 +273,32 @@ export function createSpellCheck(options: SpellCheckOptions): Extension {
     spellPlugin,
     EditorView.domEventHandlers({
       mousedown: (event, view) => {
-        const dictionary = view.state.field(dictionaryField, false);
-        if (dictionary === undefined || event.button !== 0) return false;
+        if (event.button !== 0) return false;
         const position = view.posAtCoords({ x: event.clientX, y: event.clientY });
         if (position === null) return false;
-
-        const line = view.state.doc.lineAt(position);
-        const skip = nonProseRanges(view.state, line.from, line.to, line.text);
-        const found = misspelledWords(line.text, dictionary, skip, line.from)
-          .find((candidate) => position >= candidate.start && position <= candidate.end);
-        if (found === undefined) {
-          if (view.state.field(tooltipField) !== null) {
-            view.dispatch({ effects: setSpellTooltip.of(null) });
-          }
-          return false;
-        }
-
-        /*
-         * Suggestions are generated here rather than while decorating: building every word one
-         * edit away is cheap for one word and pointless for every misspelling on screen.
-         */
-        event.preventDefault();
-        view.dispatch({
-          effects: setSpellTooltip.of(correctionTooltip(
-            view,
-            found.start,
-            found.end,
-            found.word,
-            spellSuggestions(found.word, dictionary),
-            options.addWord,
-          )),
-        });
-        return true;
+        return openCorrections(view, position, options.addWord, false);
       },
     }),
+    /*
+     * The same menu from the keyboard. Without this a misspelling could only be corrected by
+     * pointing at it, which leaves anyone working from the keyboard — or using a screen
+     * reader — with an underline they can see and cannot act on. `Mod-.` is what VS Code uses
+     * for its own quick fixes, so it is the key already in the reader's hand.
+     */
+    Prec.high(keymap.of([
+      {
+        key: "Mod-.",
+        run: (view) => openCorrections(view, view.state.selection.main.head, options.addWord, true),
+      },
+      {
+        key: "Escape",
+        run: (view) => {
+          if (view.state.field(tooltipField, false) === null) return false;
+          view.dispatch({ effects: setSpellTooltip.of(null) });
+          view.focus();
+          return true;
+        },
+      },
+    ])),
   ];
 }

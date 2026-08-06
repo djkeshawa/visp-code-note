@@ -52,6 +52,8 @@ export interface EditorStateWire extends EditorDocumentStateWire {
   readonly showInspector: boolean;
   /** Words the reader has accepted, so the checker knows them on open. */
   readonly personalDictionary: readonly string[];
+  /** Whether misspellings are underlined at all. */
+  readonly spellingEnabled: boolean;
 }
 
 export type EditorMenuCommandWire =
@@ -87,6 +89,7 @@ export type HostToEditorWire =
   | { readonly type: "editor/proseFont"; readonly fontFamily?: string }
   | { readonly type: "editor/contentWidth"; readonly contentWidth: EditorContentWidthWire }
   | { readonly type: "editor/showInspector"; readonly showInspector: boolean }
+  | { readonly type: "editor/spelling"; readonly enabled: boolean }
   | {
       readonly type: "editor/indexState";
       readonly suggestions: readonly NoteSuggestionWire[];

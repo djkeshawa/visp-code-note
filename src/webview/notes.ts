@@ -101,9 +101,16 @@ function render(): void {
   summary.textContent = total === 0
     ? emptyText(current.listing)
     : `${total} ${nounOf(current.listing)}${total === 1 ? "" : "s"}`;
-  countText.textContent = query.length === 0 || visible.length === total
-    ? `${total} shown · indexed ${formatIndexedAt(current.indexedAt)}`
-    : `${visible.length} of ${total} shown · indexed ${formatIndexedAt(current.indexedAt)}`;
+  const counts = query.length === 0 || visible.length === total
+    ? `${total} shown`
+    : `${visible.length} of ${total} shown`;
+  /*
+   * `formatIndexedAt` says the word "indexed" itself, and says nothing at all until the first
+   * index has finished — so prefixing it printed "indexed indexed just now", and "indexed
+   * undefined" on a cold start. The workspace panel already does it this way.
+   */
+  const freshness = formatIndexedAt(current.indexedAt);
+  countText.textContent = freshness === undefined ? counts : `${counts} · ${freshness}`;
 }
 
 function noteRow(

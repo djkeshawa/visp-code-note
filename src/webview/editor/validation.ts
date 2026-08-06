@@ -20,6 +20,7 @@ export function isEditorState(value: unknown): value is EditorStateWire {
     )) &&
     isOffset(state.brokenLinkCount) &&
     typeof state.showInspector === "boolean" &&
+    typeof state.spellingEnabled === "boolean" &&
     Array.isArray(state.personalDictionary) &&
     state.personalDictionary.every((word: unknown) => typeof word === "string") &&
     isNoteSuggestions(state.noteSuggestions)
