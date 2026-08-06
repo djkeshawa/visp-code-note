@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.11.1 - 2026-08-06
+
+### Changed — each workspace view keeps its own colour
+
+**The five rows at the top of the panel are told apart by colour now**, rather than by reading
+five near-identical grey icons in a narrow column. Each hue comes from the palette the rest of
+the extension already uses and is assigned by what the view is about: the structure blue for
+the knowledge graph, gold for tasks, orange for what is due today, the error colour for links
+that land nowhere, and the reference hue for notes nothing refers to.
+
+The colour is fixed, and whether a view wants attention is carried by the count beside it.
+Colour previously meant "something here needs looking at" — Broken Links was only coloured when
+there were broken links — so painting every icon permanently would have thrown that signal
+away, while leaving it on the icon would have made the panel read as a row of warnings at rest.
+Splitting the two keeps both: the icon says which view it is, the count says whether it wants
+anything.
+
 ## 0.11.0 - 2026-08-06
 
 ### Added — spelling, checked and corrected in the note editor
