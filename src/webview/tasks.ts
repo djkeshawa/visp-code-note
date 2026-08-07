@@ -39,6 +39,16 @@ const statusSegments = Array.from(
 let snapshot: TasksSnapshotWire | undefined;
 let status: TaskStatusFilter = "open";
 let direction: TaskSortDirection = "asc";
+/*
+ * The row a toggle came from, so focus can be put back after the list is rebuilt.
+ *
+ * Toggling disables the checkbox and the host then republishes, which replaces every row —
+ * so the element the reader was standing on is destroyed and focus falls to the body, and the
+ * next Tab restarts at the top of the view. Under the default Open filter the row is gone for
+ * good, which is why the position is remembered as well as the identity: landing on whatever
+ * took its place is what a reader working down a list expects.
+ */
+let pendingFocus: { readonly uri: string; readonly start: number; readonly index: number } | undefined;
 
 search.addEventListener("input", render);
 // Escape clears the filter here too — notes, graph and the workspace panel all already do.
@@ -160,6 +170,29 @@ function render(): void {
   if (grouping === "due" && !groups.some((group) => group.name === "Later")) {
     groupsRoot.append(nothingElseScheduled());
   }
+  restorePendingFocus();
+}
+
+/** Puts focus back on the task that was toggled, or on whatever now stands in its place. */
+function restorePendingFocus(): void {
+  const target = pendingFocus;
+  if (target === undefined) return;
+  pendingFocus = undefined;
+
+  const exact = groupsRoot.querySelector<HTMLInputElement>(
+    `input[data-action="toggle"][data-uri="${CSS.escape(target.uri)}"][data-start="${target.start}"]`,
+  );
+  if (exact !== null) {
+    exact.focus();
+    return;
+  }
+  // Completed under the Open filter, so the row is gone: take the one that moved up into it.
+  const remaining = Array.from(
+    groupsRoot.querySelectorAll<HTMLInputElement>('input[data-action="toggle"]'),
+  );
+  const next = remaining[Math.min(target.index, remaining.length - 1)];
+  if (next !== undefined) next.focus();
+  else search.focus();
 }
 
 /**
@@ -354,6 +387,10 @@ function handleTaskToggle(event: Event): void {
       render();
       return;
     }
+    const checkboxes = Array.from(
+      groupsRoot.querySelectorAll<HTMLInputElement>('input[data-action="toggle"]'),
+    );
+    pendingFocus = { uri, start, index: Math.max(0, checkboxes.indexOf(event.target)) };
     event.target.disabled = true;
     api.postMessage({
       type: "tasks/toggle",

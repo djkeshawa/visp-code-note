@@ -282,10 +282,33 @@ function selectNode(
 }
 
 function clearSelection(): void {
+  /*
+   * Clearing hides the details card, which on the workspace graph is the element the close
+   * button lives in — so dismissing it from the keyboard hid the button along with the focus
+   * on it, and focus fell to the body. The graph itself is where the reader was, so that is
+   * where focus goes back to: the node still selected, or the canvas when none is.
+   */
+  const hadFocusInCard = details.card.contains(document.activeElement);
   selectedId = visibleGraph.focusId;
   updateSearch();
   renderGraphDetails(details, visibleGraph, selectedId);
   updateViewportControls();
+  if (hadFocusInCard) {
+    window.requestAnimationFrame(() => {
+      if (selectedId !== undefined) {
+        focusGraphNode(svg, selectedId);
+        return;
+      }
+      /*
+       * With nothing selected there is no node to return to, and the canvas itself is not a
+       * tab stop — the nodes carry a roving tabindex instead. The graph's own single tab stop
+       * is the right landing place; the search field is the fallback if the graph is empty.
+       */
+      const stop = svg.querySelector<SVGGElement>('.graph-node[tabindex="0"]');
+      if (stop !== null) stop.focus();
+      else search.focus();
+    });
+  }
 }
 
 function fitVisibleGraph(): void {
@@ -328,8 +351,11 @@ function openSelectedNode(): void {
 }
 
 function setMenuOpen(open: boolean): void {
+  // Closing returns focus to the button that opened it — see the editor's menu for why.
+  const hadFocusInside = menu.contains(document.activeElement);
   menu.hidden = !open;
   menuButton.setAttribute("aria-expanded", String(open));
+  if (!open && hadFocusInside) menuButton.focus();
   if (open) {
     const workspaceItem = menu.querySelector<HTMLButtonElement>('[data-command="openWorkspaceGraph"]');
     // Already looking at the whole workspace: the entry would be a no-op.

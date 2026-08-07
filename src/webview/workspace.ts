@@ -183,6 +183,13 @@ function matches(haystack: string): boolean {
   return query.length === 0 || haystack.toLocaleLowerCase().includes(query);
 }
 
+/*
+ * The task a toggle came from. The host republishes after a toggle and `render` replaces every
+ * row, destroying the checkbox the reader was standing on — so focus falls to the body unless
+ * it is deliberately put back.
+ */
+let pendingTaskFocus: { readonly uri: string; readonly start: number } | undefined;
+
 function render(): void {
   // Every row about to be replaced, including the one the menu names.
   closeNoteMenu(false);
@@ -198,6 +205,33 @@ function render(): void {
   renderNotes(state);
   renderTags(state);
   renderStatus(state);
+  restoreTaskFocus();
+}
+
+/**
+ * Puts focus back on the task that was toggled, or on the row that replaced it.
+ *
+ * Due Today lists only what is still open, so completing a task removes its row — landing on
+ * whatever moved up into that place is what a reader working down the list expects, and is in
+ * any case better than the body.
+ */
+function restoreTaskFocus(): void {
+  const target = pendingTaskFocus;
+  if (target === undefined) return;
+  pendingTaskFocus = undefined;
+
+  const checkboxes = Array.from(
+    viewsRoot.querySelectorAll<HTMLInputElement>("input[data-task-uri]"),
+  );
+  const exact = checkboxes.find(
+    (box) => box.dataset.taskUri === target.uri && box.dataset.taskStart === String(target.start),
+  );
+  if (exact !== undefined) {
+    exact.focus();
+    return;
+  }
+  if (checkboxes[0] !== undefined) checkboxes[0].focus();
+  else viewsRoot.querySelector<HTMLButtonElement>(".workspace-row")?.focus();
 }
 
 /** Moves the current-note highlight without rebuilding a row. */
@@ -274,7 +308,10 @@ function taskRow(task: WorkspaceTaskRowWire, version: number): HTMLElement {
   checkbox.type = "checkbox";
   checkbox.checked = task.completed;
   checkbox.setAttribute("aria-label", task.completed ? `Reopen ${text}` : `Complete ${text}`);
+  checkbox.dataset.taskUri = task.noteUri;
+  checkbox.dataset.taskStart = String(task.start);
   checkbox.addEventListener("change", () => {
+    pendingTaskFocus = { uri: task.noteUri, start: task.start };
     checkbox.disabled = true;
     api.postMessage({
       type: "workspace/toggleTask",

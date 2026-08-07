@@ -89,10 +89,15 @@ for (const item of menuItems) {
 }
 for (const segment of widthSegments) {
   segment.addEventListener("click", () => {
+    /*
+     * The menu stays open. Width is a setting being adjusted rather than a command being run,
+     * and closing on the first press meant a reader who wanted to compare two widths had to
+     * reopen the menu between them — and lost focus each time.
+     */
     const contentWidth = parseEditorContentWidth(segment.dataset.width);
     setContentWidth(contentWidth);
-    setMenuOpen(false);
     api.postMessage({ type: "editor/setContentWidth", contentWidth });
+    segment.focus();
   });
 }
 document.addEventListener("click", closeMenuOnOutsideClick, true);
@@ -325,11 +330,20 @@ function isMenuCommand(value: string | undefined): value is EditorMenuCommandWir
 }
 
 function setMenuOpen(open: boolean): void {
+  /*
+   * Opening moves focus into the menu, so closing has to put it back — otherwise choosing an
+   * item leaves focus on a hidden element, it falls to the body, and the next Tab restarts at
+   * the top of the view. Guarded on focus actually being inside, so dismissing the menu by
+   * clicking elsewhere does not snatch it back from wherever the reader just went.
+   */
+  const hadFocusInside = menu.contains(document.activeElement);
   menu.hidden = !open;
   menuButton.setAttribute("aria-expanded", String(open));
   if (open) {
     updateMenuAvailability();
     menu.querySelector<HTMLButtonElement>(".editor-menu-item:not(:disabled)")?.focus();
+  } else if (hadFocusInside) {
+    menuButton.focus();
   }
 }
 
