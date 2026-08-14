@@ -33,13 +33,13 @@ export function parseMarkdown(source: string): ParsedNote {
     parseInlineTags(source, protectedRanges, links),
     ...tasks.map((task) => task.tags),
   );
-  const configuredTitle = readString(frontmatter.data, "title");
-  const headingTitle = parsedBlocks.headings.find(
-    (heading) => heading.level === 1 && heading.text.trim() !== "",
-  )?.text;
+  const written = writtenTitle({
+    ...(frontmatter.data === undefined ? {} : { frontmatter: frontmatter.data }),
+    headings: parsedBlocks.headings,
+  });
 
   return Object.freeze({
-    ...(configuredTitle === undefined ? (headingTitle === undefined ? {} : { title: headingTitle }) : { title: configuredTitle }),
+    ...(written === undefined ? {} : { title: written }),
     aliases: Object.freeze([...readList(frontmatter.data, "aliases")]),
     headings: parsedBlocks.headings,
     blockReferences,
@@ -49,6 +49,21 @@ export function parseMarkdown(source: string): ParsedNote {
     blocks: parsedBlocks.blocks,
     ...(frontmatter.data === undefined ? {} : { frontmatter: frontmatter.data }),
   });
+}
+
+/**
+ * The title a note writes down for itself, as opposed to the one it borrows from its file name.
+ *
+ * `NoteRecord.title` conflates the two — it falls back to the file stem — and that is the wrong
+ * answer for anyone asking what a note will be called once its file is renamed. A note with a
+ * `title:` or an `# H1` keeps its name through a rename and every `[[link]]` by title survives;
+ * a note without one is renamed by the gesture, and those links have to be rewritten.
+ */
+export function writtenTitle(
+  note: Pick<ParsedNote, "frontmatter" | "headings">,
+): string | undefined {
+  return readString(note.frontmatter, "title")
+    ?? note.headings.find((heading) => heading.level === 1 && heading.text.trim() !== "")?.text;
 }
 
 export interface MarkdownWikiAnalysis {
