@@ -60,6 +60,12 @@ const NOTE = "# Atlas\n\nOpening prose.\n\n## Sources\n\nMore prose.\n";
 test("moving the caret says where it went", async () => {
   const note = openNote(NOTE);
   await note.nextFrame();
+  assert.equal(
+    note.reports().length,
+    1,
+    "where the caret starts is said without waiting for a first keypress",
+  );
+
   note.caretTo(NOTE.indexOf("More prose"));
   await note.nextFrame();
 
