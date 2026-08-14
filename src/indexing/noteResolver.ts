@@ -1,4 +1,4 @@
-import type { NoteRecord } from "../domain/models";
+import type { NoteRecord, SkippedNote } from "../domain/models";
 import { posix } from "node:path";
 import {
   encodeWikiTarget,
@@ -131,6 +131,60 @@ export function createWikiTargetPlanner(notes: readonly NoteRecord[]): WikiTarge
         : encodeWikiTarget(targetPath);
     },
   };
+}
+
+/**
+ * The file the size limit skipped that this target names, if the target names one.
+ *
+ * Asked only after `createNoteResolver` has answered with nothing, so that a note which is
+ * actually indexed always wins. The point is the sentence the reader is shown: a link to a
+ * note past `vispNotes.maxNoteSizeKB` used to be reported unresolved and then offered "Create
+ * Note" — an offer to overwrite the file it could not find, which is the worst thing this
+ * could have done with a note it had decided not to read.
+ *
+ * Only the names a file that has never been opened can be said to have: its path, whole or
+ * from the linking note, and any suffix of it — which is where the bare file name comes from,
+ * a file at the workspace root being answered by the whole-path rule instead. There is no
+ * title and no alias, because reading them is exactly what the limit prevented, so
+ * `[[My Enormous Note]]` against `notes/enormous.md` finds nothing here and the reader is told
+ * the target does not exist — still true of every name anything in the workspace knows.
+ *
+ * Linear over the skipped files rather than indexed like the resolver: this runs once per
+ * click on an unresolved link, over a list that is almost always empty and never long.
+ */
+export function findSkippedNote(
+  skipped: readonly SkippedNote[],
+  sourcePath: string | undefined,
+  target: string,
+): SkippedNote | undefined {
+  const trimmed = target.trim();
+  if (trimmed === "" || skipped.length === 0) return undefined;
+  const targetKey = canonicalTarget(trimmed);
+  const sourceDirectory = directoryName(canonicalPath(sourcePath ?? ""));
+  const relativeKey = canonicalPath(`${sourceDirectory}/${trimmed}`);
+  // The resolver's own order, minus the name kinds an unread file cannot have.
+  const rules: readonly ((entry: SkippedNote) => boolean)[] = [
+    (entry) => canonicalPath(entry.path) === relativeKey,
+    (entry) => canonicalPath(entry.path) === targetKey,
+    (entry) => pathSuffixes(canonicalPath(entry.path)).includes(targetKey),
+  ];
+  // Path order, so two skipped files answering to one name are decided the way notes are.
+  const ordered = [...skipped].sort((left, right) =>
+    compareText(canonicalPath(left.path), canonicalPath(right.path)));
+  for (const rule of rules) {
+    const found = ordered.find((entry) => targetKey !== "" && rule(entry));
+    if (found !== undefined) return found;
+  }
+  return undefined;
+}
+
+function pathSuffixes(path: string): readonly string[] {
+  const segments = path.split("/");
+  const suffixes: string[] = [];
+  for (let index = 1; index < segments.length; index += 1) {
+    suffixes.push(segments.slice(index).join("/"));
+  }
+  return suffixes;
 }
 
 function addBest(map: Map<string, NoteRecord>, key: string, note: NoteRecord): void {
