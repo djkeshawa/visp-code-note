@@ -153,6 +153,28 @@ test("the index republishing under a reader does not take focus away from the li
   assert.equal(focusedText(), label);
 });
 
+/*
+ * The question Tab actually asks. Focus landing back on a row is only half of it: if the tab
+ * stop stayed on the row the reader started from, Tab would leave the list and Shift+Tab would
+ * come back somewhere they have never been.
+ */
+test("after an action the row holding focus is the row Tab would come back to", async () => {
+  await vault();
+  const folder = noteRows()[0] as HTMLElement;
+  folder.focus();
+  press(folder, "ArrowRight");
+  press(focused() as HTMLElement, "ArrowDown");
+  press(focused() as HTMLElement, "ArrowDown");
+
+  const here = focused();
+  const stops = tabStops().filter((stop) => stop.closest("#workspace-notes") !== null);
+  assert.deepEqual(stops, [here]);
+
+  publish(panelState(VAULT));
+  const afterPublish = tabStops().filter((stop) => stop.closest("#workspace-notes") !== null);
+  assert.deepEqual(afterPublish, [focused()]);
+});
+
 test("a reader who has moved to the filter is not dragged back into the list", async () => {
   await vault();
   (noteRows()[1] as HTMLElement).focus();
