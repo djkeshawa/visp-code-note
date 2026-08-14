@@ -7,7 +7,10 @@ import type {
   NoteSuggestionWire,
 } from "./contracts.js";
 import { CodeMirrorEditor } from "./editor/codeMirrorEditor.js";
-import type { MarkdownEditorMode } from "./editor/codeMirrorEditor.js";
+import type {
+  EditorSelectionReport,
+  MarkdownEditorMode,
+} from "./editor/codeMirrorEditor.js";
 import { DocumentSyncModel } from "./editor/documentSync.js";
 import type { DocumentSyncAction, HostStateTransition } from "./editor/documentSync.js";
 import type { TextPatch } from "../application/textPatch.js";
@@ -31,8 +34,14 @@ import {
   isWorkspaceTags,
 } from "./editor/validation.js";
 import { INLINE_MARKS, keyHint } from "./editor/inlineMarks.js";
-import { getNoteInspectorElements, renderNoteInspector } from "./editor/noteInspector.js";
+import { createIdleRedraw } from "./editor/idleRedraw.js";
+import {
+  getNoteInspectorElements,
+  markCurrentOutlineEntry,
+  renderNoteInspector,
+} from "./editor/noteInspector.js";
 import type { NoteInspectorSections } from "./editor/noteInspector.js";
+import { wordCountLabel } from "./editor/wordCount.js";
 import { planTagAddition, planTagRemoval } from "../application/noteMetadataEdits.js";
 import { planTaskToggle } from "../application/taskEditing.js";
 import { parseProseFont } from "../application/proseFont.js";
@@ -56,6 +65,7 @@ const syncStatusText = requireElement("#sync-status-text", HTMLElement);
 const menuButton = requireElement("#editor-menu-button", HTMLButtonElement);
 const menu = requireElement("#editor-menu", HTMLElement);
 const brokenLinkHint = requireElement("#broken-link-hint", HTMLElement);
+const wordCount = requireElement("#editor-word-count", HTMLElement);
 const errorNotice = requireElement("#editor-error", HTMLElement);
 const conflictNotice = requireElement("#editor-conflict", HTMLElement);
 const widthSegments = Array.from(
@@ -94,6 +104,21 @@ const roomyPane = window.matchMedia("(min-width: 901px)");
 let pendingReveal: number | undefined;
 let lastStashedSource: string | undefined;
 let lastStashedSaveRequested = false;
+/*
+ * The outline and the task list are the draft's own shape, so they follow what is typed — but
+ * from the gap between keystrokes rather than from inside one. Drawing them per character
+ * parsed the whole note a second time and rebuilt every outline row and every task row, with
+ * their listeners, for a panel nobody reads mid-word.
+ */
+const idleDraftRedraw = createIdleRedraw(() => renderInspector("draft"));
+/*
+ * The footer's count is a pass over the whole note, so it rides the same gap in the typing.
+ * It is its own timer because a selection changes the number without changing the draft.
+ */
+const idleWordCount = createIdleRedraw(renderWordCount);
+/** Where the caret last was, so a redrawn outline can say which section it is in again. */
+let caretOffset = 0;
+let hadSelection = false;
 
 liveMode.addEventListener("click", () => setMode("live"));
 markdownMode.addEventListener("click", () => setMode("markdown"));
@@ -228,7 +253,14 @@ function acceptEditorDocumentState(nextState: EditorDocumentStateWire): void {
   }
   runTransition(transition);
   updateStatus();
-  renderInspector(contextChanged ? "all" : "draft");
+  /*
+   * The comparison in `renderNoteContext` is what says whether the index moved. When it has,
+   * the backlinks and the links-out have to be rebuilt now; when it has not, this message is
+   * the host echoing back a keystroke, and the draft half can wait for a gap in the typing
+   * along with every other keystroke-driven redraw.
+   */
+  if (contextChanged) renderInspector("all");
+  else idleDraftRedraw.schedule();
 }
 
 function runTransition(transition: HostStateTransition): void {
@@ -271,6 +303,7 @@ function mountOrReplaceEditor(source: string): void {
   if (editor !== undefined) {
     editor.replaceSource(source);
     renderInspector();
+    renderWordCount();
     return;
   }
   editor = new CodeMirrorEditor(editorHost, cspNonce, source, {
@@ -287,9 +320,11 @@ function mountOrReplaceEditor(source: string): void {
     }),
     openExternal: (url) => api.postMessage({ type: "editor/openExternal", url }),
     addDictionaryWord: (word) => api.postMessage({ type: "editor/addDictionaryWord", word }),
+    selectionChanged: handleSelectionChange,
   });
   updateMenuAvailability();
   renderInspector();
+  renderWordCount();
   if (pendingReveal !== undefined) {
     const offset = pendingReveal;
     pendingReveal = undefined;
@@ -299,11 +334,32 @@ function mountOrReplaceEditor(source: string): void {
   }
 }
 
+/**
+ * The caret moved. Already throttled to a frame by the editor, so this may touch the DOM —
+ * but it must stay to what a frame can afford, which is a walk of the outline rows and no
+ * parsing at all.
+ */
+function handleSelectionChange(selection: EditorSelectionReport): void {
+  caretOffset = selection.caret;
+  markCurrentOutlineEntry(inspector, caretOffset);
+  /*
+   * Counting is a pass over the note, so a caret that is only moving asks for nothing. A
+   * selection appearing, growing or going away is the one caret move that changes the footer.
+   */
+  if (selection.hasSelection || hadSelection) idleWordCount.schedule();
+  hadSelection = selection.hasSelection;
+}
+
+function renderWordCount(): void {
+  const counts = editor?.wordCounts();
+  wordCount.textContent = counts === undefined ? "" : wordCountLabel(counts);
+}
+
 function handleLocalPatch(patch: TextPatch): void {
   setNotice(errorNotice);
   runActions(sync.onLocalPatch(patch));
-  // The outline and the task list are the draft's own shape, so they follow every keystroke.
-  renderInspector("draft");
+  idleDraftRedraw.schedule();
+  idleWordCount.schedule();
 }
 
 function requestSave(): void {
@@ -631,6 +687,11 @@ function contextSpan(className: string, text: string): HTMLSpanElement {
 }
 
 function renderInspector(sections: NoteInspectorSections = "all"): void {
+  /*
+   * Every draw redraws the draft half, so anything waiting for a gap in the typing has just
+   * been done. Leaving it queued would parse the note again a moment later for the same answer.
+   */
+  idleDraftRedraw.cancel();
   renderNoteInspector(inspector, editor?.source ?? "", noteContext, {
     reveal: (offset) => editor?.reveal(offset),
     openBacklink: (uri, start) => api.postMessage({ type: "editor/openBacklink", uri, start }),
@@ -647,6 +708,8 @@ function renderInspector(sections: NoteInspectorSections = "all"): void {
     },
     openLink: (target) => api.postMessage({ type: "editor/openLink", target }),
   }, sections);
+  // The rows are new elements, so the section the caret is in has to be said again.
+  markCurrentOutlineEntry(inspector, caretOffset);
 }
 
 function revealOffset(offset: number): void {

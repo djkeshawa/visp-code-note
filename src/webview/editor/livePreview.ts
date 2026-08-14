@@ -274,7 +274,7 @@ function buildDecorations(
   const ranges: Range<Decoration>[] = [];
   const visitedLines = new Set<number>();
   const frontmatter = markdownFrontmatterRange(view.state);
-  const tables = view.state.field(tableLayoutField, false) ?? tableLayout(view.state);
+  const tables = tableLayoutRows(view.state);
   for (const visible of view.visibleRanges) {
     let position = view.state.doc.lineAt(visible.from).from;
     while (position <= visible.to && position <= view.state.doc.length) {
@@ -379,22 +379,94 @@ interface TableRowLayout {
   readonly kind: TableLineKind;
   /** Shared across the whole table, so every row's columns land in the same place. */
   readonly columnWidths: readonly number[];
+  /** The table this row belongs to, by the 1-based line its header sits on. */
+  readonly table: number;
+}
+
+/** The widths of the table the caret is in, kept still until the caret leaves it. */
+interface HeldColumns {
+  readonly table: number;
+  readonly widths: readonly number[];
+}
+
+interface TableLayoutState {
+  /** The widths the text measures to. */
+  readonly measured: ReadonlyMap<number, TableRowLayout>;
+  readonly held: HeldColumns | undefined;
+  /** What is drawn: `measured`, with the held table's columns substituted in. */
+  readonly rows: ReadonlyMap<number, TableRowLayout>;
 }
 
 /**
  * Table roles and column widths keyed by 1-based line number. Computed for the whole document
  * because a row's role depends on the delimiter beneath the header, and its column widths
  * depend on every other row in the same table — neither of which a per-line pass can see.
- */
-/**
+ *
  * Held in a field so it is worked out once per edit rather than once per repaint. The map
  * depends only on the text, but decorations are rebuilt whenever the selection moves too, so
  * recomputing it there re-split and re-scanned the whole document on every caret move.
+ *
+ * The field also decides when a table is allowed to change shape. A column is as wide as its
+ * widest cell, so measuring afresh on every keystroke meant typing a long cell stepped the
+ * whole grid sideways one character at a time — and deleting it stepped everything back. While
+ * the caret is inside a table that table keeps the widths it had when the caret arrived; the
+ * cell being typed simply outgrows its column, which moves one row instead of all of them. The
+ * measurement returns the moment the caret leaves.
  */
-const tableLayoutField = StateField.define<ReadonlyMap<number, TableRowLayout>>({
-  create: (state) => tableLayout(state),
-  update: (value, transaction) => transaction.docChanged ? tableLayout(transaction.state) : value,
+const tableLayoutField = StateField.define<TableLayoutState>({
+  create: (state) => {
+    const measured = tableLayout(state);
+    return layoutState(measured, holdColumns(measured, undefined, state));
+  },
+  update: (value, transaction) => {
+    const measured = transaction.docChanged ? tableLayout(transaction.state) : value.measured;
+    const held = holdColumns(measured, value.held, transaction.state);
+    return measured === value.measured && held === value.held
+      ? value
+      : layoutState(measured, held);
+  },
 });
+
+function layoutState(
+  measured: ReadonlyMap<number, TableRowLayout>,
+  held: HeldColumns | undefined,
+): TableLayoutState {
+  return { measured, held, rows: withHeldColumns(measured, held) };
+}
+
+/** The held widths after this transaction: the same ones, freshly taken, or none at all. */
+function holdColumns(
+  measured: ReadonlyMap<number, TableRowLayout>,
+  held: HeldColumns | undefined,
+  state: EditorState,
+): HeldColumns | undefined {
+  const caretRow = measured.get(state.doc.lineAt(state.selection.main.head).number);
+  if (caretRow === undefined) return undefined;
+  return held?.table === caretRow.table
+    ? held
+    : { table: caretRow.table, widths: caretRow.columnWidths };
+}
+
+function withHeldColumns(
+  measured: ReadonlyMap<number, TableRowLayout>,
+  held: HeldColumns | undefined,
+): ReadonlyMap<number, TableRowLayout> {
+  if (held === undefined) return measured;
+  const rows = new Map(measured);
+  for (const [line, row] of measured) {
+    if (row.table !== held.table) continue;
+    // A column typed into existence has no held width, so it takes its measured one.
+    rows.set(line, {
+      ...row,
+      columnWidths: row.columnWidths.map((width, column) => held.widths[column] ?? width),
+    });
+  }
+  return rows;
+}
+
+function tableLayoutRows(state: EditorState): ReadonlyMap<number, TableRowLayout> {
+  return state.field(tableLayoutField, false)?.rows ?? tableLayout(state);
+}
 
 function tableLayout(state: EditorState): ReadonlyMap<number, TableRowLayout> {
   const document = state.doc;
@@ -408,7 +480,7 @@ function tableLayout(state: EditorState): ReadonlyMap<number, TableRowLayout> {
       const kind: TableLineKind = line === block.startLine
         ? "header"
         : line === block.startLine + 1 ? "delimiter" : "body";
-      layout.set(line + 1, { kind, columnWidths: block.columnWidths });
+      layout.set(line + 1, { kind, columnWidths: block.columnWidths, table: block.startLine + 1 });
     }
   }
   return layout;

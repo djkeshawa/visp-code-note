@@ -33,7 +33,9 @@ import {
   rectangularSelection,
 } from "@codemirror/view";
 import type { OffsetTextEdit } from "../../application/textEdits.js";
+import { proseWordCount } from "../../application/proseWordCount.js";
 import type { NoteSuggestionWire } from "../contracts.js";
+import type { WordCounts } from "./wordCount.js";
 import { codeLanguages } from "./codeLanguages.js";
 import { vispEditorTheme } from "./editorTheme.js";
 import { outlineFolding } from "./outlineFolding.js";
@@ -64,6 +66,12 @@ import type { TextPatch } from "../../application/textPatch.js";
 
 export type MarkdownEditorMode = "live" | "markdown";
 
+/** Where the caret is, said in the coordinates of the note's own text. */
+export interface EditorSelectionReport {
+  readonly caret: number;
+  readonly hasSelection: boolean;
+}
+
 export interface CodeMirrorEditorDependencies {
   readonly suggestions: () => readonly NoteSuggestionWire[];
   /** Every tag in the workspace, most used first, so `#` can offer what already exists. */
@@ -76,6 +84,11 @@ export interface CodeMirrorEditorDependencies {
   readonly noteTitle: () => string;
   /** Words the reader has accepted, remembered by the host. */
   readonly addDictionaryWord?: (word: string) => void;
+  /**
+   * Where the caret is, at most once per frame. Everything the page shows about the caret —
+   * which section is being written, how much is selected — comes from here.
+   */
+  readonly selectionChanged?: (selection: EditorSelectionReport) => void;
 }
 
 /** The design gives a note, a heading and a block their own glyph in their own hue. */
@@ -110,6 +123,7 @@ export class CodeMirrorEditor {
   private mode: MarkdownEditorMode = "live";
   private readOnly = false;
   private revealTimer: number | undefined;
+  private selectionFrame: number | undefined;
   private dictionaryWords: readonly string[] = [];
   private readonly personalWords = new Set<string>();
   /*
@@ -138,6 +152,43 @@ export class CodeMirrorEditor {
       parent: host,
       state: this.createState(source),
     });
+    // Where the caret starts, so the page is not waiting for a first keypress to find out.
+    this.reportSelectionSoon();
+  }
+
+  /**
+   * The caret, reported at most once per animation frame.
+   *
+   * `selectionSet` fires on every caret move — which includes every keystroke — and what
+   * listens to it touches the DOM. Reporting each one would put a panel redraw back inside the
+   * keystroke, which is the cost this signal exists to stay out of. A frame is the rate at
+   * which anything drawn from it could be seen anyway.
+   */
+  private reportSelectionSoon(): void {
+    if (this.dependencies.selectionChanged === undefined) return;
+    if (this.selectionFrame !== undefined) return;
+    this.selectionFrame = window.requestAnimationFrame(() => {
+      this.selectionFrame = undefined;
+      const selection = this.view.state.selection.main;
+      this.dependencies.selectionChanged?.({
+        caret: this.rawOffsetOf(selection.head),
+        hasSelection: !selection.empty,
+      });
+    });
+  }
+
+  /**
+   * An editor offset in the note's own text.
+   *
+   * `editorOffsetToRawOffset` walks the source, which is right for a one-off and wrong for
+   * something reported on every caret move — the walk would cost the length of the note per
+   * keystroke. A CRLF document carries exactly one extra character per line break before the
+   * caret, and the line number is a lookup rather than a scan.
+   */
+  private rawOffsetOf(position: number): number {
+    return this.lineSeparator === "\r\n"
+      ? position + this.view.state.doc.lineAt(position).number - 1
+      : position;
   }
 
   /**
@@ -366,12 +417,31 @@ export class CodeMirrorEditor {
     }, 1_600);
   }
 
+  /**
+   * The words of prose in the note, and in the selection while there is one.
+   *
+   * Read from the live document rather than from `source`, which holds the last host-synced
+   * text and so lags whatever has been typed since. Counting the whole note is a pass over it,
+   * which is why the page asks for this from the same idle path as the inspector rather than
+   * from the caret signal.
+   */
+  public wordCounts(): WordCounts {
+    const selection = this.view.state.selection.main;
+    return {
+      total: proseWordCount(this.view.state.doc.toString()),
+      ...(selection.empty
+        ? {}
+        : { selected: proseWordCount(this.view.state.sliceDoc(selection.from, selection.to)) }),
+    };
+  }
+
   public focus(): void {
     this.view.focus();
   }
 
   public destroy(): void {
     if (this.revealTimer !== undefined) window.clearTimeout(this.revealTimer);
+    if (this.selectionFrame !== undefined) window.cancelAnimationFrame(this.selectionFrame);
     this.view.destroy();
   }
 
@@ -489,6 +559,7 @@ export class CodeMirrorEditor {
       this.previewCompartment.of(this.mode === "live" ? this.previewExtension : []),
       this.readOnlyCompartment.of(readOnlyExtensions(this.readOnly)),
       EditorView.updateListener.of((update) => {
+        if (update.selectionSet) this.reportSelectionSoon();
         if (!update.docChanged || update.transactions.some((item) => item.annotation(hostTransaction))) {
           return;
         }
