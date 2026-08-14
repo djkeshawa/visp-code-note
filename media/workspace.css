@@ -146,6 +146,10 @@
   color: var(--visp-hue-reference);
 }
 
+.workspace-row .row-icon.is-recent {
+  color: var(--visp-hue-string);
+}
+
 /*
  * The fallback for anything without a hue of its own, and for the note and folder rows that
  * share this class.
@@ -158,7 +162,8 @@
 .workspace-row .row-icon.is-due,
 .workspace-row .row-icon.is-graph,
 .workspace-row .row-icon.is-broken,
-.workspace-row .row-icon.is-orphans {
+.workspace-row .row-icon.is-orphans,
+.workspace-row .row-icon.is-recent {
   opacity: 0.92;
 }
 

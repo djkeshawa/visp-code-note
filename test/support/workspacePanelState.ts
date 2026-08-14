@@ -1,5 +1,6 @@
 import type { WorkspacePanelState } from "../../src/domain/protocol";
 import { folderTreeRows } from "../../src/application/workspaceFolderTree";
+import { RECENT_LISTING_MEANING } from "../../src/application/noteRecency";
 
 /**
  * A panel state built the way the host builds one, from nothing but a list of note paths — so
@@ -22,6 +23,13 @@ export function panelState(
     views: [
       { id: "due", label: "Due Today", icon: "calendar", count: 0, tone: "default" },
       { id: "tasks", label: "All Tasks", icon: "checklist", count: 0, tone: "default" },
+      {
+        id: "recent",
+        label: "Recent Notes",
+        icon: "history",
+        tone: "default",
+        hint: RECENT_LISTING_MEANING,
+      },
     ],
     dueToday: [],
     folders: folderTreeRows(notes),

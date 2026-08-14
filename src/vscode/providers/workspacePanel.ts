@@ -21,6 +21,7 @@ import { selectDueTasks } from "../../application/dueTasks";
 import type { DueSelection } from "../../application/dueTasks";
 import { matchingNoteUris } from "../../application/workspaceSearch";
 import { folderTreeRows } from "../../application/workspaceFolderTree";
+import { RECENT_LISTING_MEANING } from "../../application/noteRecency";
 
 /**
  * How many task rows ride to the panel.
@@ -59,7 +60,14 @@ const NOTE_ACTION_COMMANDS: Readonly<Record<WorkspaceNoteAction, string>> = {
   delete: COMMAND_IDS.deleteNote,
 };
 
-const SMART_VIEWS: readonly { readonly id: WorkspaceViewRow["id"]; readonly label: string; readonly icon: string }[] = [
+interface SmartView {
+  readonly id: WorkspaceViewRow["id"];
+  readonly label: string;
+  readonly icon: string;
+  readonly hint?: string;
+}
+
+const SMART_VIEWS: readonly SmartView[] = [
   /*
    * Today's work first: it is the only one of these that is about the next few hours. Work that
    * slipped its date counts as today's — scoped strictly to the current date, a task that missed
@@ -67,6 +75,15 @@ const SMART_VIEWS: readonly { readonly id: WorkspaceViewRow["id"]; readonly labe
    */
   { id: "due", label: "Due Today", icon: "calendar" },
   { id: "tasks", label: "All Tasks", icon: "checklist" },
+  /*
+   * Third, with the two lists you open to decide what to work on, ahead of the three that are
+   * about the shape of the vault. Nothing in this product was ordered by time until now, so
+   * "the note I wrote last Tuesday" was a question with no answer anywhere.
+   *
+   * The hint is not decoration. The row says "Recent Notes" and the list is ordered by file
+   * modification time, which is not the same thing, so the row says so before it is clicked.
+   */
+  { id: "recent", label: "Recent Notes", icon: "history", hint: RECENT_LISTING_MEANING },
   { id: "graph", label: "Knowledge Graph", icon: "type-hierarchy" },
   { id: "broken", label: "Broken Links", icon: "warning" },
   { id: "orphans", label: "Orphan Notes", icon: "circle-slash" },
@@ -257,6 +274,9 @@ export class WorkspacePanel implements vscode.WebviewViewProvider, vscode.Dispos
       case "orphans":
         this.actions.openNotesList({ kind: "orphans" });
         break;
+      case "recent":
+        this.actions.openNotesList({ kind: "recent" });
+        break;
     }
   }
 
@@ -370,6 +390,11 @@ export class WorkspacePanel implements vscode.WebviewViewProvider, vscode.Dispos
       }
       case "orphans":
         return { ...view, count: getOrphanNotes(snapshot).length, tone: "default" };
+      /*
+       * No count on either of these. A number beside Recent Notes would only ever be the
+       * length of the list itself, which is a constant and says nothing about the workspace.
+       */
+      case "recent":
       case "graph":
         return { ...view, tone: "default" };
     }

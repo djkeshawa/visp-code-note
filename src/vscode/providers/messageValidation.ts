@@ -20,7 +20,7 @@ const GRAPH_MENU_COMMANDS: readonly GraphMenuCommand[] = ["openWorkspaceGraph", 
  */
 const WORKSPACE_MENU_COMMANDS: readonly WorkspaceMenuCommand[] = ["search", "newNote"];
 
-const WORKSPACE_VIEW_IDS = ["tasks", "due", "graph", "broken", "orphans"];
+const WORKSPACE_VIEW_IDS = ["tasks", "due", "graph", "broken", "orphans", "recent"];
 
 /** The closed set a note row's menu may ask for. `delete` still confirms on the host side. */
 const WORKSPACE_NOTE_ACTIONS = ["rename", "graph", "delete"];

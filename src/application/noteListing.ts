@@ -1,5 +1,6 @@
 import type { IndexSnapshot, WikiLink } from "../domain/models";
 import { getBrokenLinks, getOrphanNotes } from "../indexing/projections";
+import { RECENT_LISTING_MEANING } from "./noteRecency";
 
 /**
  * The note lists the workspace panel offers, as rows.
@@ -19,6 +20,7 @@ import { getBrokenLinks, getOrphanNotes } from "../indexing/projections";
 export type NoteListing =
   | { readonly kind: "orphans" }
   | { readonly kind: "broken" }
+  | { readonly kind: "recent" }
   | { readonly kind: "tag"; readonly tag: string };
 
 export type NoteListKind = NoteListing["kind"];
@@ -39,6 +41,8 @@ export interface NoteListRow {
   readonly start?: number;
   /** One-based, as a reader counts them. */
   readonly line?: number;
+  /** When the file was last written, for a list that is about time. */
+  readonly modifiedAt?: number;
 }
 
 export function buildNoteListing(
@@ -48,6 +52,7 @@ export function buildNoteListing(
   switch (listing.kind) {
     case "orphans": return orphanRows(snapshot);
     case "broken": return brokenRows(snapshot);
+    case "recent": return recentRows(snapshot);
     case "tag": return tagRows(snapshot, listing.tag);
   }
 }
@@ -57,6 +62,7 @@ export function emptyListingMessage(listing: NoteListing): string {
   switch (listing.kind) {
     case "orphans": return "Every note is connected to another.";
     case "broken": return "Every wiki link lands somewhere.";
+    case "recent": return "No note has been written yet.";
     case "tag": return `No note carries #${listing.tag}.`;
   }
 }
@@ -65,6 +71,7 @@ export function listingTitle(listing: NoteListing): string {
   switch (listing.kind) {
     case "orphans": return "Orphan Notes";
     case "broken": return "Broken Links";
+    case "recent": return "Recent Notes";
     case "tag": return `#${listing.tag}`;
   }
 }
@@ -92,6 +99,44 @@ function tagRows(snapshot: IndexSnapshot, tag: string): readonly NoteListRow[] {
     });
   }
   return rows.sort(byPath);
+}
+
+/**
+ * How many recently changed notes the list shows.
+ *
+ * "The note I wrote last Tuesday" is a question about the last week or two of work, not about
+ * the whole vault; a list long enough to scroll would just be a second, worse note list. Every
+ * note stays reachable through the panel and through search.
+ */
+export const RECENT_ROW_LIMIT = 40;
+
+/**
+ * The notes whose files changed most recently.
+ *
+ * `modifiedAt` has been on every record since the index was written, stat-ed for every note on
+ * every commit, and read by exactly one thing: the comparison that decides whether a note has
+ * changed. This is the list it was always for — until now nothing in the product was ordered
+ * by time at all, and "the note I wrote last Tuesday" had no answer.
+ *
+ * What it is ordered by is said out loud on the list itself; see `RECENT_LISTING_MEANING`.
+ */
+function recentRows(snapshot: IndexSnapshot): readonly NoteListRow[] {
+  return [...snapshot.notes]
+    .sort((left, right) =>
+      right.modifiedAt - left.modifiedAt ||
+      left.path.localeCompare(right.path, undefined, { sensitivity: "base" }))
+    .slice(0, RECENT_ROW_LIMIT)
+    .map((note): NoteListRow => ({
+      uri: note.uri,
+      title: note.title,
+      path: note.path,
+      modifiedAt: note.modifiedAt,
+    }));
+}
+
+/** What a list is ordered by, where the title does not say it and could be misread. */
+export function listingMeaning(listing: NoteListing): string | undefined {
+  return listing.kind === "recent" ? RECENT_LISTING_MEANING : undefined;
 }
 
 function orphanRows(snapshot: IndexSnapshot): readonly NoteListRow[] {

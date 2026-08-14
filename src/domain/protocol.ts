@@ -179,6 +179,7 @@ export type TasksToHostMessage =
 export type NoteListing =
   | { readonly kind: "orphans" }
   | { readonly kind: "broken" }
+  | { readonly kind: "recent" }
   | { readonly kind: "tag"; readonly tag: string };
 
 export interface NoteListRow {
@@ -189,6 +190,8 @@ export interface NoteListRow {
   readonly tags?: readonly string[];
   readonly start?: number;
   readonly line?: number;
+  /** When the file was last written, for a list that is about time. */
+  readonly modifiedAt?: number;
 }
 
 export interface NotesState {
@@ -234,11 +237,16 @@ export type GraphToHostMessage =
 export type WorkspaceViewTone = "default" | "brand" | "warning";
 
 export interface WorkspaceViewRow {
-  readonly id: "tasks" | "due" | "graph" | "broken" | "orphans";
+  readonly id: "tasks" | "due" | "graph" | "broken" | "orphans" | "recent";
   readonly label: string;
   readonly icon: string;
   readonly count?: number;
   readonly tone: WorkspaceViewTone;
+  /**
+   * What the view is, where its label could be read as promising something it cannot do.
+   * Shown as the row's tooltip in place of the label, so the row itself can stay one line.
+   */
+  readonly hint?: string;
 }
 
 export interface WorkspaceTaskRow {

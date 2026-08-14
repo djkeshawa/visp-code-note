@@ -3,6 +3,7 @@ import { codicon, htmlElement, isRecord, requireElement, setNotice } from "./sha
 import { acquireWebviewApi } from "./shared/vscodeApi.js";
 import { RovingList, isBareKey } from "./shared/rovingList.js";
 import { formatIndexedAt } from "../application/indexFreshness.js";
+import { formatNoteRecency, RECENT_LISTING_MEANING } from "../application/noteRecency.js";
 import { tagHueColor } from "../application/tagHue.js";
 
 /**
@@ -24,6 +25,7 @@ const errorNotice = requireElement("#notes-error", HTMLElement);
 const ICONS: Readonly<Record<NoteListingWire["kind"], string>> = {
   orphans: "circle-slash",
   broken: "warning",
+  recent: "history",
   tag: "tag",
 };
 
@@ -31,6 +33,7 @@ function titleOf(listing: NoteListingWire): string {
   switch (listing.kind) {
     case "orphans": return "Orphan Notes";
     case "broken": return "Broken Links";
+    case "recent": return "Recent Notes";
     case "tag": return `#${listing.tag}`;
   }
 }
@@ -40,6 +43,7 @@ function emptyText(listing: NoteListingWire): string {
   switch (listing.kind) {
     case "orphans": return "Every note is connected to another.";
     case "broken": return "Every wiki link lands somewhere.";
+    case "recent": return "No note has been written yet.";
     case "tag": return `No note carries #${listing.tag}.`;
   }
 }
@@ -117,9 +121,17 @@ function render(): void {
   rowNavigation.refresh();
 
   const total = current.rows.length;
+  /*
+   * A list ordered by time has to say which clock. "Recent Notes" reads as when you wrote
+   * them, and it is when the file was last written — a rename or a find-and-replace across the
+   * vault moves notes to the top of it. Said in the summary rather than a tooltip, because a
+   * reader who misreads this list will not think to hover anything.
+   */
   summary.textContent = total === 0
     ? emptyText(current.listing)
-    : `${total} ${nounOf(current.listing)}${total === 1 ? "" : "s"}`;
+    : current.listing.kind === "recent"
+      ? `${total} note${total === 1 ? "" : "s"} · ${RECENT_LISTING_MEANING}`
+      : `${total} ${nounOf(current.listing)}${total === 1 ? "" : "s"}`;
   const counts = query.length === 0 || visible.length === total
     ? `${total} shown`
     : `${visible.length} of ${total} shown`;
@@ -156,6 +168,13 @@ function noteRow(
   if (row.line !== undefined) {
     button.append(htmlElement("span", "note-row-line", `:${row.line}`));
   }
+  const changed = row.modifiedAt === undefined ? undefined : formatNoteRecency(row.modifiedAt);
+  if (changed !== undefined) {
+    const stamp = htmlElement("span", "note-row-when", changed);
+    // The exact moment, since the row itself only says roughly.
+    stamp.title = row.modifiedAt === undefined ? changed : `Last changed ${absoluteMoment(row.modifiedAt)}`;
+    button.append(stamp);
+  }
   button.title = [row.title, row.path, row.detail, (row.tags ?? []).map((t) => `#${t}`).join(" ")]
     .filter((part) => part !== undefined && part !== "")
     .join("\n");
@@ -165,6 +184,14 @@ function noteRow(
     ...(row.start === undefined ? {} : { start: row.start }),
   }));
   return button;
+}
+
+/** The moment in full, for the row's tooltip. The list itself only says roughly. */
+function absoluteMoment(at: number): string {
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(at));
 }
 
 /** A note's other tags, each in the hue it wears everywhere else in the extension. */
@@ -180,15 +207,34 @@ function tagChips(tags: readonly string[]): HTMLElement {
   return wrapper;
 }
 
+/**
+ * The host is trusted less than it could be, and this is the seam that fails quietly: a listing
+ * kind this does not name is not refused loudly, it is dropped — `state` stays undefined, the
+ * panel keeps saying "Building the index…", and nothing anywhere reports a fault. Every member
+ * of `NoteListingWire` has to be listed here, and `LISTING_KINDS` is checked against the union
+ * by the type checker so that adding a kind and forgetting this line cannot compile.
+ */
+const LISTING_KINDS: Readonly<Record<NoteListingWire["kind"], true>> = {
+  orphans: true,
+  broken: true,
+  recent: true,
+  tag: true,
+};
+
+function isNoteListing(value: unknown): value is NoteListingWire {
+  if (!isRecord(value) || typeof value.kind !== "string") return false;
+  if (!Object.hasOwn(LISTING_KINDS, value.kind)) return false;
+  return value.kind !== "tag" || typeof value.tag === "string";
+}
+
 function isNotesState(value: unknown): value is NotesStateWire {
   return isRecord(value) &&
-    isRecord(value.listing) &&
-    (value.listing.kind === "orphans" || value.listing.kind === "broken" ||
-      (value.listing.kind === "tag" && typeof value.listing.tag === "string")) &&
+    isNoteListing(value.listing) &&
     typeof value.indexedAt === "number" &&
     Array.isArray(value.rows) &&
     value.rows.every((row: unknown) => isRecord(row) &&
       typeof row.uri === "string" &&
       typeof row.title === "string" &&
-      typeof row.path === "string");
+      typeof row.path === "string" &&
+      (row.modifiedAt === undefined || typeof row.modifiedAt === "number"));
 }

@@ -382,7 +382,9 @@ function viewRow(
       htmlElement("span", `workspace-row-count is-${view.tone}`, String(view.count)),
     );
   }
-  row.title = view.count === undefined ? view.label : `${view.label} · ${view.count}`;
+  const summary = view.count === undefined ? view.label : `${view.label} · ${view.count}`;
+  // A view whose label promises more than it delivers says so before it is opened.
+  row.title = view.hint === undefined ? summary : `${summary}\n\n${view.hint}`;
   row.addEventListener("click", (event) => {
     // The twisty opens the list in place; the row itself opens the view.
     if (expandable && event.target instanceof Element && event.target.closest(".row-twisty")) {
@@ -810,6 +812,7 @@ function isViewRow(value: unknown): boolean {
     typeof value.label === "string" &&
     typeof value.icon === "string" &&
     (value.count === undefined || isCount(value.count)) &&
+    (value.hint === undefined || typeof value.hint === "string") &&
     (value.tone === "default" || value.tone === "brand" || value.tone === "warning")
   );
 }

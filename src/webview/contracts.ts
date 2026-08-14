@@ -198,6 +198,7 @@ export type TasksToHostWire =
 export type NoteListingWire =
   | { readonly kind: "orphans" }
   | { readonly kind: "broken" }
+  | { readonly kind: "recent" }
   | { readonly kind: "tag"; readonly tag: string };
 
 export interface NoteListRowWire {
@@ -208,6 +209,8 @@ export interface NoteListRowWire {
   readonly tags?: readonly string[];
   readonly start?: number;
   readonly line?: number;
+  /** When the file was last written, for a list that is about time. */
+  readonly modifiedAt?: number;
 }
 
 export interface NotesStateWire {
@@ -265,11 +268,13 @@ export type GraphToHostWire =
 export type WorkspaceViewToneWire = "default" | "brand" | "warning";
 
 export interface WorkspaceViewRowWire {
-  readonly id: "tasks" | "due" | "graph" | "broken" | "orphans";
+  readonly id: "tasks" | "due" | "graph" | "broken" | "orphans" | "recent";
   readonly label: string;
   readonly icon: string;
   readonly count?: number;
   readonly tone: WorkspaceViewToneWire;
+  /** What the view is, where its label could be read as promising something it cannot do. */
+  readonly hint?: string;
 }
 
 export interface WorkspaceTaskRowWire {

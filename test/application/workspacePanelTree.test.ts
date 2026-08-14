@@ -166,6 +166,28 @@ test("the panel asks the host to open the note a row names", async () => {
 });
 
 /*
+ * The panel is where the honest wording has to reach a reader before they click. "Recent
+ * Notes" reads as when you wrote them, and the list is ordered by when the file last changed.
+ */
+test("the Recent Notes row says what it is ordered by before it is opened", async () => {
+  await freshVault();
+  const row = Array.from(document.querySelectorAll<HTMLElement>("#workspace-views .workspace-row"))
+    .find((candidate) => (candidate.textContent ?? "").includes("Recent Notes"));
+
+  assert.notEqual(row, undefined, "the Recent Notes view is missing from the panel");
+  assert.match(row?.title ?? "", /not the same as when you wrote it/i);
+});
+
+test("opening it asks the host for the recent listing", async () => {
+  await freshVault();
+  Array.from(document.querySelectorAll<HTMLElement>("#workspace-views .workspace-row"))
+    .find((candidate) => (candidate.textContent ?? "").includes("Recent Notes"))
+    ?.click();
+
+  assert.deepEqual(posted, [{ type: "workspace/openView", id: "recent" }]);
+});
+
+/*
  * Four `index.md` files under four projects drew four identical rows, and hovering each one in
  * turn was the only way to tell them apart. Filtering is where they meet, because filtering is
  * the one place the tree is flattened.
