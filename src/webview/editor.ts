@@ -72,6 +72,13 @@ let editor: CodeMirrorEditor | undefined;
 let suggestions: readonly NoteSuggestionWire[] = [];
 let unresolvedLinks: ReadonlySet<string> = new Set();
 let noteContext: NoteContextWire | undefined;
+/**
+ * The same context, already serialised. The comparison below ran on both sides on every
+ * publish, so the side that had not moved was re-serialised once per keystroke to produce a
+ * string it had already produced. Kept beside the value it describes, and written only where
+ * that value is.
+ */
+let noteContextJson: string | undefined;
 let inspectorPreference = true;
 const roomyPane = window.matchMedia("(min-width: 901px)");
 let pendingReveal: number | undefined;
@@ -455,9 +462,10 @@ function setContentWidth(contentWidth: EditorContentWidth): void {
  * is far cheaper than rebuilding every tag chip and every backlink row for the same answer.
  */
 function renderNoteContext(context: NoteContextWire | undefined): boolean {
-  const unchanged = JSON.stringify(context) === JSON.stringify(noteContext);
-  if (unchanged) return false;
+  const json = JSON.stringify(context);
+  if (json === noteContextJson) return false;
   noteContext = context;
+  noteContextJson = json;
   if (context === undefined) {
     breadcrumb.replaceChildren();
     noteTags.replaceChildren();
