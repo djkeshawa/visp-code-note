@@ -107,3 +107,19 @@ test("accepts a filter query and rejects one that could smuggle structure", () =
   assert.equal(isWorkspaceMessage({ type: "workspace/filter", query: "a\nb" }), false);
   assert.equal(isWorkspaceMessage({ type: "workspace/filter", query: "x".repeat(10_000) }), false);
 });
+
+/*
+ * The panel's two buttons. A command the validator does not know is dropped here without a
+ * word, so the button in the panel would simply do nothing — which is how the empty state's
+ * "Create your first note" would fail if this list and the protocol ever drifted apart.
+ */
+test("the panel may run its own two commands and nothing else", () => {
+  assert.equal(isWorkspaceMessage({ type: "workspace/runCommand", command: "search" }), true);
+  assert.equal(isWorkspaceMessage({ type: "workspace/runCommand", command: "newNote" }), true);
+  assert.equal(isWorkspaceMessage({ type: "workspace/runCommand", command: "deleteNote" }), false);
+  assert.equal(
+    isWorkspaceMessage({ type: "workspace/runCommand", command: "workbench.action.terminal.new" }),
+    false,
+  );
+  assert.equal(isWorkspaceMessage({ type: "workspace/runCommand" }), false);
+});

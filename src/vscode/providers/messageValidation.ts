@@ -13,7 +13,12 @@ import type {
 
 const GRAPH_MENU_COMMANDS: readonly GraphMenuCommand[] = ["openWorkspaceGraph", "rebuildIndex"];
 
-const WORKSPACE_MENU_COMMANDS: readonly WorkspaceMenuCommand[] = ["search"];
+/**
+ * The closed set the panel may ask for. Widening the union in `protocol.ts` does not widen
+ * this list, and a command missing from it is dropped here rather than refused — so the
+ * button in the webview does nothing at all, silently. Every member belongs in both places.
+ */
+const WORKSPACE_MENU_COMMANDS: readonly WorkspaceMenuCommand[] = ["search", "newNote"];
 
 const WORKSPACE_VIEW_IDS = ["tasks", "due", "graph", "broken", "orphans"];
 

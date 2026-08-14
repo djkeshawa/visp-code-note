@@ -38,9 +38,18 @@ const DUE_ROW_LIMIT = 50;
  */
 const FILTER_MATCH_LIMIT = 500;
 
-/** What the panel's header and row actions may ask the host to run. */
+/**
+ * What the panel's header and row actions may ask the host to run.
+ *
+ * A map, not a command id off the wire. The panel is a webview drawing titles and tags out of
+ * files this extension declares itself able to open untrusted, so a message naming its own
+ * command id would let a note reach `vscode.commands.executeCommand`. Every id here is one of
+ * this extension's own, and each is run with no arguments — `newNote` asks for the title
+ * itself, so the reader still types what is written and where it goes.
+ */
 const MENU_COMMANDS: Readonly<Record<WorkspaceMenuCommand, string>> = {
   search: COMMAND_IDS.search,
+  newNote: COMMAND_IDS.newNote,
 };
 
 /** What a note row's own menu may run. Each confirms for itself where it needs to. */
@@ -278,9 +287,15 @@ export class WorkspacePanel implements vscode.WebviewViewProvider, vscode.Dispos
   private buildState(): WorkspacePanelState {
     return {
       ...this.derivedState(),
-      // The three things that move without the index moving.
+      // The things that move without the index moving.
       density: densitySetting(),
       status: this.index.status,
+      /*
+       * Read from the window rather than the index, because the index cannot tell the two
+       * empty cases apart: no folder open and a folder holding no Markdown both arrive as
+       * zero notes, and only one of them is answered by writing a note.
+       */
+      hasWorkspaceFolder: (vscode.workspace.workspaceFolders?.length ?? 0) > 0,
       ...(this.activeNoteUri === undefined ? {} : { activeNoteUri: this.activeNoteUri }),
     };
   }
@@ -361,7 +376,8 @@ export class WorkspacePanel implements vscode.WebviewViewProvider, vscode.Dispos
 }
 
 /** The part of the panel's state that is a pure function of the index snapshot. */
-type DerivedPanelState = Omit<WorkspacePanelState, "density" | "status" | "activeNoteUri">;
+type DerivedPanelState =
+  Omit<WorkspacePanelState, "density" | "status" | "activeNoteUri" | "hasWorkspaceFolder">;
 
 /** How tall the panel's rows are. The prototype exposes this as a two-step control. */
 function densitySetting(): WorkspaceDensity {
