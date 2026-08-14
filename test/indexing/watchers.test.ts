@@ -194,6 +194,22 @@ test("a note dragged into an excluded folder is left alone", async () => {
   harness.dispose();
 });
 
+test("a note dragged out of an excluded folder re-pins the links it would have stolen", async () => {
+  const harness = await open({
+    "z/Shared.md": "Body.\n",
+    "refers.md": "See [[Shared]].\n",
+  });
+  stub.excludes = ["**/node_modules/**", "archive/**"];
+  stub.files.set("/vault/archive/Shared.md", "Body.\n");
+
+  // It was not in the index, so nothing pointed at it — but it arrives under a name another
+  // note already answers to, and that note's links have to keep meaning that note.
+  const edit = await willRename([["archive/Shared.md", "a/Shared.md"]]);
+
+  assert.deepEqual(textOf(edit, "refers.md"), ["[[z/Shared]]"]);
+  harness.dispose();
+});
+
 test("a file renamed into Markdown re-pins the links it would have stolen", async () => {
   const harness = await open({
     "z/Shared.md": "Body.\n",
