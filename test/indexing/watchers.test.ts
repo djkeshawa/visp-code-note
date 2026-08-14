@@ -374,6 +374,30 @@ test("with the setting off, a rename touches nothing but the file", async () => 
   harness.dispose();
 });
 
+/*
+ * More mentions than the pool is wide.
+ *
+ * The documents a plan touches are opened sixteen at a time now, because a popular note meant
+ * two thousand sequential round trips inside the participant timeout and an edit VS Code drops
+ * when it runs out. A worker pool is the kind of thing that quietly plans one file twice and
+ * another not at all, and every one of these is a note the reader never opened, so the count
+ * and the contents are both worth stating.
+ */
+test("a note mentioned by fifty others has all fifty rewritten, none twice", async () => {
+  const mentions = Object.fromEntries(
+    Array.from({ length: 50 }, (_, index) => [`note-${index}.md`, `See [[Target]].\n`]),
+  );
+  const harness = await open({ "Target.md": "Body.\n", ...mentions });
+
+  const edit = await willRename([["Target.md", "Renamed.md"]]);
+
+  assert.equal(edit.entries().length, 50, "one entry per mentioning note");
+  for (let index = 0; index < 50; index += 1) {
+    assert.deepEqual(textOf(edit, `note-${index}.md`), ["[[Renamed|Target]]"], `note-${index}.md`);
+  }
+  harness.dispose();
+});
+
 test("a renamed note is removed and re-read once the rename lands", async () => {
   const harness = await open({ "Target.md": "Body.\n" });
   stub.didRenameFiles.fire({
