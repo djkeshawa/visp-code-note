@@ -39,6 +39,12 @@
  * Read the absolute numbers in that table as a pair, not as a reading. The same measurement
  * taken in a fresh process is 0.86ms; everything this file has already mounted is still on
  * the heap when it runs.
+ *
+ * The last two lines are what a pause in the typing costs, and they are the reason the pause
+ * is where that work now happens: at 10,000 lines, redrawing the outline and the task list is
+ * 76ms and counting the words is 8ms. Both of those used to be inside a keystroke. Roughly
+ * half of the 76ms is the parse and the rest is building 196 rows, which jsdom does far more
+ * slowly than a browser — read it as an upper bound.
  */
 
 // Must come first: it installs the globals `@codemirror/view` reads while loading.
@@ -46,6 +52,7 @@ import { createHost, window } from "../support/domEnvironment";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
+import { proseWordCount } from "../../src/application/proseWordCount";
 import { EDITOR_BODY } from "../../src/ui/pageBodies";
 import { CodeMirrorEditor } from "../../src/webview/editor/codeMirrorEditor";
 import { createLivePreview } from "../../src/webview/editor/livePreview";
@@ -178,12 +185,28 @@ function caretSignalReport(): string {
   const report = timeEach(200, (run) => {
     markCurrentOutlineEntry(inspector, run * 97);
   });
+  // What happens 150ms after the typing stops, rather than inside each keystroke.
+  const drawOutline = timeEach(10, () => {
+    renderNoteInspector(inspector, source, undefined, {
+      reveal: () => undefined,
+      openBacklink: () => undefined,
+      toggleTask: () => undefined,
+      openLink: () => undefined,
+    }, "draft");
+  });
+  const count = timeEach(10, () => {
+    proseWordCount(source);
+  });
 
   return [
     `caret signal, 10,000 lines and ${headings} outline entries:`,
     `  dispatch, no listener   ${silent.toFixed(3)}ms`,
     `  dispatch, listening     ${listening.toFixed(3)}ms`,
     `  the frame's own work    ${report.toFixed(3)}ms`,
+    "",
+    "the idle pass, once the typing pauses:",
+    `  outline and task list   ${drawOutline.toFixed(2)}ms`,
+    `  word count              ${count.toFixed(2)}ms`,
     "",
   ].join("\n");
 }

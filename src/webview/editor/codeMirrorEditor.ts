@@ -33,7 +33,9 @@ import {
   rectangularSelection,
 } from "@codemirror/view";
 import type { OffsetTextEdit } from "../../application/textEdits.js";
+import { proseWordCount } from "../../application/proseWordCount.js";
 import type { NoteSuggestionWire } from "../contracts.js";
+import type { WordCounts } from "./wordCount.js";
 import { codeLanguages } from "./codeLanguages.js";
 import { vispEditorTheme } from "./editorTheme.js";
 import { outlineFolding } from "./outlineFolding.js";
@@ -386,6 +388,24 @@ export class CodeMirrorEditor {
       this.view.dispatch({ effects: revealLiveLine.of(undefined) });
       this.revealTimer = undefined;
     }, 1_600);
+  }
+
+  /**
+   * The words of prose in the note, and in the selection while there is one.
+   *
+   * Read from the live document rather than from `source`, which holds the last host-synced
+   * text and so lags whatever has been typed since. Counting the whole note is a pass over it,
+   * which is why the page asks for this from the same idle path as the inspector rather than
+   * from the caret signal.
+   */
+  public wordCounts(): WordCounts {
+    const selection = this.view.state.selection.main;
+    return {
+      total: proseWordCount(this.view.state.doc.toString()),
+      ...(selection.empty
+        ? {}
+        : { selected: proseWordCount(this.view.state.sliceDoc(selection.from, selection.to)) }),
+    };
   }
 
   public focus(): void {

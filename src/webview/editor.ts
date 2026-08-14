@@ -40,6 +40,7 @@ import {
   renderNoteInspector,
 } from "./editor/noteInspector.js";
 import type { NoteInspectorSections } from "./editor/noteInspector.js";
+import { wordCountLabel } from "./editor/wordCount.js";
 import { planTagAddition, planTagRemoval } from "../application/noteMetadataEdits.js";
 import { planTaskToggle } from "../application/taskEditing.js";
 import { parseProseFont } from "../application/proseFont.js";
@@ -63,6 +64,7 @@ const syncStatusText = requireElement("#sync-status-text", HTMLElement);
 const menuButton = requireElement("#editor-menu-button", HTMLButtonElement);
 const menu = requireElement("#editor-menu", HTMLElement);
 const brokenLinkHint = requireElement("#broken-link-hint", HTMLElement);
+const wordCount = requireElement("#editor-word-count", HTMLElement);
 const errorNotice = requireElement("#editor-error", HTMLElement);
 const conflictNotice = requireElement("#editor-conflict", HTMLElement);
 const widthSegments = Array.from(
@@ -108,8 +110,14 @@ let lastStashedSaveRequested = false;
  * their listeners, for a panel nobody reads mid-word.
  */
 const idleDraftRedraw = createIdleRedraw(() => renderInspector("draft"));
+/*
+ * The footer's count is a pass over the whole note, so it rides the same gap in the typing.
+ * It is its own timer because a selection changes the number without changing the draft.
+ */
+const idleWordCount = createIdleRedraw(renderWordCount);
 /** Where the caret last was, so a redrawn outline can say which section it is in again. */
 let caretOffset = 0;
+let hadSelection = false;
 
 liveMode.addEventListener("click", () => setMode("live"));
 markdownMode.addEventListener("click", () => setMode("markdown"));
@@ -292,6 +300,7 @@ function mountOrReplaceEditor(source: string): void {
   if (editor !== undefined) {
     editor.replaceSource(source);
     renderInspector();
+    renderWordCount();
     return;
   }
   editor = new CodeMirrorEditor(editorHost, cspNonce, source, {
@@ -312,6 +321,7 @@ function mountOrReplaceEditor(source: string): void {
   });
   updateMenuAvailability();
   renderInspector();
+  renderWordCount();
   if (pendingReveal !== undefined) {
     const offset = pendingReveal;
     pendingReveal = undefined;
@@ -329,12 +339,24 @@ function mountOrReplaceEditor(source: string): void {
 function handleSelectionChange(selection: EditorSelectionReport): void {
   caretOffset = selection.caret;
   markCurrentOutlineEntry(inspector, caretOffset);
+  /*
+   * Counting is a pass over the note, so a caret that is only moving asks for nothing. A
+   * selection appearing, growing or going away is the one caret move that changes the footer.
+   */
+  if (selection.hasSelection || hadSelection) idleWordCount.schedule();
+  hadSelection = selection.hasSelection;
+}
+
+function renderWordCount(): void {
+  const counts = editor?.wordCounts();
+  wordCount.textContent = counts === undefined ? "" : wordCountLabel(counts);
 }
 
 function handleLocalPatch(patch: TextPatch): void {
   setNotice(errorNotice);
   runActions(sync.onLocalPatch(patch));
   idleDraftRedraw.schedule();
+  idleWordCount.schedule();
 }
 
 function requestSave(): void {

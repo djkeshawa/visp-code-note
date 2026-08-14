@@ -111,6 +111,9 @@ export const EDITOR_BODY = `
             <div id="inspector-links" class="inspector-links"></div>
           </aside>
         </div>
+        <footer class="view-footer">
+          <span id="editor-word-count">0 words</span>
+        </footer>
       </div>`;
 
 export const TASKS_BODY = `
