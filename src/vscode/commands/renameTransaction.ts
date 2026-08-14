@@ -4,6 +4,7 @@ import { planAliasAddition, planTitleChange } from "../../application/noteMetada
 import { applyTextEdits, type OffsetTextEdit } from "../../application/textEdits";
 import type { NoteRecord } from "../../domain/models";
 import { mapConcurrent } from "../../indexing/concurrency";
+import { withoutRenameParticipation } from "../../indexing/renameMigration";
 import type { PlannedDocument } from "../documentEdits";
 import { loadPlannedDocument, planReplacementDocuments, toRange } from "../documentEdits";
 
@@ -100,6 +101,10 @@ export async function prepareRenameTransaction(
 }
 
 export async function applyRenameTransaction(transaction: RenameTransaction): Promise<void> {
+  await withoutRenameParticipation(() => applyRenameEdits(transaction));
+}
+
+async function applyRenameEdits(transaction: RenameTransaction): Promise<void> {
   let fileRenamed = false;
   if (transaction.initialRenameEdit) {
     if (!(await vscode.workspace.applyEdit(transaction.initialRenameEdit))) {

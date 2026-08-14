@@ -12,6 +12,8 @@ const { createIndexWatchers } = require("../../src/indexing/watchers") as
   typeof import("../../src/indexing/watchers");
 const { readNoteRecord } = require("../../src/indexing/discovery") as
   typeof import("../../src/indexing/discovery");
+const { withoutRenameParticipation } = require("../../src/indexing/renameMigration") as
+  typeof import("../../src/indexing/renameMigration");
 
 type Change = { readonly kind: "upsert" | "remove"; readonly uri: string };
 
@@ -284,6 +286,21 @@ test("a rename the extension cannot plan still lets the rename happen", async ()
   const edit = await willRename([["Target.md", "Renamed.md"]]);
 
   assert.equal(edit.size, 0, "an empty edit, not a rejected promise");
+  harness.dispose();
+});
+
+test("the Rename Note command's own rename is not migrated a second time", async () => {
+  const harness = await open({
+    "Target.md": "Body.\n",
+    "refers.md": "See [[Target]].\n",
+  });
+
+  // The command renames through applyEdit, which fires this event exactly as a drag does. It
+  // has already planned the same rewrite plus a title change; migrating it again here rewrites
+  // the links underneath its own "did this file change since the preview" check.
+  const edit = await withoutRenameParticipation(() => willRename([["Target.md", "Renamed.md"]]));
+
+  assert.equal(edit.size, 0);
   harness.dispose();
 });
 
