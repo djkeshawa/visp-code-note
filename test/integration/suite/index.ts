@@ -7,6 +7,7 @@ export async function run(): Promise<void> {
   await import("./saveNote.test.js");
   await import("./rename.test.js");
   await import("./deleteNote.test.js");
+  await import("./oversizedNotes.test.js");
   await import("./design.test.js");
   const summary = await runRegisteredTests();
   // eslint-disable-next-line no-console

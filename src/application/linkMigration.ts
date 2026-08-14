@@ -114,6 +114,10 @@ export interface RelocationPlan {
  * reach it, and the text the user wrote at least records what they meant. The same holds for a
  * note the workspace has no name for at all — one renamed to `.md`, which leaves no stem to
  * write down. An unverified guess there does not degrade the link, it destroys it.
+ *
+ * What the reader sees is never rewritten, only what the link points at: see
+ * `preservedLinkText`. That is the rule this plan is allowed to be silent about itself under,
+ * since it is contributed by a rename participant that cannot ask anything.
  */
 export function planRelocationMigration(
   snapshot: IndexSnapshot,
@@ -152,7 +156,7 @@ export function planRelocationMigration(
     const target = planner.reachingTargetFor(source.uri, intended);
     // Nothing reaches the note any more. Leaving the link as written says what the user meant.
     if (target === undefined) continue;
-    const text = rewriteWikiLink(resolved.link, target);
+    const text = rewriteWikiLink(resolved.link, target, preservedLinkText(resolved.link));
     if (text === resolved.link.raw) continue;
     replacements.push({
       uri: resolved.sourceUri,
@@ -165,10 +169,41 @@ export function planRelocationMigration(
   return { replacements, dependsOn: [...dependsOn.values()] };
 }
 
-export function rewriteWikiLink(link: WikiLink, nextTarget: string): string {
+export function rewriteWikiLink(
+  link: WikiLink,
+  nextTarget: string,
+  nextAlias: string | undefined = link.alias,
+): string {
   const anchor = `${link.heading ? `#${link.heading}` : ""}${link.blockId ? `^${link.blockId}` : ""}`;
-  const alias = link.alias ? `|${link.alias}` : "";
+  const alias = nextAlias ? `|${nextAlias}` : "";
   return `[[${nextTarget}${anchor}${alias}]]`;
+}
+
+/**
+ * The word this link puts on the page, where a rename would otherwise have replaced it.
+ *
+ * This is half of the Explorer path's consent story, and the half that has to be in the code
+ * rather than in a setting: `See [[Target]] for details.` renders as the sentence the reader
+ * wrote, and a note carrying `# Real Title` turned it into `See Real Title for details.` —
+ * mid-sentence, in a file the reader had not opened, during a gesture they believed was a file
+ * rename. Keeping the word in front of the new target says the same sentence and points it at
+ * the same note: `[[Real Title|Target]]`.
+ *
+ * Only a bare name is a word. A link written as a path, or into a heading or a block, is
+ * machinery rather than prose — freezing `[[../shared/Ref]]` in front of the path it has just
+ * stopped being would leave the reader looking at a route that no longer goes there. A link
+ * that already carries an alias shows the alias and was never at risk.
+ *
+ * The Rename Note command is deliberately not this: it asks which of three things to do, shows
+ * the diff, and updating the prose is the point of the one it defaults to.
+ */
+function preservedLinkText(link: WikiLink): string | undefined {
+  const bareName = link.alias === undefined &&
+    link.heading === undefined &&
+    link.blockId === undefined &&
+    link.target !== "" &&
+    !link.target.includes("/");
+  return bareName ? link.target : undefined;
 }
 
 export function groupLinkReplacements(

@@ -90,7 +90,7 @@ test("renaming a note in the Explorer rewrites the links that named it", async (
   });
   const edit = await willRename([["Target.md", "Renamed.md"]]);
 
-  assert.deepEqual(textOf(edit, "refers.md"), ["[[Renamed]]", "[[Renamed|an alias]]"]);
+  assert.deepEqual(textOf(edit, "refers.md"), ["[[Renamed|Target]]", "[[Renamed|an alias]]"]);
   assert.deepEqual(textOf(edit, "other.md"), ["[[Renamed#Body]]"]);
   harness.dispose();
 });
@@ -125,8 +125,8 @@ test("two notes renamed at once, one linking to the other, both end up right", a
   });
   const edit = await willRename([["Alpha.md", "One.md"], ["Beta.md", "Two.md"]]);
 
-  assert.deepEqual(textOf(edit, "Alpha.md"), ["[[Two]]"]);
-  assert.deepEqual(textOf(edit, "Beta.md"), ["[[One]]"]);
+  assert.deepEqual(textOf(edit, "Alpha.md"), ["[[Two|Beta]]"]);
+  assert.deepEqual(textOf(edit, "Beta.md"), ["[[One|Alpha]]"]);
   harness.dispose();
 });
 
@@ -151,8 +151,9 @@ test("a new name that collides keeps the other note's links meaning the other no
   const edit = await willRename([["a/Mover.md", "a/Shared.md"]]);
 
   // `a/Shared` sorts ahead of `z/Shared`, so a bare [[Shared]] would have silently changed
-  // which note it means. It gets pinned to the one the user was pointing at.
-  assert.deepEqual(textOf(edit, "refers.md"), ["[[z/Shared]]"]);
+  // which note it means. It gets pinned to the one the user was pointing at, behind the word
+  // they wrote — the note they meant is still called Shared and the sentence still says so.
+  assert.deepEqual(textOf(edit, "refers.md"), ["[[z/Shared|Shared]]"]);
   harness.dispose();
 });
 
@@ -166,7 +167,7 @@ test("a rename that frees a name takes its links with it", async () => {
 
   // [[Shared]] meant `a/Shared`, which sorted first. It follows the rename rather than
   // silently becoming a link to the note that was shadowed.
-  assert.deepEqual(textOf(edit, "refers.md"), ["[[Moved]]"]);
+  assert.deepEqual(textOf(edit, "refers.md"), ["[[Moved|Shared]]"]);
   harness.dispose();
 });
 
@@ -206,7 +207,7 @@ test("a note dragged out of an excluded folder re-pins the links it would have s
   // note already answers to, and that note's links have to keep meaning that note.
   const edit = await willRename([["archive/Shared.md", "a/Shared.md"]]);
 
-  assert.deepEqual(textOf(edit, "refers.md"), ["[[z/Shared]]"]);
+  assert.deepEqual(textOf(edit, "refers.md"), ["[[z/Shared|Shared]]"]);
   harness.dispose();
 });
 
@@ -218,7 +219,7 @@ test("a file renamed into Markdown re-pins the links it would have stolen", asyn
   stub.files.set("/vault/a/Shared.txt", "Body.\n");
   const edit = await willRename([["a/Shared.txt", "a/Shared.md"]]);
 
-  assert.deepEqual(textOf(edit, "refers.md"), ["[[z/Shared]]"]);
+  assert.deepEqual(textOf(edit, "refers.md"), ["[[z/Shared|Shared]]"]);
   harness.dispose();
 });
 
@@ -273,7 +274,7 @@ test("an unsaved edit elsewhere does not stop the migration", async () => {
 
   const edit = await willRename([["Target.md", "Renamed.md"]]);
 
-  assert.deepEqual(textOf(edit, "one.md"), ["[[Renamed]]"]);
+  assert.deepEqual(textOf(edit, "one.md"), ["[[Renamed|Target]]"]);
   harness.dispose();
 });
 
@@ -314,9 +315,112 @@ test("the Rename Note command's own rename is not migrated a second time", async
   // The command renames through applyEdit, which fires this event exactly as a drag does. It
   // has already planned the same rewrite plus a title change; migrating it again here rewrites
   // the links underneath its own "did this file change since the preview" check.
-  const edit = await withoutRenameParticipation(() => willRename([["Target.md", "Renamed.md"]]));
+  const edit = await withoutRenameParticipation(
+    [uriOf("Target.md"), uriOf("Renamed.md")],
+    () => willRename([["Target.md", "Renamed.md"]]),
+  );
 
   assert.equal(edit.size, 0);
+  harness.dispose();
+});
+
+test("an Explorer rename during a command rename is still migrated", async () => {
+  const harness = await open({
+    "Target.md": "Body.\n",
+    "Other.md": "Body.\n",
+    "refers.md": "See [[Target]] and [[Other]].\n",
+  });
+
+  /*
+   * The command holds the exemption across a file rename, a content edit and a save of every
+   * document that edit touched — hundreds of milliseconds on a large migration. A drag the user
+   * makes inside that window is a different file and none of the command's business, and while
+   * the exemption was a flag it was dropped on the floor: the file moved and its incoming links
+   * stayed pointing at where it used to be, with nothing said.
+   */
+  const edit = await withoutRenameParticipation(
+    [uriOf("Target.md"), uriOf("Renamed.md")],
+    () => willRename([["Other.md", "Elsewhere.md"]]),
+  );
+
+  assert.deepEqual(textOf(edit, "refers.md"), ["[[Elsewhere|Other]]"]);
+  harness.dispose();
+});
+
+/*
+ * The consent story, from the two ends it has.
+ *
+ * This handler edits files nobody opened, during a gesture the user believes is a file rename,
+ * and it is not allowed to ask — it runs under the participant timeout with the Explorer frozen
+ * behind it. So it is bounded instead: it never changes a word a reader can see, and it can be
+ * switched off in advance from a setting shaped like the one VS Code's own Markdown support
+ * uses.
+ */
+test("a rename moves where a link points without changing the word in the sentence", async () => {
+  const harness = await open({
+    // Its title is written down, so the rename does not change what the note is called — only
+    // the file name the link happened to be written with is going away.
+    "Target.md": "# Real Title\n\nBody.\n",
+    "refers.md": "See [[Target]] for details.\n",
+  });
+  const edit = await willRename([["Target.md", "Other.md"]]);
+
+  assert.deepEqual(
+    textOf(edit, "refers.md"),
+    ["[[Real Title|Target]]"],
+    "the sentence still reads “See Target for details.”, and the link still lands",
+  );
+  harness.dispose();
+});
+
+test("a link written as a path follows the note instead of freezing a route that has gone", async () => {
+  const harness = await open({
+    "a/Inner.md": "Body.\n",
+    "refers.md": "See [[a/Inner]] and [[a/Inner#Body]].\n",
+  });
+  const edit = await willRename([["a", "b"]]);
+
+  // A path is machinery, not prose. Keeping `a/Inner` in front of it would show the reader a
+  // route that stopped going there, which is the opposite of leaving their words alone.
+  assert.deepEqual(textOf(edit, "refers.md"), ["[[Inner]]", "[[Inner#Body]]"]);
+  harness.dispose();
+});
+
+test("with the setting off, a rename touches nothing but the file", async () => {
+  const harness = await open({
+    "Target.md": "Body.\n",
+    "refers.md": "See [[Target]].\n",
+  });
+  stub.settings.set("vispNotes.updateLinksOnFileMove.enabled", "never");
+
+  const edit = await willRename([["Target.md", "Renamed.md"]]);
+
+  assert.equal(edit.size, 0, "the reader said no, so no other note is opened or edited");
+  assert.deepEqual(stub.warnings, [], "and declining is not a failure to warn about");
+  harness.dispose();
+});
+
+/*
+ * More mentions than the pool is wide.
+ *
+ * The documents a plan touches are opened sixteen at a time now, because a popular note meant
+ * two thousand sequential round trips inside the participant timeout and an edit VS Code drops
+ * when it runs out. A worker pool is the kind of thing that quietly plans one file twice and
+ * another not at all, and every one of these is a note the reader never opened, so the count
+ * and the contents are both worth stating.
+ */
+test("a note mentioned by fifty others has all fifty rewritten, none twice", async () => {
+  const mentions = Object.fromEntries(
+    Array.from({ length: 50 }, (_, index) => [`note-${index}.md`, `See [[Target]].\n`]),
+  );
+  const harness = await open({ "Target.md": "Body.\n", ...mentions });
+
+  const edit = await willRename([["Target.md", "Renamed.md"]]);
+
+  assert.equal(edit.entries().length, 50, "one entry per mentioning note");
+  for (let index = 0; index < 50; index += 1) {
+    assert.deepEqual(textOf(edit, `note-${index}.md`), ["[[Renamed|Target]]"], `note-${index}.md`);
+  }
   harness.dispose();
 });
 

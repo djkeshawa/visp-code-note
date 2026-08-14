@@ -1,17 +1,20 @@
 /**
  * The four inline marks, and the keys that write them.
  *
- * Three things have to agree about these: the keymap that runs them, the `/` menu that names
- * them, and the overflow menu's hint column. That column is not decoration — a webview's keys
- * are never contributed to VS Code, so they appear in no Keyboard Shortcuts list and can be
- * found nowhere else in the product. A key declared in one place and advertised in another
- * drifts silently, which is how Insert Link came to advertise a key it had already been moved
- * off. One table, read by all three.
+ * Four things have to agree about these: the keymap that runs them, the `/` menu that names
+ * them, the overflow menu's hint column, and — since the collision fix — the four keybindings
+ * the manifest contributes to shadow VS Code's own defaults inside this editor. That hint
+ * column was the only place a reader could find these keys while a webview keymap was the
+ * whole story; now they are in the Keyboard Shortcuts list too, which is where a reader looks
+ * first. A key declared in one place and advertised in another drifts silently, which is how
+ * Insert Link came to advertise a key it had already been moved off. One table, read by all
+ * four — `keybindingConflicts.test.ts` is where the manifest half of that is held to it.
  *
  * No `@codemirror` import here, so the table and its key labels are testable without an editor.
  */
+import type { EditorInlineMarkWire } from "../contracts.js";
 
-export type InlineMarkId = "bold" | "italic" | "inline-code" | "strikethrough";
+export type InlineMarkId = EditorInlineMarkWire;
 
 export interface InlineMark {
   readonly id: InlineMarkId;
@@ -51,6 +54,15 @@ export interface InlineMark {
  *
  * Mod-k is not free either: outlineFolding hangs Mod-k Mod-0 and Mod-k Mod-j off it, and a
  * direct binding on a chord prefix swallows the chord.
+ *
+ * Every table above is a CodeMirror one, and checking only those was the hole. VS Code spends
+ * three of these four itself — Ctrl+B is Toggle Primary Side Bar, Ctrl+E is Quick Open, and
+ * Ctrl+Shift+X is the Extensions view — and a webview cannot decline a key on the workbench's
+ * behalf: the shim forwards every keydown out to VS Code for keybinding resolution whether the
+ * page consumed it or not, so `preventDefault` here stops nothing out there. Ctrl+E was the one
+ * that made it unusable, handing the keyboard to Quick Open in the middle of a sentence. The
+ * only thing that shadows a default is another binding, so the manifest contributes all four
+ * scoped to this editor; `toggleInlineMark` is where the two arrivals of one press are settled.
  */
 export const INLINE_MARKS: readonly InlineMark[] = Object.freeze([
   {

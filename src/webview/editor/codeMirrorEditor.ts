@@ -44,7 +44,9 @@ import {
 } from "./editorDocument.js";
 import { createEditorPatch } from "./editorPatch.js";
 import { hostSourceChange } from "./hostSourceChange.js";
-import { inlineFormattingKeymap } from "./inlineFormatting.js";
+import { inlineFormattingKeymap, toggleWrap } from "./inlineFormatting.js";
+import { INLINE_MARKS } from "./inlineMarks.js";
+import type { InlineMarkId } from "./inlineMarks.js";
 import { createSpellCheck, setSpellDictionary } from "./spellCheck.js";
 import { createSpellDictionary, parseDictionary } from "../../application/spellDictionary.js";
 import { createLivePreview, refreshLivePreview, revealLiveLine } from "./livePreview.js";
@@ -287,6 +289,31 @@ export class CodeMirrorEditor {
     });
     this.view.focus();
     return undefined;
+  }
+
+  /**
+   * Toggles an inline mark asked for from outside the page — a contributed keybinding, or the
+   * command palette. Returns whether anything was written.
+   *
+   * The guard is the whole of it. VS Code forwards every keydown out of a webview to the
+   * workbench for keybinding resolution, and it does not care that this page already consumed
+   * the key: one Ctrl+B arrives twice, once through the keymap above and once through the
+   * binding that exists to keep Toggle Primary Side Bar off it. Applying both would toggle the
+   * bold on and straight back off, and leave two undo steps behind one keystroke — so the press
+   * that reached the keymap is recognised by the only thing that distinguishes it, which is
+   * that the text area still holds focus, and this arrival declines.
+   *
+   * The other refusal is the one that matters more. `activeCustomEditorId` says which editor is
+   * *active*, not which widget has focus, so this binding also fires for a Ctrl+B pressed in the
+   * Explorer or the terminal while a note is the active tab. There is no `when` clause that can
+   * tell those apart. Requiring focus to be somewhere in this page means the worst that key can
+   * now do is nothing, rather than silently formatting a note the reader is not looking at.
+   */
+  public toggleInlineMark(id: InlineMarkId): boolean {
+    if (!this.view.dom.ownerDocument.hasFocus() || this.view.hasFocus) return false;
+    const mark = INLINE_MARKS.find((entry) => entry.id === id);
+    if (mark === undefined) return false;
+    return toggleWrap(this.view, mark.open, mark.close);
   }
 
   /**

@@ -163,6 +163,7 @@ tags: [engineering, architecture]
 - `vispNotes.editor.contentWidth` — `readable`, `wide`, or `full` measure for note content. Also changeable from the editor's context strip, which writes this setting so every open note agrees.
 - `vispNotes.graph.defaultDepth` — default local-graph link depth.
 - `vispNotes.openRenderedAfterCreate` — open newly created notes in the Visp Notes editor.
+- `vispNotes.updateLinksOnFileMove.enabled` — `always` or `never`: rewrite wiki links when a note is renamed or moved from the Explorer. See below.
 
 ## Data safety
 
@@ -173,6 +174,8 @@ Live and Markdown modes are two presentations of the same CodeMirror document. S
 Heading and block references are validated against their target note. A link is considered healthy only when both the note and every requested anchor exist.
 
 Rename operations are staged: Visp Notes opens a native before/after diff, confirms the destination and affected files, performs an exclusive file rename, revalidates every affected source, and then applies one atomic text-only edit. If validation or content editing fails, it automatically rolls the file name back.
+
+Renaming or dragging a note **in the Explorer** also updates the wiki links that would otherwise stop reaching it, and that is the one thing Visp Notes writes to files you did not open. It is worth knowing in advance, so: one drag can edit several notes, in a single undo step, and it never asks first — VS Code runs rename participants under a timeout with the Explorer frozen behind them, which leaves nowhere to put the question. Two things bound it. It never changes a word a link puts on the page: `See [[Target]] for details.` becomes `See [[Real Title|Target]] for details.`, so the sentence still reads as written and only the destination moves. And it is a setting — `vispNotes.updateLinksOnFileMove.enabled: never` turns it off entirely, after which links that named a moved note by its file name simply stop resolving. `Visp Notes: Rename Note and Update Links` is the path that asks, previews the diff, and will update the prose as well if that is what you want.
 
 ## Development
 

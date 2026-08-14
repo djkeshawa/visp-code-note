@@ -5,6 +5,8 @@ import type {
   NoteContextWire,
 } from "../contracts.js";
 import { isRecord } from "../shared/dom.js";
+import { INLINE_MARKS } from "./inlineMarks.js";
+import type { InlineMarkId } from "./inlineMarks.js";
 
 export function isEditorState(value: unknown): value is EditorStateWire {
   if (!isRecord(value) || !isEditorDocumentState(value)) return false;
@@ -94,6 +96,16 @@ export function isNoteSuggestions(value: unknown): value is EditorStateWire["not
  */
 export function isWorkspaceTags(value: unknown): value is readonly string[] {
   return isStringArray(value);
+}
+
+/**
+ * Whether a formatting request names a mark this editor writes.
+ *
+ * Read off the table rather than listed again, so a mark that is added or dropped cannot leave
+ * a request the page silently ignores or one it accepts and cannot serve.
+ */
+export function isInlineMarkId(value: unknown): value is InlineMarkId {
+  return INLINE_MARKS.some((mark) => mark.id === value);
 }
 
 export function isUnresolvedLinks(value: unknown): value is readonly string[] {

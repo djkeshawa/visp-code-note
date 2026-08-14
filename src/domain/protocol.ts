@@ -63,6 +63,15 @@ export interface NoteSuggestion {
   readonly blockIds: readonly string[];
 }
 
+/**
+ * The inline marks a contributed keybinding can ask the note editor for.
+ *
+ * The same four ids `INLINE_MARKS` declares in the webview, mirrored here the way every other
+ * wire shape is: the extension host is compiled without `src/webview` on its program, so these
+ * two tables agree by test rather than by import — see `keybindingConflicts.test.ts`.
+ */
+export type EditorInlineMark = "bold" | "italic" | "inline-code" | "strikethrough";
+
 export type HostToEditorMessage =
   | { readonly type: "editor/state"; readonly state: EditorState }
   | { readonly type: "editor/documentState"; readonly state: EditorDocumentState }
@@ -71,6 +80,7 @@ export type HostToEditorMessage =
   | { readonly type: "editor/insertLink"; readonly target: string }
   | { readonly type: "editor/insertTag"; readonly tag: string }
   | { readonly type: "editor/removeTag"; readonly tag: string }
+  | { readonly type: "editor/format"; readonly mark: EditorInlineMark }
   | { readonly type: "editor/proseFont"; readonly fontFamily?: string }
   | { readonly type: "editor/contentWidth"; readonly contentWidth: EditorContentWidth }
   | { readonly type: "editor/showInspector"; readonly showInspector: boolean }

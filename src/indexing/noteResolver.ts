@@ -178,33 +178,64 @@ export function createWikiTargetPlanner(notes: readonly NoteRecord[]): WikiTarge
  * `[[My Enormous Note]]` against `notes/enormous.md` finds nothing here and the reader is told
  * the target does not exist — still true of every name anything in the workspace knows.
  *
- * Linear over the skipped files rather than indexed like the resolver: this runs once per
- * click on an unresolved link, over a list that is almost always empty and never long.
+ * Linear over the skipped files rather than indexed like the resolver, because the list is
+ * almost always empty and never long. The ordering is done once per snapshot rather than once
+ * per question: this used to be asked only on a click, and is now asked of every link that
+ * resolved to nothing — by Find Broken Links, by diagnostics and by the graph — so sorting the
+ * list inside the answer would have put it in front of 40,000 links.
  */
+export interface SkippedNoteFinder {
+  /** True when nothing was skipped, which is every workspace that has not hit the ceiling. */
+  readonly empty: boolean;
+  find(sourcePath: string | undefined, target: string): SkippedNote | undefined;
+}
+
+/** One finder per index commit, keyed on the frozen array the snapshot published. */
+const finders = new WeakMap<readonly SkippedNote[], SkippedNoteFinder>();
+
+export function skippedNoteFinderFor(skipped: readonly SkippedNote[]): SkippedNoteFinder {
+  let finder = finders.get(skipped);
+  if (finder === undefined) {
+    finder = createSkippedNoteFinder(skipped);
+    finders.set(skipped, finder);
+  }
+  return finder;
+}
+
+export function createSkippedNoteFinder(skipped: readonly SkippedNote[]): SkippedNoteFinder {
+  // Path order, so two skipped files answering to one name are decided the way notes are.
+  const ordered = [...skipped].sort((left, right) =>
+    compareText(canonicalPath(left.path), canonicalPath(right.path)));
+  return {
+    empty: ordered.length === 0,
+    find(sourcePath, target) {
+      const trimmed = target.trim();
+      if (trimmed === "" || ordered.length === 0) return undefined;
+      const targetKey = canonicalTarget(trimmed);
+      if (targetKey === "") return undefined;
+      const sourceDirectory = directoryName(canonicalPath(sourcePath ?? ""));
+      const relativeKey = canonicalPath(`${sourceDirectory}/${trimmed}`);
+      // The resolver's own order, minus the name kinds an unread file cannot have.
+      const rules: readonly ((entry: SkippedNote) => boolean)[] = [
+        (entry) => canonicalPath(entry.path) === relativeKey,
+        (entry) => canonicalPath(entry.path) === targetKey,
+        (entry) => pathSuffixes(canonicalPath(entry.path)).includes(targetKey),
+      ];
+      for (const rule of rules) {
+        const found = ordered.find(rule);
+        if (found !== undefined) return found;
+      }
+      return undefined;
+    },
+  };
+}
+
 export function findSkippedNote(
   skipped: readonly SkippedNote[],
   sourcePath: string | undefined,
   target: string,
 ): SkippedNote | undefined {
-  const trimmed = target.trim();
-  if (trimmed === "" || skipped.length === 0) return undefined;
-  const targetKey = canonicalTarget(trimmed);
-  const sourceDirectory = directoryName(canonicalPath(sourcePath ?? ""));
-  const relativeKey = canonicalPath(`${sourceDirectory}/${trimmed}`);
-  // The resolver's own order, minus the name kinds an unread file cannot have.
-  const rules: readonly ((entry: SkippedNote) => boolean)[] = [
-    (entry) => canonicalPath(entry.path) === relativeKey,
-    (entry) => canonicalPath(entry.path) === targetKey,
-    (entry) => pathSuffixes(canonicalPath(entry.path)).includes(targetKey),
-  ];
-  // Path order, so two skipped files answering to one name are decided the way notes are.
-  const ordered = [...skipped].sort((left, right) =>
-    compareText(canonicalPath(left.path), canonicalPath(right.path)));
-  for (const rule of rules) {
-    const found = ordered.find((entry) => targetKey !== "" && rule(entry));
-    if (found !== undefined) return found;
-  }
-  return undefined;
+  return skippedNoteFinderFor(skipped).find(sourcePath, target);
 }
 
 function pathSuffixes(path: string): readonly string[] {

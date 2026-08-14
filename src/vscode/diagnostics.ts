@@ -4,6 +4,8 @@ import { isIndexableMarkdown } from "../indexing/discovery";
 import type { WorkspaceIndex } from "../indexing/workspaceIndex";
 import { wikiReferenceResolverFor } from "../indexing/wikiReferenceResolver";
 import type { WikiReferenceResult } from "../indexing/wikiReferenceResolver";
+import { skippedNoteFinderFor } from "../indexing/noteResolver";
+import { describeOversizedNote } from "../application/oversizedNotes";
 import { parseMarkdown } from "../markdown/parser";
 import { taskMetadataProblems } from "../application/taskMetadataProblems";
 import type { TaskMetadataProblem } from "../application/taskMetadataProblems";
@@ -12,6 +14,7 @@ import { TextRangeMapper, documentRange } from "./utils/ranges";
 export const UNRESOLVED_WIKI_LINK_CODE = "vispNotes.unresolvedWikiLink";
 export const MISSING_WIKI_HEADING_CODE = "vispNotes.missingWikiHeading";
 export const MISSING_WIKI_BLOCK_CODE = "vispNotes.missingWikiBlock";
+export const OVERSIZED_WIKI_LINK_CODE = "vispNotes.oversizedWikiLink";
 
 /**
  * The problems Visp Notes reports in a note.
@@ -57,7 +60,7 @@ export class WikiLinkDiagnostics implements vscode.Disposable {
             const result = resolver.resolve(note.uri, link);
             return result.status === "resolved"
               ? []
-              : [createDiagnostic(link, result, mapper.range(link.range))];
+              : [this.linkDiagnostic(link, result, mapper.range(link.range), note.path)];
           }),
           ...taskMetadataProblems(note.content, note.tasks)
             .map((problem) => createMetadataDiagnostic(problem, mapper.range(problem.range))),
@@ -71,6 +74,38 @@ export class WikiLinkDiagnostics implements vscode.Disposable {
     this.collection.dispose();
   }
 
+  /**
+   * The squiggle a link that landed nowhere gets — or the different, gentler one for a link
+   * that landed on a file the size limit skipped.
+   *
+   * "Unresolved wiki link" is a false report about that file: it is on disk and it opens. The
+   * code matters as much as the sentence, because `WikiLinkCodeActionProvider` hangs Create
+   * Missing Note off the unresolved one, and offering to create a file that is sitting right
+   * there is an offer to overwrite it. The click path stopped doing that a wave ago; this is
+   * the same fact reaching the Problems panel.
+   */
+  private linkDiagnostic(
+    link: WikiLink,
+    result: Exclude<WikiReferenceResult, { readonly status: "resolved" }>,
+    range: vscode.Range,
+    sourcePath: string | undefined,
+  ): vscode.Diagnostic {
+    const skipped = result.status !== "missing-note"
+      ? undefined
+      : skippedNoteFinderFor(this.index.snapshot.skippedOversized).find(sourcePath, link.target);
+    if (skipped === undefined) return createDiagnostic(link, result, range);
+    const diagnostic = new vscode.Diagnostic(
+      range,
+      describeOversizedNote(skipped),
+      // Information, not Warning: nothing here is wrong with the note or with the link. The
+      // reader's own setting is why it does not resolve, and the message names that setting.
+      vscode.DiagnosticSeverity.Information,
+    );
+    diagnostic.source = "Visp Notes";
+    diagnostic.code = OVERSIZED_WIKI_LINK_CODE;
+    return diagnostic;
+  }
+
   private updateDocument(document: vscode.TextDocument): void {
     if (document.languageId !== "markdown" || !isIndexableMarkdown(document.uri)) {
       this.collection.delete(document.uri);
@@ -79,6 +114,7 @@ export class WikiLinkDiagnostics implements vscode.Disposable {
     const source = document.getText();
     const note = parseMarkdown(source);
     const resolver = wikiReferenceResolverFor(this.index.snapshot.notes);
+    const sourcePath = this.index.findNote(document.uri)?.path;
     this.collection.set(
       document.uri,
       [
@@ -86,7 +122,7 @@ export class WikiLinkDiagnostics implements vscode.Disposable {
           const result = resolver.resolve(document.uri.toString(), link);
           return result.status === "resolved"
             ? []
-            : [createDiagnostic(link, result, documentRange(document, link.range))];
+            : [this.linkDiagnostic(link, result, documentRange(document, link.range), sourcePath)];
         }),
         ...taskMetadataProblems(source, note.tasks)
           .map((problem) => createMetadataDiagnostic(problem, documentRange(document, problem.range))),

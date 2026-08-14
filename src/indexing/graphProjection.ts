@@ -1,5 +1,6 @@
 import type { GraphData, GraphEdge, GraphNode, IndexSnapshot } from "../domain/models";
 import { normalizeNoteKey } from "../domain/normalization";
+import { skippedNoteFinderFor } from "./noteResolver";
 
 export interface GraphOptions {
   readonly includeTasks?: boolean;
@@ -75,12 +76,28 @@ function buildGraph(
     }
   }
 
+  const skipped = skippedNoteFinderFor(snapshot.skippedOversized);
+  const pathByUri = skipped.empty
+    ? undefined
+    : new Map(snapshot.notes.map((note) => [note.uri, note.path]));
   for (const resolved of snapshot.links) {
     if (!visibleUris.has(resolved.sourceUri)) continue;
     const sourceId = noteNodeId(resolved.sourceUri);
     if (resolved.targetUri !== undefined && visibleUris.has(resolved.targetUri)) {
       addEdge(edges, sourceId, noteNodeId(resolved.targetUri), "link");
     } else if (resolved.targetUri === undefined && includeUnresolved) {
+      /*
+       * An unresolved node is a note that has not been written yet — a hollow ring that says
+       * "nothing is here". A file the size limit skipped is the opposite of that: it is on
+       * disk, it opens, and the reader has already been told in the panel's footer that it
+       * will not appear in the graph. Drawing it as a note it does not have the title, tags or
+       * links of would be a second wrong answer, so the link contributes nothing and the
+       * promise the footer made is the one the graph keeps.
+       */
+      if (!skipped.empty &&
+        skipped.find(pathByUri?.get(resolved.sourceUri), resolved.link.target) !== undefined) {
+        continue;
+      }
       const targetId = unresolvedNodeId(resolved.link.target);
       addNode(nodes, {
         id: targetId,

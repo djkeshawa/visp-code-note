@@ -5,6 +5,8 @@ import { test } from "node:test";
 // Must come first: it installs the globals `@codemirror/view` reads while loading.
 import { createHost, window } from "../support/domEnvironment";
 import { CodeMirrorEditor } from "../../src/webview/editor/codeMirrorEditor";
+import { INLINE_MARKS } from "../../src/webview/editor/inlineMarks";
+import { INLINE_FORMAT_COMMANDS } from "../../src/vscode/ids";
 
 /**
  * Which keys the extension is allowed to take, checked against the two tables that already
@@ -37,8 +39,16 @@ const keybindings = manifest.contributes?.keybindings ?? [];
  * KeyMod|KeyCode arithmetic in `workbench.desktop.main.js` — Run Build Task is `primary:3104`,
  * which is CtrlCmd(2048) | Shift(1024) | KeyB(32). This is not the whole table, only the keys
  * a Markdown notes extension is tempted by, including the ones this extension has taken before.
+ *
+ * Ctrl+I is the one entry that is not workbench arithmetic: Inline Chat contributes it, and
+ * ships enabled. It is in the table anyway, because what this table is for is what a reader
+ * loses, and a reader does not know or care which half of their editor spent the key.
  */
 const VS_CODE_DEFAULTS: Readonly<Record<string, string>> = {
+  "ctrl+b": "Toggle Primary Side Bar",
+  "ctrl+e": "Quick Open, which takes the keyboard the instant it opens",
+  "ctrl+i": "Inline Chat in the editor",
+  "ctrl+shift+x": "the Extensions view",
   "ctrl+shift+b": "Run Build Task",
   "ctrl+shift+l": "Select All Occurrences of Find Match",
   "ctrl+shift+f": "Find in Files",
@@ -116,6 +126,23 @@ function reachesNoteEditor(binding: Keybinding): boolean {
 
 const NOTE_EDITOR_KEYS = keybindings.filter(reachesNoteEditor);
 
+/** The same key, written the way VS Code writes it: `Mod-Shift-x` is `ctrl+shift+x`. */
+function vsCodeKey(codeMirrorKey: string): string {
+  return codeMirrorKey
+    .split("-")
+    .map((part) => (part === "Mod" ? "ctrl" : part.toLocaleLowerCase()))
+    .join("+");
+}
+
+/**
+ * The keys the note editor answers and the manifest binds anyway, on purpose.
+ *
+ * Derived from the mark table the editor's keymap is built from rather than listed, for the
+ * reason the paragraph above gives: a mark moved to another key has to move this with it, or
+ * the exception outlives the thing it was written for.
+ */
+const SHADOWED_BY_THE_EDITOR = new Set(INLINE_MARKS.map((mark) => vsCodeKey(mark.key)));
+
 interface OpenNote {
   readonly press: (key: string) => KeyboardEvent;
   readonly select: (from: number, to: number) => void;
@@ -170,6 +197,13 @@ function openNote(): OpenNote {
 
 test("the note editor leaves the extension's own keys for VS Code to route", () => {
   for (const binding of NOTE_EDITOR_KEYS) {
+    /*
+     * Except the four the editor writes itself. Those are bound here *because* both tables
+     * answer them — the binding is what keeps VS Code's own command off the key inside this
+     * editor — and the two arrivals of the one press are settled in `toggleInlineMark`. The
+     * test below holds that pair together from both ends.
+     */
+    if (SHADOWED_BY_THE_EDITOR.has(binding.key)) continue;
     const note = openNote();
     // With text selected: that is how Insert Link is used, and it is what wakes the
     // editor's own selection commands up.
@@ -226,6 +260,60 @@ test("Ctrl+Shift+G is a note editor key, so Open Local Graph is scoped out of th
     assert.ok(
       !reachesNoteEditor(binding),
       `${binding.key} runs in an open note, where the editor already answers it`,
+    );
+  }
+});
+
+/*
+ * The formatting keys, from both ends — the mirror image of the graph's.
+ *
+ * Ctrl+Shift+G is a key the editor claims and the extension therefore keeps away from the note
+ * editor. These four are keys the editor claims and the extension has to bind *into* the note
+ * editor, because the alternative is not "VS Code gets the key" but "both run": a webview
+ * cannot decline a key on the workbench's behalf, since every keydown is forwarded out for
+ * keybinding resolution whether the page consumed it or not. Ctrl+B toggled the side bar over
+ * the bold, and Ctrl+E handed the keyboard to Quick Open mid-sentence, which is what made the
+ * inline-code key unusable. A contributed binding is the only thing that shadows a default.
+ *
+ * Both ends, for the reason the graph's test gives: an editor that stopped claiming these keys
+ * would leave four bindings taking VS Code's commands away for nothing, and a manifest that
+ * lost the bindings would put Quick Open back over the writer's sentence with the presses
+ * below still passing. The third assertion is the one that stops the fix being cosmetic — a
+ * binding whose `when` grew a `!=` would stop reaching the editor it exists to cover.
+ */
+test("the note editor's formatting keys are claimed here and shadowed in the manifest", () => {
+  for (const mark of INLINE_MARKS) {
+    const key = vsCodeKey(mark.key);
+    assert.ok(
+      VS_CODE_DEFAULTS[key] !== undefined,
+      `${key} (${mark.label}) is not in the table above, so nothing records what it costs`,
+    );
+
+    const note = openNote();
+    note.select(9, 14);
+    assert.equal(
+      note.press(key).defaultPrevented,
+      true,
+      `${key} stopped being a note editor key, so ${mark.label} need not shadow anything`,
+    );
+
+    const command = INLINE_FORMAT_COMMANDS[mark.id];
+    const bound = keybindings.filter((binding) => binding.command === command);
+    assert.equal(
+      bound.length,
+      1,
+      `${mark.label} is bound ${bound.length} times, so ${VS_CODE_DEFAULTS[key]} is back on ${key}`,
+    );
+    const binding = bound[0] as Keybinding;
+    assert.equal(binding.key, key, `${mark.label}'s manifest key drifted from its keymap key`);
+    assert.equal(macAsCtrl(binding.mac), key, `${mark.label}'s mac key names a different key`);
+    assert.ok(
+      reachesNoteEditor(binding),
+      `${binding.key} is scoped out of the note editor, which is the only place it is needed`,
+    );
+    assert.ok(
+      binding.when?.includes("activeCustomEditorId == vispNotes.noteEditor"),
+      `${binding.key} takes ${VS_CODE_DEFAULTS[key]} away outside the note editor too`,
     );
   }
 });

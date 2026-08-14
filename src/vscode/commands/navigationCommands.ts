@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { wikiTargetForNote } from "../../indexing/noteResolver";
+import type { EditorInlineMark } from "../../domain/protocol";
 import type { CommandIndex, FeatureViews } from "./contracts";
 import { activeMarkdownUri, coerceUri, pickNote } from "./commandUtils";
 import { openNote } from "./openNote";
@@ -43,6 +44,25 @@ export async function insertWikiLink(index: CommandIndex, views: FeatureViews): 
     : `[[${target}]]`;
   if (!(await editor.edit((builder) => builder.replace(editor.selection, link)))) {
     throw new Error("VS Code rejected the wiki-link edit.");
+  }
+}
+
+/**
+ * Bold, italic, inline code and strikethrough, from the keyboard.
+ *
+ * The toggle itself lives in the note editor's own keymap and stays there — a round trip to
+ * the extension host for every Ctrl+B would be felt on a remote workspace, and Ctrl+I has to
+ * be able to decline and hand the key back to the editor's `selectParentSyntax`. This command
+ * exists so that the manifest has something real to bind, which is the only way a key VS Code
+ * has already spent is shadowed inside one editor. The editor discards the arrival when it was
+ * the one that handled the press.
+ */
+export async function toggleInlineFormat(
+  views: FeatureViews,
+  mark: EditorInlineMark,
+): Promise<void> {
+  if (!(await views.formatInline(mark))) {
+    void vscode.window.showInformationMessage("Focus a Visp note editor before formatting text.");
   }
 }
 

@@ -24,6 +24,7 @@ import {
 import {
   isEditorDocumentState,
   isEditorState,
+  isInlineMarkId,
   isNoteContext,
   isNoteSuggestions,
   isUnresolvedLinks,
@@ -155,6 +156,8 @@ function handleHostMessage(event: MessageEvent<unknown>): void {
     if (sync.snapshot.conflict === undefined && !sync.snapshot.failed) {
       setNotice(errorNotice, editor?.insertWikiLink(message.target));
     }
+  } else if (message.type === "editor/format" && isInlineMarkId(message.mark)) {
+    editor?.toggleInlineMark(message.mark);
   } else if (message.type === "editor/insertTag" && typeof message.tag === "string") {
     applyTagEdit(message.tag, "add");
   } else if (message.type === "editor/removeTag" && typeof message.tag === "string") {

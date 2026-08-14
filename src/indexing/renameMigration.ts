@@ -35,13 +35,44 @@ export async function planFileRenameEdit(
   snapshot: IndexSnapshot,
   renames: readonly FileRename[],
 ): Promise<vscode.WorkspaceEdit | undefined> {
-  if (suppressed > 0) return undefined;
-  const relocations = await relocationsFor(snapshot, renames);
+  if (!linkMigrationEnabled()) return undefined;
+  const mine = renames.filter((rename) => !suppressed.has(rename.oldUri.toString()));
+  if (mine.length === 0) return undefined;
+  const relocations = await relocationsFor(snapshot, mine);
   if (relocations.length === 0) return undefined;
   const plan = planRelocationMigration(snapshot, relocations);
   if (plan.replacements.length === 0) return undefined;
   await confirmPlanNotesExist(plan.dependsOn, relocations);
   return planLinkReplacementEdit(plan.replacements);
+}
+
+const MIGRATION_SETTING = "vispNotes.updateLinksOnFileMove.enabled";
+
+/**
+ * Whether the reader has agreed to this at all — the decision this participant shipped without.
+ *
+ * It is the only thing the extension writes to files nobody opened, and it happens during a
+ * gesture the reader believes is a file rename, so being able to find out in advance that a
+ * drag edits other notes is not optional. Three ways were on the table and two are taken here.
+ *
+ * The setting, first, and shaped like `markdown.updateLinksOnFileMove.enabled` because that is
+ * the convention a VS Code user already has an opinion about — same suffix, same values, same
+ * place in the settings search. With one difference: no `prompt`. VS Code's own version can
+ * offer it because it does its asking outside the participant; this handler *is* the
+ * participant, running under `files.participants.timeout` with a spinner over the Explorer, so
+ * a question here is a hung rename rather than a question. Offering a value that would have to
+ * time out into one answer or the other would be worse than not offering it.
+ *
+ * Second, and the reason the default stays `always`: the migration no longer rewrites prose.
+ * `preservedLinkText` keeps the word the link puts on the page and moves only what it points
+ * at, so what this setting now switches off is a repair, not an edit to anyone's sentences.
+ * `README.md` says the same thing where a reader looks before installing rather than after.
+ *
+ * Read per call rather than cached: it is one `getConfiguration` against a value VS Code
+ * already has in memory, and a rename is not where a stale copy of a consent flag belongs.
+ */
+function linkMigrationEnabled(): boolean {
+  return vscode.workspace.getConfiguration().get<string>(MIGRATION_SETTING) !== "never";
 }
 
 /**
@@ -80,10 +111,12 @@ async function confirmPlanNotesExist(
   }));
 }
 
-let suppressed = 0;
+/** How many in-flight operations have claimed each path. Counted, so nesting is safe. */
+const suppressed = new Map<string, number>();
 
 /**
- * Runs an operation that renames files itself, without the Explorer participant joining in.
+ * Runs an operation that renames these files itself, without the Explorer participant joining
+ * in on them.
  *
  * `applyEdit` with a `renameFile` in it fires `onWillRenameFiles` exactly as a drag in the
  * Explorer does, and VS Code has no way to say which extension asked. Without this, the Rename
@@ -92,13 +125,29 @@ let suppressed = 0;
  * check then fails on the participant's own work, after the file has already moved. The command
  * plans a mode, a title change and an alias the participant knows nothing about, so the right
  * one to switch off is the participant.
+ *
+ * The paths are named rather than this being a flag, because a flag was wider than the
+ * `applyEdit` it needed to cover. The command holds it across a file rename, a content edit and
+ * a save of every document that edit touched — hundreds of milliseconds on a large migration —
+ * and any rename the user made in the Explorer during that window was silently skipped. Nothing
+ * failed and nothing was said: the file moved and its incoming links stayed pointing at where
+ * it used to be. Naming the paths makes the exemption exactly as wide as the reason for it, and
+ * an unrelated rename arriving mid-command is migrated normally.
  */
-export async function withoutRenameParticipation<T>(operation: () => Promise<T>): Promise<T> {
-  suppressed += 1;
+export async function withoutRenameParticipation<T>(
+  paths: readonly vscode.Uri[],
+  operation: () => Promise<T>,
+): Promise<T> {
+  const keys = paths.map((uri) => uri.toString());
+  for (const key of keys) suppressed.set(key, (suppressed.get(key) ?? 0) + 1);
   try {
     return await operation();
   } finally {
-    suppressed -= 1;
+    for (const key of keys) {
+      const remaining = (suppressed.get(key) ?? 1) - 1;
+      if (remaining > 0) suppressed.set(key, remaining);
+      else suppressed.delete(key);
+    }
   }
 }
 
@@ -125,6 +174,30 @@ async function relocationsFor(
       }
       continue;
     }
+    /*
+     * One file arriving in the index — a `.txt` renamed to `.md`, or a note dragged out of an
+     * excluded folder. It is read from disk so the post-rename workspace knows the name it
+     * arrives under, because arriving under a name another note already answers to is exactly
+     * the case that would otherwise re-point that note's links.
+     *
+     * A *folder* dragged out of an excluded area does the same thing and is not handled. It is
+     * neither branch above: nothing under it is in the snapshot, because the exclusion is why,
+     * and the folder itself is not indexable Markdown, so `arrivingNote` declines it and this
+     * returns nothing. Drag `archive/` — excluded — to `notes/archive/`, and every note inside
+     * it enters the name-space at once; a `[[Spec]]` elsewhere that meant `docs/Spec.md` may now
+     * mean `notes/archive/Spec.md`, and the sentence the user wrote quietly points at a
+     * different note.
+     *
+     * Left open deliberately, and the cost is that the meaning change is permanent, not that it
+     * is temporary. The rebuild `onDidRenameFiles` queues for a moved folder is precisely what
+     * commits the new name-space: nothing after it can tell that `[[Spec]]` ever meant the other
+     * note, so there is no later moment at which this repairs itself. What it costs to close is
+     * the reason it is open: the single-file case reads one file inside the participant timeout,
+     * and the folder case would have to walk an unbounded directory tree and read every Markdown
+     * file under it before VS Code is allowed to move anything — for a folder whose size nobody
+     * knows, with the Explorer frozen behind it. A drag of `node_modules/` would hang the rename
+     * and then have the edit dropped by the timeout anyway.
+     */
     const arrival = await arrivingNote(rename);
     if (arrival) relocations.push({ next: arrival });
   }

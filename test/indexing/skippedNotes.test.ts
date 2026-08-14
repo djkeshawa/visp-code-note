@@ -1,7 +1,8 @@
 import assert = require("node:assert/strict");
 import { test } from "node:test";
-import type { SkippedNote } from "../../src/domain/models";
+import type { IndexSnapshot, SkippedNote } from "../../src/domain/models";
 import { createNoteResolver, findSkippedNote } from "../../src/indexing/noteResolver";
+import { buildSnapshot, buildWorkspaceGraph, getBrokenLinks } from "../../src/indexing/projections";
 import { makeNote } from "./fixtures";
 
 /*
@@ -123,4 +124,40 @@ test("a name an indexed note owns is answered by the resolver, not by this", () 
   const resolved = createNoteResolver([indexed]).resolve("file:///desk/source.md", "enormous");
 
   assert.equal(resolved?.uri, indexed.uri);
+});
+
+/*
+ * The same fact, in the surfaces that were still contradicting it.
+ *
+ * The click path learned a year of this ago: a link to a file the size limit skipped is not a
+ * broken link, it is a link to a note that is not indexed. Find Broken Links, the count over
+ * the note editor, the workspace panel's Broken row and the graph all went on saying the other
+ * thing, so a reader fixing one of them found the note still accused in the next three.
+ */
+function snapshotWithSkipped(): IndexSnapshot {
+  const source = makeNote({
+    path: "desk/source.md",
+    content: "# Source\n\nSee [[enormous]] and [[nowhere]].\n",
+  });
+  return buildSnapshot([source], 1, 0, undefined, [ENORMOUS]);
+}
+
+test("a link to a skipped file is not counted among the broken links", () => {
+  const broken = getBrokenLinks(snapshotWithSkipped());
+
+  assert.deepEqual(
+    broken.map((entry) => entry.link.target),
+    ["nowhere"],
+    "the file is on disk and opens; only the link that names nothing at all is broken",
+  );
+});
+
+test("the graph does not draw a skipped file as a note that was never written", () => {
+  const graph = buildWorkspaceGraph(snapshotWithSkipped());
+
+  assert.deepEqual(
+    graph.nodes.filter((node) => node.kind === "unresolved").map((node) => node.label),
+    ["nowhere"],
+    "a hollow “nothing is here” ring for a file that is right there is the same false report",
+  );
 });
