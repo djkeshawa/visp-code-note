@@ -386,3 +386,73 @@ function stubDocument(path: string): StubTextDocument {
   stub.documents.set(uri.toString(), document);
   return document;
 }
+
+/*
+ * The three below are regressions from an adversarial audit of this migration. They share a
+ * shape: the plan is correct about the link text it is rewriting and wrong about the workspace
+ * it resolved that text against, so the guard that only re-reads the link lets it through.
+ */
+
+/**
+ * Two ordinary Explorer gestures in a row used to write a permanently dead link into a note the
+ * user never touched.
+ *
+ * Renaming a folder queues a full rebuild, and the snapshot the participant reads is not replaced
+ * until that rebuild commits. A rename arriving in that window plans against a workspace that no
+ * longer exists — and the plan is at its most dangerous precisely when it is re-pinning a link to
+ * a path, because a path names a file rather than describing one.
+ */
+test("a link is not re-pinned onto a note the index only thinks is still there", async () => {
+  const harness = await open({
+    "archive/Spec.md": "Body.\n",
+    "current/Spec.md": "Body.\n",
+    "Journal.md": "See [[Spec]].\n",
+    "Draft.md": "Body.\n",
+  });
+  // Gesture one: `archive` was renamed to `old`. The rebuild it queued has not committed.
+  stub.files.set("/vault/old/Spec.md", stub.files.get("/vault/archive/Spec.md") ?? "");
+  stub.files.delete("/vault/archive/Spec.md");
+
+  // Gesture two, inside that window: a name the stale snapshot says is taken becomes taken.
+  const edit = await willRename([["Draft.md", "Spec.md"]]);
+
+  assert.equal(edit.size, 0, "[[archive/Spec]] would have been a link to a path that is gone");
+  assert.deepEqual(stub.warnings.length, 1, "and the user is told, rather than left to find it");
+  harness.dispose();
+});
+
+/**
+ * `.md` is a legal file name — it is how a dotfile is made — and it leaves the note with no stem.
+ *
+ * The rewrite used to be emitted without checking that it named anything: `[[Target]]` became
+ * `[[]]`, which does not parse as a link at all, so the link and the word the user wrote were
+ * both gone. `[[Target|the alias]]` became `[[|the alias]]`, which is worse than gone — an empty
+ * target resolves to the note the link sits in, so it silently pointed at itself.
+ */
+test("renaming a note to a name with no stem leaves the link text as the user wrote it", async () => {
+  const harness = await open({
+    "Target.md": "Body.\n",
+    "refers.md": "See [[Target]] and [[Target|the alias]].\n",
+  });
+  const edit = await willRename([["Target.md", ".md"]]);
+
+  assert.equal(edit.size, 0, "no name reaches the note now, and [[]] is not a name");
+  harness.dispose();
+});
+
+/**
+ * On a case-sensitive file system two notes can differ only in case, and the resolver — which
+ * matches names without case — can only answer with one of them. The rewrite used to name the
+ * one it could not reach, so the link opened a completely different note's content.
+ */
+test("a rewrite is never written when the name it would use reaches a different note", async () => {
+  const harness = await open({
+    "a/NOTE.md": "Body.\n",
+    "Target.md": "Body.\n",
+    "refers.md": "See [[Target]].\n",
+  });
+  const edit = await willRename([["Target.md", "a/note.md"]]);
+
+  assert.equal(edit.size, 0, "[[a/note]] resolves to a/NOTE.md, which is not the renamed note");
+  harness.dispose();
+});

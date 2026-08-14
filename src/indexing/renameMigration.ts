@@ -38,9 +38,46 @@ export async function planFileRenameEdit(
   if (suppressed > 0) return undefined;
   const relocations = await relocationsFor(snapshot, renames);
   if (relocations.length === 0) return undefined;
-  const replacements = planRelocationMigration(snapshot, relocations);
-  if (replacements.length === 0) return undefined;
-  return planLinkReplacementEdit(replacements);
+  const plan = planRelocationMigration(snapshot, relocations);
+  if (plan.replacements.length === 0) return undefined;
+  await confirmPlanNotesExist(plan.dependsOn, relocations);
+  return planLinkReplacementEdit(plan.replacements);
+}
+
+/**
+ * Refuses the plan unless every note it named is still on disk.
+ *
+ * The document check in `planReplacementDocuments` asks whether the link *text* has moved since
+ * the index read it. That is only half of what the index can be behind on. It can also be behind
+ * on layout — a folder renamed a moment ago whose rebuild has not committed, a `git checkout`, an
+ * external tool — and a rewrite that re-pins a link to a path asserts that the file at that path
+ * exists. Two ordinary Explorer gestures in a row were enough to write a permanently dead link
+ * into a note the user never opened: rename a folder, then, before the rebuild lands, rename a
+ * note whose name the stale snapshot still says is taken.
+ *
+ * Only the notes actually written down are checked, not the whole projection, so this is a
+ * handful of parallel stats rather than a vault walk — and it runs before any document is opened,
+ * so the expensive half of the plan is never paid for a plan that is about to be thrown away.
+ * Throwing here lands in the handler's existing all-or-nothing path: no edit, one warning, and
+ * the rename itself still goes through.
+ */
+async function confirmPlanNotesExist(
+  dependsOn: readonly NoteRecord[],
+  relocations: readonly NoteRelocation[],
+): Promise<void> {
+  const stillAt = new Map<string, string>();
+  const arriving = new Set<string>();
+  for (const { previous, next } of relocations) {
+    if (!next) continue;
+    // A note that is moving is still at its old path: none of this has happened yet.
+    if (previous) stillAt.set(next.uri, previous.uri);
+    else arriving.add(next.uri);
+  }
+  await Promise.all(dependsOn.map(async (note) => {
+    // An arriving file was just read from disk by `arrivingNote`, so it needs no second look.
+    if (arriving.has(note.uri)) return;
+    await vscode.workspace.fs.stat(vscode.Uri.parse(stillAt.get(note.uri) ?? note.uri));
+  }));
 }
 
 let suppressed = 0;

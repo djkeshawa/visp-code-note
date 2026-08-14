@@ -80,6 +80,21 @@ export interface NoteRelocation {
 }
 
 /**
+ * The rewrites a set of renames needs, and the notes those rewrites are only correct because of.
+ *
+ * `dependsOn` exists because a plan can be perfectly correct about the link text it is rewriting
+ * and wrong about the workspace it resolved that text against. The index is read on a debounce
+ * and rebuilt in the background, so it can be behind on file *layout* as easily as on file
+ * *text* — and a rewrite that pins a link to a path is a statement that the file at that path
+ * exists. These are the notes whose names were written down; the caller, which is the only side
+ * that can touch the disk, is expected to confirm they are still there before writing anything.
+ */
+export interface RelocationPlan {
+  readonly replacements: readonly LinkReplacement[];
+  readonly dependsOn: readonly NoteRecord[];
+}
+
+/**
  * Rewrites the links a set of file renames would otherwise change the meaning of.
  *
  * The rule is one sentence: renaming files never changes what a link points at. Every link in
@@ -96,19 +111,21 @@ export interface NoteRelocation {
  * rename would otherwise have quietly stolen.
  *
  * A link whose target is leaving the index is left alone: there is no name that would still
- * reach it, and the text the user wrote at least records what they meant.
+ * reach it, and the text the user wrote at least records what they meant. The same holds for a
+ * note the workspace has no name for at all — one renamed to `.md`, which leaves no stem to
+ * write down. An unverified guess there does not degrade the link, it destroys it.
  */
 export function planRelocationMigration(
   snapshot: IndexSnapshot,
   relocations: readonly NoteRelocation[],
-): readonly LinkReplacement[] {
+): RelocationPlan {
   const moved = new Map<string, NoteRecord | undefined>();
   const arrivals: NoteRecord[] = [];
   for (const relocation of relocations) {
     if (relocation.previous) moved.set(relocation.previous.uri, relocation.next);
     else if (relocation.next) arrivals.push(relocation.next);
   }
-  if (moved.size === 0 && arrivals.length === 0) return [];
+  if (moved.size === 0 && arrivals.length === 0) return { replacements: [], dependsOn: [] };
 
   const currentNotes = new Map(snapshot.notes.map((note) => [note.uri, note]));
   const noteAfter = (uri: string): NoteRecord | undefined =>
@@ -124,6 +141,7 @@ export function planRelocationMigration(
   const resolver = createNoteResolver(nextNotes);
   const planner = createWikiTargetPlanner(nextNotes);
   const replacements: LinkReplacement[] = [];
+  const dependsOn = new Map<string, NoteRecord>();
   for (const resolved of snapshot.links) {
     if (resolved.targetUri === undefined) continue;
     const intended = noteAfter(resolved.targetUri);
@@ -131,7 +149,10 @@ export function planRelocationMigration(
     const source = noteAfter(resolved.sourceUri);
     if (intended === undefined || source === undefined) continue;
     if (resolver.resolve(source.uri, resolved.link.target)?.uri === intended.uri) continue;
-    const text = rewriteWikiLink(resolved.link, planner.targetFor(source.uri, intended));
+    const target = planner.reachingTargetFor(source.uri, intended);
+    // Nothing reaches the note any more. Leaving the link as written says what the user meant.
+    if (target === undefined) continue;
+    const text = rewriteWikiLink(resolved.link, target);
     if (text === resolved.link.raw) continue;
     replacements.push({
       uri: resolved.sourceUri,
@@ -139,8 +160,9 @@ export function planRelocationMigration(
       expectedText: resolved.link.raw,
       text,
     });
+    dependsOn.set(intended.uri, intended);
   }
-  return replacements;
+  return { replacements, dependsOn: [...dependsOn.values()] };
 }
 
 export function rewriteWikiLink(link: WikiLink, nextTarget: string): string {

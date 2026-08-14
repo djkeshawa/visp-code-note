@@ -12,7 +12,20 @@ export interface NoteResolver {
 }
 
 export interface WikiTargetPlanner {
+  /**
+   * The name to write for a link to this note, falling back to its path from the workspace root
+   * when nothing reaches it. For inserting a link, where a best guess beats writing nothing.
+   */
   targetFor(sourceUri: string | undefined, targetNote: NoteRecord): string;
+  /**
+   * The same name, but only when it demonstrably resolves back to the note.
+   *
+   * `undefined` means no name this workspace can write down reaches it — a note whose file name
+   * has no stem has no title and no usable path, and two notes whose paths differ only in case
+   * cannot both be named, because names are matched without case. Rewriting a link to an
+   * unverified guess is how `[[Target]]` became `[[]]`, so the migration asks this instead.
+   */
+  reachingTargetFor(sourceUri: string | undefined, targetNote: NoteRecord): string | undefined;
 }
 
 /*
@@ -112,24 +125,32 @@ export function wikiTargetForNote(
 export function createWikiTargetPlanner(notes: readonly NoteRecord[]): WikiTargetPlanner {
   const resolver = createNoteResolver(notes);
   const byUri = new Map(notes.map((note) => [note.uri, note]));
+  const rootPath = (targetNote: NoteRecord): string => targetNote.path.replace(/\.md$/i, "");
+  /* Every name that could reach the note, nearest to the reader first. */
+  const candidates = (sourceUri: string | undefined, targetNote: NoteRecord): readonly string[] => {
+    const targetPath = rootPath(targetNote);
+    const source = sourceUri ? byUri.get(sourceUri) : undefined;
+    const relativePath = source
+      ? posix.relative(posix.dirname(source.path.replace(/\\/g, "/")), targetPath)
+        || posix.basename(targetPath)
+      : targetPath;
+    return [
+      encodeWikiTarget(targetNote.title),
+      encodeWikiTarget(relativePath),
+      encodeWikiTarget(targetPath),
+    ];
+  };
+  const reaching = (
+    sourceUri: string | undefined,
+    targetNote: NoteRecord,
+  ): string | undefined => candidates(sourceUri, targetNote).find(
+    (candidate) => resolver.resolve(sourceUri ?? "", candidate)?.uri === targetNote.uri,
+  );
   return {
     targetFor(sourceUri, targetNote) {
-      const titleTarget = encodeWikiTarget(targetNote.title);
-      if (resolver.resolve(sourceUri ?? "", titleTarget)?.uri === targetNote.uri) {
-        return titleTarget;
-      }
-
-      const targetPath = targetNote.path.replace(/\.md$/i, "");
-      const source = sourceUri ? byUri.get(sourceUri) : undefined;
-      const relativePath = source
-        ? posix.relative(posix.dirname(source.path.replace(/\\/g, "/")), targetPath)
-          || posix.basename(targetPath)
-        : targetPath;
-      const pathTarget = encodeWikiTarget(relativePath);
-      return resolver.resolve(sourceUri ?? "", pathTarget)?.uri === targetNote.uri
-        ? pathTarget
-        : encodeWikiTarget(targetPath);
+      return reaching(sourceUri, targetNote) ?? encodeWikiTarget(rootPath(targetNote));
     },
+    reachingTargetFor: reaching,
   };
 }
 
