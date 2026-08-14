@@ -74,6 +74,7 @@ export class WorkspaceIndex implements vscode.Disposable {
         ...createIndexWatchers(
           (change) => this.queueChange(change),
           () => { void this.rebuild().catch(() => undefined); },
+          () => this.currentSnapshot,
         ),
         /*
          * Reaching the bypass has to be one step, not "change this and restart VS Code", or

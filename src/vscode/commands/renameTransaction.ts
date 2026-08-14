@@ -1,11 +1,12 @@
 import * as vscode from "vscode";
 import type { LinkReplacement } from "../../application/linkMigration";
-import { groupLinkReplacements } from "../../application/linkMigration";
 import { planAliasAddition, planTitleChange } from "../../application/noteMetadataEdits";
 import { applyTextEdits, type OffsetTextEdit } from "../../application/textEdits";
 import type { NoteRecord } from "../../domain/models";
 import { mapConcurrent } from "../../indexing/concurrency";
-import { toRange } from "../documentEdits";
+import { withoutRenameParticipation } from "../../indexing/renameMigration";
+import type { PlannedDocument } from "../documentEdits";
+import { loadPlannedDocument, planReplacementDocuments, toRange } from "../documentEdits";
 
 export type RenameMode = "updateLinks" | "preserveAlias" | "pathOnly";
 
@@ -27,12 +28,6 @@ interface ExpectedDocument {
   readonly source: string;
 }
 
-interface PlannedDocument {
-  readonly document: vscode.TextDocument;
-  readonly source: string;
-  readonly edits: OffsetTextEdit[];
-}
-
 export async function prepareRenameTransaction(
   note: NoteRecord,
   nextUri: vscode.Uri,
@@ -41,28 +36,10 @@ export async function prepareRenameTransaction(
   replacements: readonly LinkReplacement[],
   intermediateUri?: vscode.Uri,
 ): Promise<RenameTransaction> {
-  const documents = new Map<string, PlannedDocument>();
-  const load = async (uri: string): Promise<PlannedDocument> => {
-    const existing = documents.get(uri);
-    if (existing) return existing;
-    const document = await vscode.workspace.openTextDocument(vscode.Uri.parse(uri));
-    const planned = { document, source: document.getText(), edits: [] };
-    documents.set(uri, planned);
-    return planned;
-  };
-
-  for (const [uri, items] of groupLinkReplacements(replacements)) {
-    const planned = await load(uri);
-    for (const item of items) {
-      if (planned.source.slice(item.range.start, item.range.end) !== item.expectedText) {
-        throw new Error(`A link in ${planned.document.uri.fsPath} changed. Rebuild the index and retry.`);
-      }
-      planned.edits.push({ ...item.range, text: item.text });
-    }
-  }
+  const documents = await planReplacementDocuments(replacements);
 
   if (mode !== "pathOnly") {
-    const planned = await load(note.uri);
+    const planned = await loadPlannedDocument(documents, note.uri);
     const titleEdit = planTitleChange(planned.source, nextTitle);
     if (titleEdit) addMetadataEdit(planned.edits, titleEdit);
     if (mode === "preserveAlias") {
@@ -124,6 +101,10 @@ export async function prepareRenameTransaction(
 }
 
 export async function applyRenameTransaction(transaction: RenameTransaction): Promise<void> {
+  await withoutRenameParticipation(() => applyRenameEdits(transaction));
+}
+
+async function applyRenameEdits(transaction: RenameTransaction): Promise<void> {
   let fileRenamed = false;
   if (transaction.initialRenameEdit) {
     if (!(await vscode.workspace.applyEdit(transaction.initialRenameEdit))) {

@@ -1,7 +1,7 @@
 import type { IndexSnapshot, NoteRecord, OffsetRange, ResolvedLink, WikiLink } from "../domain/models";
 import { posix } from "node:path";
 import { encodeWikiTarget, normalizeNoteKey, normalizeWikiTarget } from "../domain/normalization";
-import { createNoteResolver } from "../indexing/noteResolver";
+import { createNoteResolver, createWikiTargetPlanner } from "../indexing/noteResolver";
 
 export interface LinkReplacement {
   readonly uri: string;
@@ -65,6 +65,82 @@ export function planPathLinkMigration(
   );
   return planLinkMigration(snapshot, renamedNote, nextTitle, nextPath)
     .filter((replacement) => !safeLinks.has(replacementIdentity(replacement)));
+}
+
+/**
+ * One file's record either side of a file operation.
+ *
+ * `previous` is absent for a file that is becoming a note — a `.txt` renamed to `.md`. `next` is
+ * absent for one that stops being one — a note renamed to `.txt`, or dragged into an excluded
+ * folder. Both together describe a note that moved or was renamed.
+ */
+export interface NoteRelocation {
+  readonly previous?: NoteRecord;
+  readonly next?: NoteRecord;
+}
+
+/**
+ * Rewrites the links a set of file renames would otherwise change the meaning of.
+ *
+ * The rule is one sentence: renaming files never changes what a link points at. Every link in
+ * the vault is resolved against the workspace as it will be once the renames land, and the ones
+ * that would land somewhere else — or nowhere — are rewritten to name the note they mean today.
+ * Everything else is left exactly as the user typed it, which is why a note that carries its own
+ * `# Title` can be moved between folders without a single `[[link]]` being touched.
+ *
+ * Stating it that way is what makes the awkward cases fall out rather than each needing its own
+ * branch: a rename that only changes case moves no link, because note names are matched without
+ * case; two notes renamed at once see each other's new names, because there is one resolver over
+ * one post-rename workspace; and a new name that collides with an existing note's title re-pins
+ * the *other* note's incoming links to a path, because those are the links whose meaning the
+ * rename would otherwise have quietly stolen.
+ *
+ * A link whose target is leaving the index is left alone: there is no name that would still
+ * reach it, and the text the user wrote at least records what they meant.
+ */
+export function planRelocationMigration(
+  snapshot: IndexSnapshot,
+  relocations: readonly NoteRelocation[],
+): readonly LinkReplacement[] {
+  const moved = new Map<string, NoteRecord | undefined>();
+  const arrivals: NoteRecord[] = [];
+  for (const relocation of relocations) {
+    if (relocation.previous) moved.set(relocation.previous.uri, relocation.next);
+    else if (relocation.next) arrivals.push(relocation.next);
+  }
+  if (moved.size === 0 && arrivals.length === 0) return [];
+
+  const currentNotes = new Map(snapshot.notes.map((note) => [note.uri, note]));
+  const noteAfter = (uri: string): NoteRecord | undefined =>
+    moved.has(uri) ? moved.get(uri) : currentNotes.get(uri);
+  const nextNotes = [
+    ...snapshot.notes.flatMap((note) => {
+      const next = noteAfter(note.uri);
+      return next ? [next] : [];
+    }),
+    ...arrivals,
+  ];
+
+  const resolver = createNoteResolver(nextNotes);
+  const planner = createWikiTargetPlanner(nextNotes);
+  const replacements: LinkReplacement[] = [];
+  for (const resolved of snapshot.links) {
+    if (resolved.targetUri === undefined) continue;
+    const intended = noteAfter(resolved.targetUri);
+    // A link is read relative to the file it sits in, so the source's own new home matters too.
+    const source = noteAfter(resolved.sourceUri);
+    if (intended === undefined || source === undefined) continue;
+    if (resolver.resolve(source.uri, resolved.link.target)?.uri === intended.uri) continue;
+    const text = rewriteWikiLink(resolved.link, planner.targetFor(source.uri, intended));
+    if (text === resolved.link.raw) continue;
+    replacements.push({
+      uri: resolved.sourceUri,
+      range: resolved.link.range,
+      expectedText: resolved.link.raw,
+      text,
+    });
+  }
+  return replacements;
 }
 
 export function rewriteWikiLink(link: WikiLink, nextTarget: string): string {

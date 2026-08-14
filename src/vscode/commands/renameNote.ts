@@ -48,7 +48,20 @@ export async function renameNote(
     ? coerceUri(value)
     : request.uri === undefined ? undefined : coerceUri(request.uri);
   const uri = requestedUri ?? activeMarkdownUri();
-  if (uri) await index.rebuild();
+  /*
+   * One file, not the whole workspace. This ran a full rebuild — every `.md` in the workspace
+   * re-discovered, re-read and re-projected — before the title prompt had even appeared, and on
+   * a network drive that is seconds of nothing between the keypress and the input box, which
+   * reads as a broken command. All this needs is for the note being renamed to be current.
+   *
+   * Every check that has to be right runs after the rebuild below, against a workspace read
+   * from scratch: the note still exists, the title still does not collide, the destination is
+   * still free, and the plan still matches the files. The one thing the up-front rebuild also
+   * bought was that the pre-modal preview and the post-rebuild plan agreed more often; where
+   * they disagree the command already stops and asks for a retry, and the retry now runs with
+   * the workspace freshly read.
+   */
+  if (uri) await index.refresh(uri);
   const note = uri ? index.findNote(uri) : undefined;
   if (!note) {
     void vscode.window.showInformationMessage("Open an indexed Markdown note before renaming it.");
@@ -133,31 +146,42 @@ export async function renameNote(
     }
   }
 
-  await index.rebuild();
-  const currentNote = index.findNote(note.uri);
-  if (!currentNote) throw new Error("The note moved or was deleted after the rename preview.");
-  if (conflictingNote(index.snapshot.notes, requestedTitle, currentNote.uri)) {
-    throw new Error("The requested title now conflicts with another note.");
-  }
-  if (pathChanged && await destinationConflicts(previousUri, nextUri, caseOnlyRename)) {
-    throw new Error(`The destination ${nextUri.fsPath} now exists.`);
-  }
-  const currentReplacements = linkReplacements(index, currentNote, requestedTitle, nextPath, mode);
-  const transaction = await prepareRenameTransaction(
-    currentNote,
-    nextUri,
-    requestedTitle,
-    mode,
-    currentReplacements,
-    intermediateUri,
-  );
-  if (preview.before !== transaction.before) {
-    throw new Error("A file changed after the rename preview. Review the updated files and retry.");
-  }
-  await applyRenameTransaction(transaction);
+  /*
+   * The wait the user actually has to sit through — a full rebuild, every affected file opened,
+   * and the edits written — narrated where they are looking. It used to happen behind a status
+   * bar item in the far corner, after they had pressed Apply Rename and had every reason to
+   * think the work was already done.
+   */
+  await vscode.window.withProgress(
+    { location: vscode.ProgressLocation.Notification, title: "Updating links…" },
+    async () => {
+      await index.rebuild();
+      const currentNote = index.findNote(note.uri);
+      if (!currentNote) throw new Error("The note moved or was deleted after the rename preview.");
+      if (conflictingNote(index.snapshot.notes, requestedTitle, currentNote.uri)) {
+        throw new Error("The requested title now conflicts with another note.");
+      }
+      if (pathChanged && await destinationConflicts(previousUri, nextUri, caseOnlyRename)) {
+        throw new Error(`The destination ${nextUri.fsPath} now exists.`);
+      }
+      const currentReplacements = linkReplacements(index, currentNote, requestedTitle, nextPath, mode);
+      const transaction = await prepareRenameTransaction(
+        currentNote,
+        nextUri,
+        requestedTitle,
+        mode,
+        currentReplacements,
+        intermediateUri,
+      );
+      if (preview.before !== transaction.before) {
+        throw new Error("A file changed after the rename preview. Review the updated files and retry.");
+      }
+      await applyRenameTransaction(transaction);
 
-  if (pathChanged) await index.move(previousUri, nextUri);
-  else await index.refresh(previousUri);
+      if (pathChanged) await index.move(previousUri, nextUri);
+      else await index.refresh(previousUri);
+    },
+  );
   await openNote(nextUri, true);
 }
 

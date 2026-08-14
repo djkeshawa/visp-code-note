@@ -9,14 +9,16 @@
       "ES2022"
     ],
     "types": [
-      "node"
+      "node",
+      "vscode"
     ]
   },
   "include": [
     "src/application/**/*.ts",
     "src/domain/**/*.ts",
     "src/markdown/**/*.ts",
-    "src/indexing/projections.ts",
+    "src/indexing/**/*.ts",
+    "src/vscode/documentEdits.ts",
     "src/vscode/ids.ts",
     "src/vscode/providers/explorerCommands.ts",
     "src/vscode/providers/explorerModel.ts",
