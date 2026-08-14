@@ -174,6 +174,7 @@ function toggleExpanded(key: string): void {
   if (expanded.has(key)) expanded.delete(key);
   else expanded.add(key);
   api.setState({ expanded: [...expanded] });
+  pendingRowFocus = key;
   render();
 }
 
@@ -189,6 +190,12 @@ function matches(haystack: string): boolean {
  * it is deliberately put back.
  */
 let pendingTaskFocus: { readonly uri: string; readonly start: number } | undefined;
+
+/**
+ * The expansion key of the row that was just opened or closed, for the same reason: expanding
+ * from the keyboard replaces the row the reader was standing on, and focus falls to the body.
+ */
+let pendingRowFocus: string | undefined;
 
 function render(): void {
   // Every row about to be replaced, including the one the menu names.
@@ -206,6 +213,7 @@ function render(): void {
   renderTags(state);
   renderStatus(state);
   restoreTaskFocus();
+  restoreRowFocus();
 }
 
 /**
@@ -232,6 +240,18 @@ function restoreTaskFocus(): void {
   }
   if (checkboxes[0] !== undefined) checkboxes[0].focus();
   else viewsRoot.querySelector<HTMLButtonElement>(".workspace-row")?.focus();
+}
+
+/** Puts focus back on the row that was expanded or collapsed, once its replacement exists. */
+function restoreRowFocus(): void {
+  const key = pendingRowFocus;
+  if (key === undefined) return;
+  pendingRowFocus = undefined;
+
+  const rows = Array.from(
+    shell.querySelectorAll<HTMLButtonElement>(".workspace-row[data-expand-key]"),
+  );
+  rows.find((row) => row.dataset.expandKey === key)?.focus();
 }
 
 /** Moves the current-note highlight without rebuilding a row. */
@@ -267,9 +287,23 @@ function viewRow(
   row.type = "button";
   const expandable = view.id === "due" && current.dueToday.length > 0;
   if (expandable) {
-    const twisty = codicon(expanded.has(DUE_TODAY_KEY) ? "chevron-down" : "chevron-right");
+    const open = expanded.has(DUE_TODAY_KEY);
+    const twisty = codicon(open ? "chevron-down" : "chevron-right");
     twisty.classList.add("row-twisty");
     row.append(twisty);
+    // Only a row that can open says so; nothing due means nothing to announce as closed.
+    row.setAttribute("aria-expanded", String(open));
+    row.dataset.expandKey = DUE_TODAY_KEY;
+    row.addEventListener("keydown", (event) => {
+      /*
+       * ArrowRight opens and ArrowLeft closes, the tree convention rather than one key that
+       * toggles — so a reader holding an arrow down cannot shut the list they just opened.
+       * Enter and Space are left alone; they still open the Tasks view.
+       */
+      if (event.key !== (open ? "ArrowLeft" : "ArrowRight")) return;
+      event.preventDefault();
+      toggleExpanded(DUE_TODAY_KEY);
+    });
   }
   const icon = codicon(view.icon);
   /*
@@ -410,6 +444,7 @@ function folderRow(folder: WorkspaceFolderRowWire): HTMLElement {
     htmlElement("span", "workspace-row-count", String(folder.count)),
   );
   row.setAttribute("aria-expanded", String(open));
+  row.dataset.expandKey = `folder:${folder.path}`;
   row.addEventListener("click", () => toggleExpanded(`folder:${folder.path}`));
   return row;
 }
