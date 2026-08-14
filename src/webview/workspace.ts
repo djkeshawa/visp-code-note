@@ -19,6 +19,7 @@ import {
   setNotice,
 } from "./shared/dom.js";
 import { acquireWebviewApi } from "./shared/vscodeApi.js";
+import { RovingList, isBareKey } from "./shared/rovingList.js";
 import { workspaceEmptyState } from "./workspace/emptyState.js";
 import { workspaceTreeRows } from "../application/workspaceFolderTree.js";
 import { noteRowQualifiers } from "../application/noteRowQualifier.js";
@@ -106,6 +107,17 @@ filter.addEventListener("input", () => {
     }
   }, FILTER_DEBOUNCE_MS);
 });
+/**
+ * The two lists the panel can be steered around. Each is one tab stop rather than one per row:
+ * a filtered list of 60 notes used to be 60 Tab presses deep, through a list that redraws
+ * under the reader between presses.
+ */
+const viewsNavigation = new RovingList(viewsRoot, {
+  rows: ".workspace-row, .workspace-task",
+  controls: "button, input",
+});
+const notesNavigation = new RovingList(notesRoot, { rows: ".workspace-row" });
+
 filter.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && filter.value.length > 0) {
     event.preventDefault();
@@ -115,8 +127,47 @@ filter.addEventListener("keydown", (event) => {
     clearAnswerFallback();
     contentMatches = undefined;
     render();
+    return;
+  }
+  /*
+   * Typing narrowed 60 rows to 3 and then there was nothing to do with them without a mouse:
+   * Enter did nothing and ArrowDown did nothing. Enter opens the top row, ArrowDown steps into
+   * the list — the two things a reader who has just finished typing reaches for.
+   *
+   * Both aim at the same row, the topmost one on screen, which is why they run through the
+   * same list of candidates in the order the panel draws them.
+   */
+  if (!isBareKey(event)) return;
+  if (event.key === "Enter") {
+    const row = firstListRow();
+    if (row === undefined) return;
+    event.preventDefault();
+    /*
+     * Flushed first: the field is debounced, so Enter typed straight after the last character
+     * would otherwise open whichever row the *previous* query had left at the top.
+     */
+    settleFilter();
+    firstListRow()?.click();
+  } else if (event.key === "ArrowDown") {
+    event.preventDefault();
+    settleFilter();
+    if (!viewsNavigation.focusFirst()) notesNavigation.focusFirst();
   }
 });
+
+/** The row Enter and ArrowDown aim at: the first one drawn, views before notes. */
+function firstListRow(): HTMLElement | undefined {
+  return viewsNavigation.firstRow() ?? notesNavigation.firstRow();
+}
+
+/** Paints whatever the field currently says, without waiting out the typing pause. */
+function settleFilter(): void {
+  if (filterTimer === undefined) return;
+  window.clearTimeout(filterTimer);
+  filterTimer = undefined;
+  requestContentMatches();
+  render();
+}
 
 function scheduleAnswerFallback(): void {
   clearAnswerFallback();
@@ -288,6 +339,7 @@ function renderViews(current: WorkspacePanelStateWire): void {
     }
   }
   viewsRoot.replaceChildren(...rows);
+  viewsNavigation.refresh();
 }
 
 function viewRow(
@@ -344,8 +396,14 @@ function viewRow(
 
 function taskRow(task: WorkspaceTaskRowWire, version: number): HTMLElement {
   const text = task.text.length > 0 ? task.text : "Untitled task";
+  /*
+   * A div, not a label. A label forwards a click anywhere in the row to its checkbox, so the
+   * text had to cancel the default to open the note instead — and the text could then only
+   * ever be a span, which no keyboard can reach. The tasks view settled this the same way and
+   * for the same reason: the checkbox and the text each keep their own target.
+   */
   const row = htmlElement(
-    "label",
+    "div",
     task.completed ? "workspace-task is-completed" : "workspace-task",
   );
   row.title = `${text}\n${task.noteTitle}`;
@@ -367,10 +425,10 @@ function taskRow(task: WorkspaceTaskRowWire, version: number): HTMLElement {
       version,
     });
   });
-  const label = htmlElement("span", "workspace-task-text", text);
-  label.addEventListener("click", (event) => {
-    // A label forwards a plain click to its checkbox; opening the note has to opt out of that.
-    event.preventDefault();
+  const label = htmlElement("button", "workspace-task-text", text);
+  label.type = "button";
+  label.title = `${text}\nOpen in ${task.noteTitle}`;
+  label.addEventListener("click", () => {
     api.postMessage({ type: "workspace/revealTask", noteUri: task.noteUri, start: task.start });
   });
   const urgency = task.completed ? "none" : dueUrgency(task.due);
@@ -426,6 +484,7 @@ function renderNotes(current: WorkspacePanelStateWire): void {
     notesRoot.replaceChildren(...(visible.length === 0
       ? [htmlElement("p", "workspace-empty", "No notes match.")]
       : capped(visible.map((note) => noteRow(note, 1, qualifiers)), visible.length)));
+    notesNavigation.refresh();
     return;
   }
   filteredListSignature = undefined;
@@ -437,6 +496,7 @@ function renderNotes(current: WorkspacePanelStateWire): void {
   notesRoot.replaceChildren(...(rows.length === 0
     ? emptyNotes(current)
     : capped(rows, rows.length)));
+  notesNavigation.refresh();
 }
 
 function isFolderExpanded(path: string): boolean {

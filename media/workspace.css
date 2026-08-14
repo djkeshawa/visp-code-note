@@ -249,12 +249,17 @@
   accent-color: var(--visp-accent);
 }
 
+/* A button, so the note behind a task is reachable without a pointer. It has to be undressed
+ * back to text: the row's shape is the row's, not the control's. */
 .workspace-task-text {
   flex: 1;
   min-width: 0;
+  padding: 0;
   overflow: hidden;
+  background: transparent;
   color: var(--visp-text);
   font-size: 12px;
+  text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

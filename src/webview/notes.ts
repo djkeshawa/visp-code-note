@@ -1,6 +1,7 @@
 import type { NoteListingWire, NoteListRowWire, NotesStateWire, NotesToHostWire } from "./contracts.js";
 import { codicon, htmlElement, isRecord, requireElement, setNotice } from "./shared/dom.js";
 import { acquireWebviewApi } from "./shared/vscodeApi.js";
+import { RovingList, isBareKey } from "./shared/rovingList.js";
 import { formatIndexedAt } from "../application/indexFreshness.js";
 import { tagHueColor } from "../application/tagHue.js";
 
@@ -50,12 +51,29 @@ function nounOf(listing: NoteListingWire): string {
 
 let state: NotesStateWire | undefined;
 
+/**
+ * The list is one tab stop, and the arrows move inside it. Every row was its own tab stop, so
+ * working down a list of 300 broken links meant 300 Tab presses — and the list is rebuilt from
+ * scratch whenever the index moves, which dropped focus to the body each time it did.
+ */
+const rowNavigation = new RovingList(rowsRoot, { rows: ".note-row" });
+
 search.addEventListener("input", render);
 search.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && search.value.length > 0) {
     event.preventDefault();
     search.value = "";
     render();
+    return;
+  }
+  if (!isBareKey(event)) return;
+  // Filtering to one row and then having no way to open it is where this list used to end.
+  if (event.key === "Enter") {
+    event.preventDefault();
+    rowNavigation.firstRow()?.click();
+  } else if (event.key === "ArrowDown") {
+    event.preventDefault();
+    rowNavigation.focusFirst();
   }
 });
 window.addEventListener("message", (event: MessageEvent<unknown>) => {
@@ -96,6 +114,7 @@ function render(): void {
       current.listing.kind,
       current.listing.kind === "tag" ? current.listing.tag : undefined,
     ))));
+  rowNavigation.refresh();
 
   const total = current.rows.length;
   summary.textContent = total === 0
