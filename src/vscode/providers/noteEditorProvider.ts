@@ -12,7 +12,7 @@ import type {
 } from "../../domain/protocol";
 import { parseMarkdown } from "../../markdown/parser";
 import { buildNoteContext, getBrokenLinks } from "../../indexing/projections";
-import { createWikiReferenceResolver } from "../../indexing/wikiReferenceResolver";
+import { wikiReferenceResolverFor } from "../../indexing/wikiReferenceResolver";
 import { createWikiTargetPlanner } from "../../indexing/noteResolver";
 import { createEditorHtml } from "../../ui";
 import type { CommandIndex } from "../commands/contracts";
@@ -119,9 +119,8 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
      * repeat per panel on every index change.
      */
     const brokenLinkCount = getBrokenLinks(this.index.snapshot).length;
-    // Both of these scan the whole workspace to build and are the same for every open note.
+    // Scans the whole workspace to build, and is the same for every open note.
     const planner = createWikiTargetPlanner(this.index.snapshot.notes);
-    const resolver = createWikiReferenceResolver(this.index.snapshot.notes);
     for (const [uri, panels] of this.panels.entries()) {
       const document = openDocuments.get(uri);
       if (!document) continue;
@@ -129,7 +128,6 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
       const unresolvedLinks = this.unresolvedLinks(
         document,
         parseMarkdown(document.getText()).links,
-        resolver,
       );
       const context = buildNoteContext(this.index.snapshot, uri);
       for (const panel of panels) {
@@ -356,7 +354,7 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
     if (reference === undefined) {
       throw new Error("The wiki-link target is invalid.");
     }
-    const result = createWikiReferenceResolver(this.index.snapshot.notes)
+    const result = wikiReferenceResolverFor(this.index.snapshot.notes)
       .resolve(document.uri.toString(), reference);
     if (result.status === "resolved") {
       if (result.offset !== undefined) {
@@ -470,9 +468,8 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
   private unresolvedLinks(
     document: vscode.TextDocument,
     links: ReturnType<typeof parseMarkdown>["links"],
-    sharedResolver?: ReturnType<typeof createWikiReferenceResolver>,
   ): readonly string[] {
-    const resolver = sharedResolver ?? createWikiReferenceResolver(this.index.snapshot.notes);
+    const resolver = wikiReferenceResolverFor(this.index.snapshot.notes);
     return links
       .filter((link) => resolver.resolve(document.uri.toString(), link).status !== "resolved")
       .map((link) => link.raw);

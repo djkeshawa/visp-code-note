@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import type { WikiLink } from "../domain/models";
 import { isIndexableMarkdown } from "../indexing/discovery";
 import type { WorkspaceIndex } from "../indexing/workspaceIndex";
-import { createWikiReferenceResolver } from "../indexing/wikiReferenceResolver";
+import { wikiReferenceResolverFor } from "../indexing/wikiReferenceResolver";
 import type { WikiReferenceResult } from "../indexing/wikiReferenceResolver";
 import { parseMarkdown } from "../markdown/parser";
 import { taskMetadataProblems } from "../application/taskMetadataProblems";
@@ -36,7 +36,7 @@ export class WikiLinkDiagnostics implements vscode.Disposable {
 
   refresh(): void {
     const linksBySource = groupLinksBySource(this.index.snapshot.links);
-    const resolver = createWikiReferenceResolver(this.index.snapshot.notes);
+    const resolver = wikiReferenceResolverFor(this.index.snapshot.notes);
     const openDocuments = new Map(
       vscode.workspace.textDocuments.map((document) => [document.uri.toString(), document]),
     );
@@ -78,7 +78,7 @@ export class WikiLinkDiagnostics implements vscode.Disposable {
     }
     const source = document.getText();
     const note = parseMarkdown(source);
-    const resolver = createWikiReferenceResolver(this.index.snapshot.notes);
+    const resolver = wikiReferenceResolverFor(this.index.snapshot.notes);
     this.collection.set(
       document.uri,
       [

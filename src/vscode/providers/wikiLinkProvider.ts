@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { decodeWikiTarget, slugifyHeading } from "../../domain/normalization";
-import { createWikiReferenceResolver } from "../../indexing/wikiReferenceResolver";
+import { wikiReferenceResolverFor } from "../../indexing/wikiReferenceResolver";
 import type { WorkspaceIndex } from "../../indexing/workspaceIndex";
 import { parseMarkdown } from "../../markdown/parser";
 import { documentRange } from "../utils/ranges";
@@ -10,7 +10,7 @@ export class WikiLinkProvider implements vscode.DocumentLinkProvider {
 
   provideDocumentLinks(document: vscode.TextDocument): vscode.DocumentLink[] {
     const parsed = parseMarkdown(document.getText());
-    const resolver = createWikiReferenceResolver(this.index.snapshot.notes);
+    const resolver = wikiReferenceResolverFor(this.index.snapshot.notes);
     return parsed.links.flatMap((link) => {
       const result = resolver.resolve(document.uri.toString(), link);
       if (result.status !== "resolved") {

@@ -9,7 +9,7 @@ import type {
 import { lineNumberAtOffset, scanLines } from "../markdown/lines";
 import { mergeTagNames } from "../markdown/tags";
 import { compareNotes, createNoteResolver } from "./noteResolver";
-import { createWikiReferenceResolver } from "./wikiReferenceResolver";
+import { wikiReferenceResolverFor } from "./wikiReferenceResolver";
 
 export { buildLocalGraph, buildWorkspaceGraph } from "./graphProjection";
 export type { GraphOptions } from "./graphProjection";
@@ -93,7 +93,7 @@ export function resolveWikiTarget(
 }
 
 export function getBrokenLinks(snapshot: IndexSnapshot): readonly ResolvedLink[] {
-  const resolver = createWikiReferenceResolver(snapshot.notes);
+  const resolver = wikiReferenceResolverFor(snapshot.notes);
   return Object.freeze(
     snapshot.links.filter(
       ({ sourceUri, link }) => resolver.resolve(sourceUri, link).status !== "resolved",
@@ -121,7 +121,35 @@ export function getOrphanNotes(snapshot: IndexSnapshot): readonly NoteRecord[] {
 const INSPECTOR_BACKLINK_LIMIT = 50;
 const INSPECTOR_LINK_LIMIT = 50;
 
+/*
+ * One context per note per commit.
+ *
+ * A context is a linear find over every note and two filters over every link and every
+ * backlink in the workspace — 1.4ms at 2,000 notes — and the note editor asked for one on
+ * every keystroke, where the answer cannot have moved: nothing here reads the draft, only
+ * the snapshot it was handed. Keyed on the snapshot object rather than its version number,
+ * because `buildSnapshot` defaults to version 1 and two unrelated one-off snapshots would
+ * otherwise answer for each other.
+ */
+const contexts = new WeakMap<IndexSnapshot, Map<string, NoteContext | undefined>>();
+
 export function buildNoteContext(
+  snapshot: IndexSnapshot,
+  uri: string,
+): NoteContext | undefined {
+  let byUri = contexts.get(snapshot);
+  if (byUri === undefined) {
+    byUri = new Map();
+    contexts.set(snapshot, byUri);
+  } else if (byUri.has(uri)) {
+    return byUri.get(uri);
+  }
+  const context = computeNoteContext(snapshot, uri);
+  byUri.set(uri, context);
+  return context;
+}
+
+function computeNoteContext(
   snapshot: IndexSnapshot,
   uri: string,
 ): NoteContext | undefined {
