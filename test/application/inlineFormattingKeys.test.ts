@@ -24,6 +24,7 @@ interface OpenNote {
 function openNote(source: string): OpenNote {
   const editor = new CodeMirrorEditor(createHost(), "test-nonce", source, {
     suggestions: () => [],
+    workspaceTags: () => [],
     unresolvedLinks: () => new Set<string>(),
     sourcePatched: () => undefined,
     saveRequested: () => undefined,

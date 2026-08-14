@@ -120,6 +120,7 @@ const SOURCE = "# Atlas\n\nAtlas is the note about Atlas.\n";
 function openNote(): OpenNote {
   const editor = new CodeMirrorEditor(createHost(), "test-nonce", SOURCE, {
     suggestions: () => [],
+    workspaceTags: () => [],
     unresolvedLinks: () => new Set<string>(),
     sourcePatched: () => undefined,
     saveRequested: () => undefined,

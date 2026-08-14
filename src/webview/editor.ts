@@ -27,6 +27,7 @@ import {
   isNoteContext,
   isNoteSuggestions,
   isUnresolvedLinks,
+  isWorkspaceTags,
 } from "./editor/validation.js";
 import { INLINE_MARKS, keyHint } from "./editor/inlineMarks.js";
 import { getNoteInspectorElements, renderNoteInspector } from "./editor/noteInspector.js";
@@ -72,6 +73,12 @@ const cspNonce = requireCspNonce();
 const sync = new DocumentSyncModel();
 let editor: CodeMirrorEditor | undefined;
 let suggestions: readonly NoteSuggestionWire[] = [];
+/*
+ * The workspace's tag vocabulary, for the `#` menu. Held here rather than asked for per
+ * keystroke: the host derives it once per index commit and sends it, and a tag gained by some
+ * other note arrives on the next index publish.
+ */
+let workspaceTags: readonly string[] = [];
 let unresolvedLinks: ReadonlySet<string> = new Set();
 let noteContext: NoteContextWire | undefined;
 /**
@@ -155,13 +162,15 @@ function handleHostMessage(event: MessageEvent<unknown>): void {
   } else if (
     message.type === "editor/indexState" &&
     isNoteSuggestions(message.suggestions) &&
-    isUnresolvedLinks(message.unresolvedLinks)
+    isUnresolvedLinks(message.unresolvedLinks) &&
+    isWorkspaceTags(message.workspaceTags)
   ) {
     updateIndexState(
       message.suggestions,
       message.unresolvedLinks,
       message.brokenLinkCount,
       message.context,
+      message.workspaceTags,
     );
   } else if (
     message.type === "editor/error" &&
@@ -176,6 +185,7 @@ function handleHostMessage(event: MessageEvent<unknown>): void {
 
 function acceptEditorState(nextState: EditorStateWire): void {
   suggestions = nextState.noteSuggestions;
+  workspaceTags = nextState.workspaceTags;
   setContentWidth(parseEditorContentWidth(nextState.contentWidth));
   setProseFont(nextState.proseFont);
   setBrokenLinkCount(nextState.brokenLinkCount);
@@ -262,6 +272,7 @@ function mountOrReplaceEditor(source: string): void {
   }
   editor = new CodeMirrorEditor(editorHost, cspNonce, source, {
     suggestions: () => suggestions,
+    workspaceTags: () => workspaceTags,
     unresolvedLinks: () => unresolvedLinks,
     noteTitle: () => title.textContent ?? "",
     sourcePatched: handleLocalPatch,
@@ -649,8 +660,10 @@ function updateIndexState(
   nextUnresolvedLinks: readonly string[],
   brokenLinkCount: unknown,
   context: unknown,
+  nextWorkspaceTags: readonly string[],
 ): void {
   suggestions = nextSuggestions;
+  workspaceTags = nextWorkspaceTags;
   if (typeof brokenLinkCount === "number" && Number.isFinite(brokenLinkCount)) {
     setBrokenLinkCount(brokenLinkCount);
   }
