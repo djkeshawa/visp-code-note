@@ -22,6 +22,7 @@ import { COMMAND_IDS, NOTE_EDITOR_VIEW_TYPE } from "../ids";
 import { isEditorMessage } from "./messageValidation";
 import { PersonalDictionaryStore } from "../../application/personalDictionaryStore";
 import { pickTag } from "./tagPicker";
+import { workspaceTagNames } from "../../indexing/workspaceTags";
 import { buildNoteSuggestions } from "./noteEditorSupport";
 import { NoteEditorEdits } from "./noteEditorEdits";
 import type { RecoverableNoteDraft } from "./noteEditorEdits";
@@ -121,6 +122,9 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
     const brokenLinkCount = getBrokenLinks(this.index.snapshot).length;
     // Scans the whole workspace to build, and is the same for every open note.
     const planner = createWikiTargetPlanner(this.index.snapshot.notes);
+    // Memoised on the snapshot's notes, so this is a map lookup per commit rather than a pass
+    // over every note's tags per open editor.
+    const tags = workspaceTagNames(this.index.snapshot);
     for (const [uri, panels] of this.panels.entries()) {
       const document = openDocuments.get(uri);
       if (!document) continue;
@@ -136,6 +140,7 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
           suggestions,
           unresolvedLinks,
           brokenLinkCount,
+          workspaceTags: tags,
           ...(context === undefined ? {} : { context }),
         } satisfies HostToEditorMessage);
       }
@@ -427,6 +432,7 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
         showInspector: showInspectorSetting(),
         personalDictionary: this.personalDictionary.words,
         spellingEnabled: spellingSetting(),
+        workspaceTags: workspaceTagNames(this.index.snapshot),
         brokenLinkCount: getBrokenLinks(this.index.snapshot).length,
         ...(proseFontSetting() === undefined ? {} : { proseFont: proseFontSetting() }),
         ...(recoveredDraft === undefined ? {} : { recoveredDraft }),

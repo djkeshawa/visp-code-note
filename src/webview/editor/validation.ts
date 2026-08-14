@@ -23,6 +23,7 @@ export function isEditorState(value: unknown): value is EditorStateWire {
     typeof state.spellingEnabled === "boolean" &&
     Array.isArray(state.personalDictionary) &&
     state.personalDictionary.every((word: unknown) => typeof word === "string") &&
+    isWorkspaceTags(state.workspaceTags) &&
     isNoteSuggestions(state.noteSuggestions)
   );
 }
@@ -82,6 +83,17 @@ function isStringArray(value: unknown): value is readonly string[] {
 
 export function isNoteSuggestions(value: unknown): value is EditorStateWire["noteSuggestions"] {
   return Array.isArray(value) && value.every(isNoteSuggestion);
+}
+
+/**
+ * The workspace's tag vocabulary.
+ *
+ * Checked rather than assumed for the same reason every other field here is: a field the
+ * validator drops reads `undefined` in the webview, and a completion source handed `undefined`
+ * offers nothing and reports no error — the feature would simply not be there.
+ */
+export function isWorkspaceTags(value: unknown): value is readonly string[] {
+  return isStringArray(value);
 }
 
 export function isUnresolvedLinks(value: unknown): value is readonly string[] {
