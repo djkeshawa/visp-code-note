@@ -14,6 +14,12 @@ import {
   noteSearchCandidates,
   taskSearchCandidates,
 } from "./workspaceSearchIndex";
+import {
+  hasSearchFilters,
+  noteMatchesFilters,
+  taskFiltersNeedNote,
+  taskMatchesFilters,
+} from "./workspaceSearchFilters";
 import { sourceSearchSnippet, truncateSearchValue } from "./workspaceSearchPreview";
 
 export type { SearchField as WorkspaceSearchField } from "./workspaceSearchMatcher";
@@ -47,6 +53,10 @@ type PendingResult =
  * itself: note content never rides to a webview, so the panel asks the host instead.
  * Bounded because a one-letter query matches most of a vault, and an unbounded answer
  * would serialise thousands of URIs for a list that draws a couple hundred rows.
+ *
+ * The panel posts whatever was typed, so `path:meetings budget` is answered here too. A
+ * query naming only tasks names no notes, and the panel lists notes — an empty answer is
+ * the truthful one.
  */
 export function matchingNoteUris(
   notes: readonly NoteRecord[],
@@ -54,12 +64,18 @@ export function matchingNoteUris(
   limit: number,
 ): readonly string[] {
   const request = createSearchRequest(query);
-  if (request.terms.length === 0 || limit <= 0) {
+  const filtered = hasSearchFilters(request.filters);
+  if ((request.terms.length === 0 && !filtered) || limit <= 0) {
     return [];
   }
-  const candidateUris = narrowSearchableNotes(notes, request.terms);
+  const candidateUris = request.terms.length === 0
+    ? undefined
+    : narrowSearchableNotes(notes, request.terms);
   const uris: string[] = [];
   for (const note of notes) {
+    if (filtered && !noteMatchesFilters(request.filters, note)) {
+      continue;
+    }
     if (candidateUris !== undefined && !candidateUris.has(note.uri)) {
       continue;
     }
@@ -105,9 +121,17 @@ export function buildWorkspaceSearchPage(
   const candidateUris = request.terms.length === 0
     ? undefined
     : narrowSearchableNotes(snapshot.notes, request.terms);
+  /*
+   * Almost every query carries no facet at all, and this asks once instead of running five
+   * empty predicates over every note and every task on each keystroke.
+   */
+  const filtered = hasSearchFilters(request.filters);
 
   const pending: PendingResult[] = [];
   for (const note of snapshot.notes) {
+    if (filtered && !noteMatchesFilters(request.filters, note)) {
+      continue;
+    }
     if (candidateUris !== undefined && !candidateUris.has(note.uri)) {
       continue;
     }
@@ -121,7 +145,18 @@ export function buildWorkspaceSearchPage(
       });
     }
   }
+  /*
+   * A task's tags and its date are its note's, so those two facets need the note record —
+   * built once here, and only for the queries that ask, rather than per task.
+   */
+  let notesByUri: Map<string, NoteRecord> | undefined;
+  if (taskFiltersNeedNote(request.filters)) {
+    notesByUri = new Map(snapshot.notes.map((note) => [note.uri, note]));
+  }
   for (const task of snapshot.tasks) {
+    if (filtered && !taskMatchesFilters(request.filters, task, notesByUri?.get(task.noteUri))) {
+      continue;
+    }
     const match = selectSearchMatch(taskSearchCandidates(task), request);
     if (match !== undefined) {
       pending.push({
@@ -135,7 +170,6 @@ export function buildWorkspaceSearchPage(
 
   pending.sort(comparePending);
 
-  let notesByUri: Map<string, NoteRecord> | undefined;
   const results = pending.slice(0, resultLimit).map((entry) => {
     if (entry.kind === "note") {
       return noteResult(entry.note, entry.match);
