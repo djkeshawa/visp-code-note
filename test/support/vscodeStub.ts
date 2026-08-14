@@ -88,6 +88,17 @@ export class StubUri {
   }
 }
 
+export class StubRelativePattern {
+  constructor(
+    readonly base: StubWorkspaceFolder | StubUri,
+    readonly pattern: string,
+  ) {}
+
+  get baseUri(): StubUri {
+    return this.base instanceof StubUri ? this.base : this.base.uri;
+  }
+}
+
 export class StubPosition {
   constructor(readonly line: number, readonly character: number) {}
 }
@@ -205,6 +216,7 @@ const api = {
   Uri: StubUri,
   Position: StubPosition,
   Range: StubRange,
+  RelativePattern: StubRelativePattern,
   Disposable: StubDisposable,
   WorkspaceEdit: StubWorkspaceEdit,
   EventEmitter: class {
@@ -227,6 +239,14 @@ const api = {
     },
     get textDocuments(): readonly StubTextDocument[] {
       return [...state.documents.values()];
+    },
+    findFiles(pattern: StubRelativePattern): Promise<readonly StubUri[]> {
+      const base = `${pattern.baseUri.path}/`;
+      return Promise.resolve(
+        [...state.files.keys()]
+          .filter((path) => path.startsWith(base) && path.toLowerCase().endsWith(".md"))
+          .map((path) => StubUri.file(path)),
+      );
     },
     createFileSystemWatcher(): unknown {
       return {
