@@ -66,6 +66,24 @@ test("a note at the workspace root has no folder to name, so it names the file",
   assert.equal(qualifiers.get("file:///vault/projects/index.md"), "projects");
 });
 
+/*
+ * A vault where a thousand notes carry one title is not hypothetical — an `index.md` per
+ * project folder gets there. Asking, for every note at every depth, whether any other note in
+ * the group shares its folder suffix is quadratic: measured at 2,000 such notes it took 2.1
+ * seconds, and this runs on every paint of a panel that repaints while the reader types.
+ */
+test("a vault where every note shares one title still qualifies them promptly", () => {
+  const notes = Array.from({ length: 2000 }, (_unused, at) =>
+    note(`projects/${at % 40}/${Math.floor(at / 40)}/index.md`, "Index"));
+
+  const start = process.hrtime.bigint();
+  const qualifiers = noteRowQualifiers(notes);
+  const elapsedMs = Number(process.hrtime.bigint() - start) / 1e6;
+
+  assert.equal(qualifiers.size, 2000);
+  assert.ok(elapsedMs < 250, `qualifying 2,000 same-titled notes took ${elapsedMs.toFixed(0)}ms`);
+});
+
 test("titles collide regardless of case, as a reader reading the list would see them", () => {
   const qualifiers = noteRowQualifiers([
     note("a/index.md", "Index"),
