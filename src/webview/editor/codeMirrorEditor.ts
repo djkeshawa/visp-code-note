@@ -52,11 +52,10 @@ import { isRecognizedWikiLink, markdownContext } from "./markdownContext.js";
 import { detectLineSeparator, rawOffsetToEditorOffset } from "./offsetMapping.js";
 import type { LineSeparator } from "./offsetMapping.js";
 import { createWikiCompletionSource } from "./wikiCompletion.js";
-import { createSlashCompletionSource, slashQueryAt } from "./slashCompletion.js";
+import { createSlashCompletionSource } from "./slashCompletion.js";
 import { createTagCompletionSource, TAG_COMPLETION_TYPE } from "./tagCompletion.js";
-import { findTagQuery } from "./tagSuggestionModel.js";
 import { tagHueColor } from "../../application/tagHue.js";
-import { wikiCompletionFooter } from "./wikiCompletionFooter.js";
+import { wikiCompletionFooter, wikiFooterApplies } from "./wikiCompletionFooter.js";
 import { planWikiLinkInsertion } from "./wikiLinkInsertion.js";
 import { findWikiLinkAtPosition } from "./wikiLinkNavigation.js";
 import type { TextPatch } from "../../application/textPatch.js";
@@ -402,7 +401,7 @@ export class CodeMirrorEditor {
         defaultKeymap: false,
         activateOnTyping: true,
         icons: false,
-        tooltipClass: (state) => wikiMenuIsOpen(state)
+        tooltipClass: (state) => wikiFooterApplies(state)
           ? "wiki-completion-tooltip"
           : "wiki-completion-tooltip is-slash",
         addToOptions: [
@@ -496,18 +495,6 @@ export class CodeMirrorEditor {
     this.dependencies.openLink(link.target, false);
     return true;
   }
-}
-
-/**
- * Whether the popup currently showing is the wiki-link one, and so the only one the `#`, `^`
- * and `|` footer is true of. A `#` menu is not: those suffixes are wiki-link grammar and say
- * nothing at all about a tag.
- */
-function wikiMenuIsOpen(state: EditorState): boolean {
-  const head = state.selection.main.head;
-  if (slashQueryAt(state, head) !== undefined) return false;
-  const line = state.doc.lineAt(head);
-  return findTagQuery(state.sliceDoc(line.from, head)) === undefined;
 }
 
 function readOnlyExtensions(readOnly: boolean): Extension {

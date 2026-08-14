@@ -6,6 +6,7 @@ import { CompletionContext } from "@codemirror/autocomplete";
 import type { EditorState } from "@codemirror/state";
 import { CodeMirrorEditor } from "../../src/webview/editor/codeMirrorEditor";
 import { tagCompletions } from "../../src/webview/editor/tagCompletion";
+import { wikiFooterApplies } from "../../src/webview/editor/wikiCompletionFooter";
 
 /**
  * The `#` menu inside a real editor.
@@ -27,6 +28,7 @@ interface OpenNote {
   readonly rows: () => readonly string[];
   readonly pick: (label: string) => void;
   readonly text: () => string;
+  readonly state: () => EditorState;
 }
 
 function openNote(source: string, tags: readonly string[] = TAGS): OpenNote {
@@ -75,6 +77,7 @@ function openNote(source: string, tags: readonly string[] = TAGS): OpenNote {
       });
     },
     text: () => editor.source,
+    state: () => view.state,
   };
 }
 
@@ -123,4 +126,30 @@ test("the tag list the editor was handed is the list the menu offers", () => {
   note.type("#");
 
   assert.deepEqual(note.rows(), ["#alpha", "#beta"]);
+});
+
+test("the wiki-link footer stays up while a heading reference is typed", () => {
+  /*
+   * `[[#Overview` is a link to a heading in this same note, and the tag grammar reads that `#`
+   * as opening a tag. The popup showing is still the note picker, so the footer explaining `#`,
+   * `^` and `|` has to stay — taking it away here would remove the explanation of the very
+   * character being typed.
+   */
+  const note = openNote("See \n");
+  note.caretTo(4);
+  note.type("[[#Over");
+
+  assert.equal(wikiFooterApplies(note.state()), true, "the footer was taken away");
+});
+
+test("a plain tag menu does not claim the wiki-link footer", () => {
+  const note = openNote("Filed under \n");
+  note.caretTo(12);
+  note.type("#pro");
+
+  assert.equal(
+    wikiFooterApplies(note.state()),
+    false,
+    "`#`, `^` and `|` are wiki-link grammar and say nothing at all about a tag",
+  );
 });

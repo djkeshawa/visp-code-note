@@ -71,7 +71,8 @@ export const EDITOR_BODY = `
           <div class="editor-menu-row is-static">
             <span class="editor-menu-row-label">Formatting</span>
           </div>
-          <div id="editor-menu-formatting" class="editor-menu-formatting"></div>
+          <div id="editor-menu-formatting" class="editor-menu-formatting"
+            role="group" aria-label="Formatting keys"></div>
           <div class="editor-menu-separator" role="separator"></div>
           <div class="editor-menu-row">
             <span class="editor-menu-row-label" id="content-width-label">Content width</span>
