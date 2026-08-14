@@ -31,7 +31,10 @@ export interface NoteProjector {
 }
 
 export interface NoteProjectorOptions {
-  /** False rebuilds every projection on every commit — the bypass, for bisecting a report. */
+  /**
+   * False rebuilds every projection — and the resolver they are projected against — on every
+   * commit, consulting nothing this file remembers. The bypass, for settling a report.
+   */
   readonly cache?: boolean;
 }
 
@@ -77,6 +80,26 @@ export function createNoteProjector(options: NoteProjectorOptions = {}): NotePro
       return generation;
     },
     project(notes) {
+      /*
+       * The bypass rebuilds the resolver too, not only the per-note memo.
+       *
+       * `sameNameSpace` gates two things: whether a projection may be reused, and whether the
+       * resolver every link is resolved against is rebuilt. A bypass that skipped the memo but
+       * kept that gate would re-project every note against the same possibly-stale resolver and
+       * arrive at the same possibly-wrong link — so the one report it exists to settle, a link
+       * pointing at a note that no longer answers to that name, would read identically with the
+       * setting on and off, and the reader would be told "not the cache" with no evidence.
+       *
+       * Taking the gate out of this path is what makes the answer independent: names are read
+       * fresh from the notes in hand on every commit, so anything `sameNameSpace` gets wrong
+       * shows up as the two modes disagreeing. The generation counter still moves once per
+       * commit here, because with no memo to key, every commit is a full re-projection.
+       */
+      if (cache === undefined) {
+        generation += 1;
+        const fresh = targetResolver(notes);
+        return notes.map((note) => projectNote(note, fresh));
+      }
       if (!sameNameSpace(previous, notes)) {
         generation += 1;
         resolver = targetResolver(notes);
@@ -89,9 +112,6 @@ export function createNoteProjector(options: NoteProjectorOptions = {}): NotePro
        * a chain of unchanged commits is still unchanged from the first.
        */
       previous = notes;
-      if (cache === undefined) {
-        return notes.map((note) => projectNote(note, resolver));
-      }
       return notes.map((note) => {
         const entry = cache.get(note);
         if (entry !== undefined && entry.generation === generation) {

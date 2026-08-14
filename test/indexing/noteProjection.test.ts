@@ -426,3 +426,40 @@ test("the bypass never reuses a projection", () => {
   assert.deepEqual(first.links, second.links);
   assert.notEqual(first.links[0], second.links[0]);
 });
+
+/*
+ * The case above says the two paths agree while the invalidation is right. This says the
+ * bypass is worth flipping, which is a different claim and the one the setting is sold on: it
+ * must answer from the names in hand even when the cached path is wrong. Every case in this
+ * file asserts the invalidation is right today, so the failure has to be introduced — and the
+ * only way in is a record edited in place, which is exactly the shape of a missed bump: the
+ * name-space moves while `sameNameSpace`'s identity short-circuit reports it did not.
+ *
+ * Mutating a record is not a state the index can reach — it replaces records, never edits one —
+ * so this is a stand-in for the defect class, not a supported input. If the bypass ever shares
+ * the invalidation decision with the cached path again, both rows read the same phantom and
+ * this fails; a reader flipping the setting would otherwise be told "not the cache" by a run
+ * that never re-read a single name.
+ */
+test("the bypass answers from the current names when the cached path has gone stale", () => {
+  const answer = (cache: boolean): string | undefined => {
+    const source = makeNote({ path: "desk/source.md", content: "# Source\n\nAbout [[Target]].\n" });
+    const target = makeNote({ path: "notes/t-9f2.md", title: "Target" });
+    const projector = createNoteProjector({ cache });
+    buildSnapshot([source, target], 1, 1, projector);
+    // A record is readonly to everyone who is playing fair, which is why this needs the cast.
+    (target as { title: string }).title = "Renamed";
+    return landsOn(buildSnapshot([source, target], 2, 2, projector), source.uri, "[[Target]]");
+  };
+
+  assert.equal(
+    answer(true),
+    "file:///notes/t-9f2.md",
+    "the planted staleness must actually reach the cached path, or this proves nothing",
+  );
+  assert.equal(
+    answer(false),
+    undefined,
+    "no note answers to Target any more, and the bypass is what has to say so",
+  );
+});
