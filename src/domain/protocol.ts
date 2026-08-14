@@ -262,10 +262,19 @@ export interface WorkspaceNoteRow {
   readonly links: number;
 }
 
+/**
+ * One folder in the panel's tree, at whatever depth it sits. Mirrors `WorkspaceFolderNode`;
+ * the panel draws a row per distinct folder path rather than per top-level folder, so `depth`
+ * and `parent` are what let it nest them.
+ */
 export interface WorkspaceFolderRow {
   readonly path: string;
+  /** The last segment; the rest of the path is said by the indentation. */
   readonly label: string;
+  /** Notes anywhere beneath it, so a closed folder still reports what it holds. */
   readonly count: number;
+  readonly depth: number;
+  readonly parent?: string;
 }
 
 export interface WorkspaceTagRow {

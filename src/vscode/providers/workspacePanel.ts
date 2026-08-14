@@ -1,7 +1,6 @@
 import * as vscode from "vscode";
 import type {
   HostToWorkspaceMessage,
-  WorkspaceFolderRow,
   WorkspaceMenuCommand,
   NoteListing,
   WorkspaceNoteAction,
@@ -21,6 +20,7 @@ import { noteLinkCounts, todayStamp } from "./explorerModel";
 import { selectDueTasks } from "../../application/dueTasks";
 import type { DueSelection } from "../../application/dueTasks";
 import { matchingNoteUris } from "../../application/workspaceSearch";
+import { folderTreeRows } from "../../application/workspaceFolderTree";
 
 /**
  * How many task rows ride to the panel.
@@ -328,7 +328,7 @@ export class WorkspacePanel implements vscode.WebviewViewProvider, vscode.Dispos
         ...(task.due === undefined ? {} : { due: task.due }),
         ...(task.priority === undefined ? {} : { priority: task.priority }),
       })),
-      folders: folderRows(snapshot),
+      folders: folderTreeRows(snapshot.notes),
       notes: snapshot.notes.map((note): WorkspaceNoteRow => ({
         uri: note.uri,
         title: note.title,
@@ -385,20 +385,6 @@ function densitySetting(): WorkspaceDensity {
   return vscode.workspace.getConfiguration().get<string>("vispNotes.density") === "compact"
     ? "compact"
     : "comfortable";
-}
-
-/** Top-level folders and how many notes each holds, including nested ones. */
-function folderRows(snapshot: IndexSnapshot): readonly WorkspaceFolderRow[] {
-  const counts = new Map<string, number>();
-  for (const note of snapshot.notes) {
-    const segments = note.path.split("/").slice(0, -1);
-    if (segments.length === 0) continue;
-    const top = segments[0] ?? "";
-    counts.set(top, (counts.get(top) ?? 0) + 1);
-  }
-  return [...counts.entries()]
-    .sort(([left], [right]) => left.localeCompare(right, undefined, { sensitivity: "base" }))
-    .map(([path, count]) => ({ path, label: path, count }));
 }
 
 function tagRows(snapshot: IndexSnapshot): readonly { name: string; count: number }[] {

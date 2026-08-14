@@ -291,10 +291,15 @@ export interface WorkspaceNoteRowWire {
   readonly links: number;
 }
 
+/** One folder in the panel's tree, at whatever depth it sits. Mirrors `WorkspaceFolderRow`. */
 export interface WorkspaceFolderRowWire {
   readonly path: string;
+  /** The last segment; the rest of the path is said by the indentation. */
   readonly label: string;
+  /** Notes anywhere beneath it, so a closed folder still reports what it holds. */
   readonly count: number;
+  readonly depth: number;
+  readonly parent?: string;
 }
 
 export interface WorkspaceTagRowWire {
