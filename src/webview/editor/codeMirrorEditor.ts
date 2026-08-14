@@ -44,6 +44,7 @@ import {
 } from "./editorDocument.js";
 import { createEditorPatch } from "./editorPatch.js";
 import { hostSourceChange } from "./hostSourceChange.js";
+import { inlineFormattingKeymap } from "./inlineFormatting.js";
 import { createSpellCheck, setSpellDictionary } from "./spellCheck.js";
 import { createSpellDictionary, parseDictionary } from "../../application/spellDictionary.js";
 import { createLivePreview, refreshLivePreview, revealLiveLine } from "./livePreview.js";
@@ -424,6 +425,7 @@ export class CodeMirrorEditor {
       wikiCompletionFooter(),
       Prec.highest(keymap.of([
         ...completionKeymap,
+        ...inlineFormattingKeymap,
         { key: "Mod-s", preventDefault: true, run: () => this.requestSave() },
         { key: "Mod-Enter", preventDefault: true, run: () => this.openLinkAtCursor() },
       ])),
