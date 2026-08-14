@@ -30,6 +30,7 @@ import {
   isWorkspaceTags,
 } from "./editor/validation.js";
 import { INLINE_MARKS, keyHint } from "./editor/inlineMarks.js";
+import { createIdleRedraw } from "./editor/idleRedraw.js";
 import { getNoteInspectorElements, renderNoteInspector } from "./editor/noteInspector.js";
 import type { NoteInspectorSections } from "./editor/noteInspector.js";
 import { planTagAddition, planTagRemoval } from "../application/noteMetadataEdits.js";
@@ -93,6 +94,13 @@ const roomyPane = window.matchMedia("(min-width: 901px)");
 let pendingReveal: number | undefined;
 let lastStashedSource: string | undefined;
 let lastStashedSaveRequested = false;
+/*
+ * The outline and the task list are the draft's own shape, so they follow what is typed — but
+ * from the gap between keystrokes rather than from inside one. Drawing them per character
+ * parsed the whole note a second time and rebuilt every outline row and every task row, with
+ * their listeners, for a panel nobody reads mid-word.
+ */
+const idleDraftRedraw = createIdleRedraw(() => renderInspector("draft"));
 
 liveMode.addEventListener("click", () => setMode("live"));
 markdownMode.addEventListener("click", () => setMode("markdown"));
@@ -225,7 +233,14 @@ function acceptEditorDocumentState(nextState: EditorDocumentStateWire): void {
   }
   runTransition(transition);
   updateStatus();
-  renderInspector(contextChanged ? "all" : "draft");
+  /*
+   * The comparison in `renderNoteContext` is what says whether the index moved. When it has,
+   * the backlinks and the links-out have to be rebuilt now; when it has not, this message is
+   * the host echoing back a keystroke, and the draft half can wait for a gap in the typing
+   * along with every other keystroke-driven redraw.
+   */
+  if (contextChanged) renderInspector("all");
+  else idleDraftRedraw.schedule();
 }
 
 function runTransition(transition: HostStateTransition): void {
@@ -299,8 +314,7 @@ function mountOrReplaceEditor(source: string): void {
 function handleLocalPatch(patch: TextPatch): void {
   setNotice(errorNotice);
   runActions(sync.onLocalPatch(patch));
-  // The outline and the task list are the draft's own shape, so they follow every keystroke.
-  renderInspector("draft");
+  idleDraftRedraw.schedule();
 }
 
 function requestSave(): void {
@@ -628,6 +642,11 @@ function contextSpan(className: string, text: string): HTMLSpanElement {
 }
 
 function renderInspector(sections: NoteInspectorSections = "all"): void {
+  /*
+   * Every draw redraws the draft half, so anything waiting for a gap in the typing has just
+   * been done. Leaving it queued would parse the note again a moment later for the same answer.
+   */
+  idleDraftRedraw.cancel();
   renderNoteInspector(inspector, editor?.source ?? "", noteContext, {
     reveal: (offset) => editor?.reveal(offset),
     openBacklink: (uri, start) => api.postMessage({ type: "editor/openBacklink", uri, start }),
