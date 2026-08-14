@@ -13,7 +13,8 @@ import type {
 import { parseMarkdown } from "../../markdown/parser";
 import { buildNoteContext, getBrokenLinks } from "../../indexing/projections";
 import { wikiReferenceResolverFor } from "../../indexing/wikiReferenceResolver";
-import { createWikiTargetPlanner } from "../../indexing/noteResolver";
+import { createWikiTargetPlanner, findSkippedNote } from "../../indexing/noteResolver";
+import { describeOversizedNote } from "../../application/oversizedNotes";
 import { createEditorHtml } from "../../ui";
 import type { CommandIndex } from "../commands/contracts";
 import { createMissingNote } from "../commands/createMissingNote";
@@ -391,6 +392,21 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
     }
 
     const targetName = result.target;
+    /*
+     * A note the size limit skipped is on disk and not in the index, so it resolves to nothing
+     * and every earlier branch has already declined it. Offering "Create Note" here invited the
+     * reader to overwrite the very file the link was pointing at — the one failure in this path
+     * that destroys something. Say what happened instead, and offer nothing.
+     */
+    const skipped = findSkippedNote(
+      this.index.snapshot.skippedOversized,
+      this.index.findNote(document.uri)?.path,
+      targetName,
+    );
+    if (skipped !== undefined) {
+      void vscode.window.showWarningMessage(describeOversizedNote(skipped));
+      return;
+    }
     const create = await vscode.window.showInformationMessage(
       `The note “${targetName}” does not exist.`,
       "Create Note",

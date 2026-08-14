@@ -34,6 +34,7 @@ function workspace(...notes: readonly NoteRecord[]): IndexSnapshot {
     notes,
     tasks: [],
     backlinks: [],
+    skippedOversized: [],
     links: notes.flatMap((source) => source.links.map((link) => {
       const target = byTitle.get(link.target.toLocaleLowerCase());
       return {

@@ -100,14 +100,25 @@ export const INLINE_MARKS: readonly InlineMark[] = Object.freeze([
  *
  * "Ctrl/Cmd+Shift+X" names both platforms at once and runs to three times the width the hint
  * column is given, so the menu says only the one the reader is on.
+ *
+ * On a Mac the glyphs are ordered ⌃⌥⇧⌘ however the binding was written, because that is the
+ * order every other menu on the machine uses and a reader matches the shape before reading it.
+ * Windows and Linux keep the order the binding declares.
  */
+const MAC_MODIFIER_ORDER: readonly string[] = ["Ctrl", "Alt", "Shift", "Mod"];
+
 export function keyHint(key: string, mac: boolean): string {
   const parts = key.split("-");
   const last = parts[parts.length - 1] ?? "";
-  const modifiers = parts.slice(0, -1);
+  const declared = parts.slice(0, -1);
   const symbol: Readonly<Record<string, string>> = mac
     ? { Mod: "⌘", Shift: "⇧", Alt: "⌥", Ctrl: "⌃" }
     : { Mod: "Ctrl", Shift: "Shift", Alt: "Alt", Ctrl: "Ctrl" };
+  const modifiers = mac
+    ? [...declared].sort(
+        (a, b) => MAC_MODIFIER_ORDER.indexOf(a) - MAC_MODIFIER_ORDER.indexOf(b),
+      )
+    : declared;
   const named = modifiers.map((modifier) => symbol[modifier] ?? modifier);
   const label = last.length === 1 ? last.toLocaleUpperCase() : last;
   return mac ? [...named, label].join("") : [...named, label].join("+");

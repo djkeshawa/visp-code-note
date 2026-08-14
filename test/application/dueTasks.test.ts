@@ -7,7 +7,7 @@ const TODAY = "2026-08-15";
 
 function snapshot(tasks: readonly Partial<NoteTask>[]): IndexSnapshot {
   return {
-    notes: [], links: [], backlinks: [], version: 1, indexedAt: 0,
+    notes: [], links: [], backlinks: [], skippedOversized: [], version: 1, indexedAt: 0,
     tasks: tasks.map((task, index) => ({
       text: task.text ?? `Task ${index}`,
       completed: task.completed ?? false,

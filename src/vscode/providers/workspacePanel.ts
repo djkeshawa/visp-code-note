@@ -339,6 +339,7 @@ export class WorkspacePanel implements vscode.WebviewViewProvider, vscode.Dispos
       tags: tagRows(snapshot),
       noteCount: snapshot.notes.length,
       taskCount: snapshot.tasks.length,
+      skippedOversized: snapshot.skippedOversized,
       indexedAt: snapshot.indexedAt,
       version: snapshot.version,
     };

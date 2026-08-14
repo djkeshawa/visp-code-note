@@ -45,6 +45,7 @@ test("alias-preserving rename migrates path links but keeps title links", () => 
     links: links.map((link) => ({ sourceUri: source.uri, targetUri: target.uri, link })),
     backlinks: [],
     tasks: [],
+    skippedOversized: [],
     version: 1,
     indexedAt: 1,
   } as import("../../src/domain/models").IndexSnapshot;
@@ -95,6 +96,7 @@ test("migration uses an encoded path relative to each source note", () => {
     links: [{ sourceUri: source.uri, targetUri: target.uri, link: source.links[0]! }],
     backlinks: [],
     tasks: [],
+    skippedOversized: [],
     version: 1,
     indexedAt: 1,
   } as import("../../src/domain/models").IndexSnapshot;

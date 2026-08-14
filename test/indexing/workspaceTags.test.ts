@@ -28,7 +28,16 @@ function snapshotOf(tagsPerNote: readonly (readonly string[])[]): IndexSnapshot 
     size: 0,
     modifiedAt: 0,
   } as unknown as NoteRecord)));
-  return { notes, links: [], backlinks: [], tasks: [], version: 1, indexedAt: 0 };
+  return {
+    notes,
+    links: [],
+    backlinks: [],
+    tasks: [],
+    // A skipped file has no record and so no tags; the vocabulary is derived from `notes` alone.
+    skippedOversized: [],
+    version: 1,
+    indexedAt: 0,
+  };
 }
 
 test("every tag in the workspace is offered, most used first", () => {

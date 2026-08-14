@@ -96,19 +96,25 @@ test("searching notes is on the keyboard, and not on a key VS Code was using", (
  * `Mod-` in the editor's keymap resolves to Ctrl off macOS, so pressing Cmd here would match
  * nothing and prove nothing.
  */
-/**
- * Open Local Graph is knowingly still on Ctrl+Shift+G, which the note editor also reads as
- * Find Previous — in a note the reader has searched, that key jumps the selection and opens
- * the graph at once. Naming it here rather than narrowing the loop keeps the next key that
- * lands from slipping in unnoticed, and leaves the graph's keys to whoever owns them.
- */
-const KNOWN_DOUBLE_BOUND = new Set(["vispNotes.openLocalGraph"]);
 
-const NOTE_EDITOR_KEYS = keybindings.filter(
-  (binding) =>
-    !KNOWN_DOUBLE_BOUND.has(binding.command) &&
-    (binding.when === undefined || !binding.when.includes("editorTextFocus")),
-);
+/** How a binding says in the manifest that the note editor is not its window. */
+const EXCLUDES_NOTE_EDITOR = "activeCustomEditorId != vispNotes.noteEditor";
+
+/**
+ * Whether pressing this binding's key in an open note would run its command.
+ *
+ * There used to be a hand-kept set of commands excused from the loop below, which is how Open
+ * Local Graph sat on Ctrl+Shift+G — the editor's own Find Previous — for a wave: an exception
+ * list records a collision rather than preventing the next one. The manifest says it itself
+ * now. A binding is out of this window when its `when` clause puts it in a text editor or
+ * names the note editor to exclude it; every other binding has to survive the press.
+ */
+function reachesNoteEditor(binding: Keybinding): boolean {
+  const when = binding.when ?? "";
+  return !when.includes("editorTextFocus") && !when.includes(EXCLUDES_NOTE_EDITOR);
+}
+
+const NOTE_EDITOR_KEYS = keybindings.filter(reachesNoteEditor);
 
 interface OpenNote {
   readonly press: (key: string) => KeyboardEvent;
@@ -187,5 +193,56 @@ test("Ctrl+Shift+L is a note editor key, which is why Insert Link no longer uses
     event.defaultPrevented,
     true,
     "if the editor stopped claiming this key, the test above is no longer proving anything",
+  );
+});
+
+/*
+ * The graph's key, from both ends.
+ *
+ * Ctrl+Shift+G is the editor's Find Previous, so in a note the reader has searched it used to
+ * jump the selection and open the graph at once. Insert Link's collision was fixed by moving
+ * the key; this one cannot be, because every form of G the reader would guess belongs to the
+ * editor's search — Mod-g is Find Next, Mod-Shift-g is Find Previous and Mod-Alt-g is Go to
+ * Line, and on macOS `Mod-` is Cmd, so Cmd+Alt+G is taken too and the house pattern has
+ * nowhere to put it. The binding is scoped out of this window instead, and the note editor's
+ * own menu is how the command is reached from inside a note.
+ *
+ * Two assertions because either half alone rots quietly: an editor that stopped claiming the
+ * key would leave the scoping looking necessary when it was not, and a manifest that dropped
+ * the scoping would put the collision back with the press below still passing.
+ */
+test("Ctrl+Shift+G is a note editor key, so Open Local Graph is scoped out of the note editor", () => {
+  const note = openNote();
+  note.select(9, 14);
+
+  assert.equal(
+    note.press("ctrl+shift+g").defaultPrevented,
+    true,
+    "Find Previous stopped claiming this key, so the graph could have it back",
+  );
+  const graph = keybindings.filter((binding) => binding.command === "vispNotes.openLocalGraph");
+  assert.ok(graph.length > 0, "the graph lost its key entirely");
+  for (const binding of graph) {
+    assert.ok(
+      !reachesNoteEditor(binding),
+      `${binding.key} runs in an open note, where the editor already answers it`,
+    );
+  }
+});
+
+/*
+ * Go to Line, pressed in the form this keyboard can press it. `Mod-Alt-g` is one keymap entry
+ * that reads as Ctrl+Alt+G here and Cmd+Alt+G on macOS, so this is how the mac half of the
+ * house pattern — Cmd+Alt+ the command's letter, as Search and Insert Link use — is shown to
+ * be unavailable to a command whose letter is G, without a mac to press it on.
+ */
+test("Ctrl+Alt+G is a note editor key, which is why Cmd+Alt+G could not be the mac binding", () => {
+  const note = openNote();
+  note.select(9, 14);
+
+  assert.equal(
+    note.press("ctrl+alt+g").defaultPrevented,
+    true,
+    "Go to Line stopped claiming this key, so the graph could follow the house pattern",
   );
 });

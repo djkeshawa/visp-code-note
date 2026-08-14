@@ -238,7 +238,19 @@ test("the hint column names one platform's key, in that platform's notation", ()
   assert.equal(keyHint("Mod-b", false), "Ctrl+B");
   assert.equal(keyHint("Mod-b", true), "⌘B");
   assert.equal(keyHint("Mod-Shift-x", false), "Ctrl+Shift+X");
-  assert.equal(keyHint("Mod-Shift-x", true), "⌘⇧X");
   assert.equal(keyHint("Shift-Alt-l", false), "Shift+Alt+L");
-  assert.equal(keyHint("Shift-Alt-l", true), "⇧⌥L");
+});
+
+/**
+ * Windows and Linux read the binding left to right; a Mac reads ⌃⌥⇧⌘ whatever the binding says.
+ *
+ * Both branches in this wave wrote Insert Link's Mac hint by hand and wrote it differently —
+ * "⌘⌥L" from the key string, "⌥⌘L" from the platform convention. The convention wins, and it is
+ * applied here rather than at each call site so the two cannot drift apart again.
+ */
+test("a Mac hint orders its glyphs the way every other menu on the machine does", () => {
+  assert.equal(keyHint("Mod-Alt-l", true), "⌥⌘L");
+  assert.equal(keyHint("Mod-Shift-x", true), "⇧⌘X");
+  assert.equal(keyHint("Shift-Alt-l", true), "⌥⇧L");
+  assert.equal(keyHint("Mod-Ctrl-Shift-Alt-p", true), "⌃⌥⇧⌘P");
 });

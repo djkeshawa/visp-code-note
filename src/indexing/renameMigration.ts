@@ -143,8 +143,13 @@ async function arrivingNote(rename: FileRename): Promise<NoteRecord | undefined>
   if (!isIndexableMarkdown(rename.newUri)) return undefined;
   try {
     // The file is still at its old path: this runs before VS Code performs the rename.
-    const record = await readNoteRecord(rename.oldUri);
-    return record ? relocated(record, rename.newUri) : undefined;
+    const read = await readNoteRecord(rename.oldUri);
+    /*
+     * An oversized file is skipped by the index after the rename just as it was before, so the
+     * post-rename workspace must not learn a name for it. Letting one in would re-point other
+     * notes' links at a file the resolver cannot reach.
+     */
+    return read.kind === "note" ? relocated(read.note, rename.newUri) : undefined;
   } catch {
     return undefined;
   }

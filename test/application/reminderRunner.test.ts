@@ -103,7 +103,9 @@ function harness(startAt: string, settings: ReminderSettings = SETTINGS): Harnes
   const completed: ReminderCandidate[] = [];
   const errors: unknown[] = [];
   let answer: ReminderAction | undefined;
-  let snapshot: IndexSnapshot = { notes: [], links: [], backlinks: [], tasks: [], version: 1, indexedAt: 0 };
+  let snapshot: IndexSnapshot = {
+    notes: [], links: [], backlinks: [], tasks: [], skippedOversized: [], version: 1, indexedAt: 0,
+  };
 
   const runner = new ReminderRunner({
     snapshot: () => snapshot,

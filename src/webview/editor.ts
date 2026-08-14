@@ -394,17 +394,21 @@ function closeMenuOnEscape(event: KeyboardEvent): void {
  * "Ctrl/Cmd+Shift+L" names both at once and runs to three times the width the design gives
  * the hint column, so it dominated the row it was meant to trail.
  *
- * Every hint is now written from the key itself. Insert Link's was still advertising
- * Ctrl+Shift+L after the command had been moved off it \u2014 the editor reads that key as Select
- * All Occurrences \u2014 so the menu was naming a key that does something else entirely. A hint
- * that lies costs more than a missing one: the reader presses it, watches the wrong thing
- * happen, and stops trusting the rest of the column.
+ * Every hint is written from the key itself, so a rebinding cannot leave the menu naming the
+ * old one. Insert Link's hint was still advertising Ctrl+Shift+L after the command had been
+ * moved off it \u2014 the editor reads that key as Select All Occurrences \u2014 so the menu was naming
+ * a key that does something else entirely. A hint that lies costs more than a missing one: the
+ * reader presses it, watches the wrong thing happen, and stops trusting the rest of the column.
+ *
+ * Only keys that reach this window are named at all. Open Local Graph has none here: Ctrl+Shift+G
+ * is the editor's own Find Previous, so the command's keybinding is scoped to leave the note
+ * editor alone, and its row in the menu carries no hint slot to fill. The command is still one
+ * click away in this menu \u2014 it is the key, not the command, that does not reach here.
  */
 function renderKeyboardHints(): void {
   const mac = /Mac|iPhone|iPad/i.test(navigator.userAgent);
   const bindings: Readonly<Record<string, string>> = {
     insertLink: keyHint(mac ? "Mod-Alt-l" : "Shift-Alt-l", mac),
-    openLocalGraph: keyHint("Mod-Shift-g", mac),
   };
   for (const hint of bindingHints) {
     const binding = hint.dataset.binding;

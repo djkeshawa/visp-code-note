@@ -21,13 +21,33 @@ test("the menu holds the container the formatting keys are listed into", () => {
 });
 
 test("the hint column still carries the bindings the script fills in", () => {
-  for (const binding of ["insertLink", "openLocalGraph"]) {
+  for (const binding of ["insertLink"]) {
     assert.equal(
       EDITOR_BODY.includes(`data-binding="${binding}"`),
       true,
       `${binding} has a hint to render into but no place to render it`,
     );
   }
+});
+
+/**
+ * Open Local Graph's row deliberately has no hint slot.
+ *
+ * Its keybinding is scoped away from this window — Ctrl+Shift+G is the editor's own Find
+ * Previous — so a hint here would name a key that does nothing where it is read. The row itself
+ * stays: the command is one click away, it is only the key that does not reach here.
+ */
+test("Open Local Graph is offered without a key, because its key is scoped out of this window", () => {
+  assert.equal(
+    EDITOR_BODY.includes('data-command="openLocalGraph"'),
+    true,
+    "the command should still be reachable from the menu",
+  );
+  assert.equal(
+    EDITOR_BODY.includes('data-binding="openLocalGraph"'),
+    false,
+    "a hint slot here would be filled with a key that does nothing in the note editor",
+  );
 });
 
 test("every formatting row can be drawn, because every mark names a codicon", () => {

@@ -36,7 +36,7 @@ function task(overrides: Partial<NoteTask> & { readonly text: string }): IndexSn
 }
 
 function snapshot(tasks: readonly IndexSnapshot["tasks"][number][]): IndexSnapshot {
-  return { notes: [], links: [], backlinks: [], tasks, version: 1, indexedAt: 0 };
+  return { notes: [], links: [], backlinks: [], tasks, skippedOversized: [], version: 1, indexedAt: 0 };
 }
 
 const never = (): boolean => false;

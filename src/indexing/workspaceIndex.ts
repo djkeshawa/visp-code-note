@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import type { IndexSnapshot, NoteRecord } from "../domain/models";
+import type { IndexSnapshot, NoteRecord, SkippedNote } from "../domain/models";
 import { buildSnapshot } from "./projections";
 import {
   discoverMarkdownUris,
@@ -7,6 +7,7 @@ import {
   readNoteRecord,
   uriKey,
 } from "./discovery";
+import type { NoteRead } from "./discovery";
 import { freezeSnapshot } from "./immutable";
 import { mapConcurrent } from "./concurrency";
 import { createIndexWatchers } from "./watchers";
@@ -29,17 +30,32 @@ const BYPASS_PROJECTION_CACHE_SETTING = "vispNotes.index.bypassProjectionCache";
 
 type PendingChange = MarkdownChange;
 
+/** No file at that path — which is a different thing from a file too large to read. */
+interface Absent {
+  readonly kind: "absent";
+}
+
+const ABSENT: Absent = Object.freeze({ kind: "absent" });
+
 const EMPTY_SNAPSHOT = freezeSnapshot({
   notes: [],
   links: [],
   backlinks: [],
   tasks: [],
+  skippedOversized: [],
   version: 0,
   indexedAt: 0,
 });
 
 export class WorkspaceIndex implements vscode.Disposable {
   private readonly notes = new Map<string, NoteRecord>();
+  /**
+   * The files the size limit left out, keyed the same way `notes` is.
+   *
+   * Kept beside the notes rather than derived, because deriving it would mean reading every
+   * file again to ask how big it is — which is the one thing the limit exists to avoid.
+   */
+  private readonly skipped = new Map<string, SkippedNote>();
   private readonly changeEmitter = new vscode.EventEmitter<IndexSnapshot>();
   private readonly statusEmitter = new vscode.EventEmitter<IndexStatus>();
   private readonly subscriptions: vscode.Disposable[] = [];
@@ -96,14 +112,14 @@ export class WorkspaceIndex implements vscode.Disposable {
   rebuild(): Promise<void> {
     return this.enqueueOperation(async () => {
       const uris = await discoverMarkdownUris();
-      const records = await mapConcurrent(uris, 16, (uri) => this.readIfPresent(uri));
+      const reads = await mapConcurrent(uris, 16, (uri) => this.readIfPresent(uri));
       const next = new Map<string, NoteRecord>();
-      for (const record of records) {
-        if (record) {
-          next.set(record.uri, record);
-        }
+      const skipped = new Map<string, SkippedNote>();
+      for (const read of reads) {
+        if (read.kind === "note") next.set(read.note.uri, read.note);
+        else if (read.kind === "oversized") skipped.set(read.skipped.uri, read.skipped);
       }
-      this.commit(next);
+      this.commit(next, skipped);
     });
   }
 
@@ -172,19 +188,20 @@ export class WorkspaceIndex implements vscode.Disposable {
 
   private async applyChanges(changes: readonly PendingChange[]): Promise<void> {
     const next = new Map(this.notes);
+    const skipped = new Map(this.skipped);
     let changed = false;
     for (let index = 0; index < changes.length; index += 1) {
       const change = changes[index];
       if (change === undefined) continue;
       const key = uriKey(change.uri);
       if (change.kind === "remove" || !isIndexableMarkdown(change.uri)) {
-        changed = next.delete(key) || changed;
+        changed = forget(key, next, skipped) || changed;
         continue;
       }
 
-      let record: NoteRecord | undefined;
+      let read: NoteRead | Absent;
       try {
-        record = await this.readIfPresent(change.uri);
+        read = await this.readIfPresent(change.uri);
       } catch (error) {
         /*
          * One unreadable file used to cost the whole batch. A watcher burst is coalesced into a
@@ -198,11 +215,13 @@ export class WorkspaceIndex implements vscode.Disposable {
          * for the reschedule to pick up, and only the one that failed is dropped — putting that
          * back would spin the drain against a file that keeps failing.
          */
-        if (changed) this.commit(next);
+        if (changed) this.commit(next, skipped);
         this.requeueUnattempted(changes.slice(index + 1));
         throw error;
       }
-      if (record) {
+      if (read.kind === "note") {
+        const record = read.note;
+        changed = skipped.delete(key) || changed;
         const current = next.get(key);
         if (
           !current ||
@@ -213,12 +232,26 @@ export class WorkspaceIndex implements vscode.Disposable {
           next.set(key, record);
           changed = true;
         }
+      } else if (read.kind === "oversized") {
+        /*
+         * A note crossing the limit is a removal AND an addition, and the commit has to happen
+         * for the second half on its own. A file created oversized was never in `notes`, so
+         * dropping it reported nothing changed, no commit ran, and the one thing that would
+         * have told the reader where their note went never reached a snapshot at all.
+         */
+        const dropped = next.delete(key);
+        const previous = skipped.get(key);
+        if (previous === undefined || previous.sizeBytes !== read.skipped.sizeBytes) {
+          skipped.set(key, read.skipped);
+          changed = true;
+        }
+        changed = dropped || changed;
       } else {
-        changed = next.delete(key) || changed;
+        changed = forget(key, next, skipped) || changed;
       }
     }
     if (changed) {
-      this.commit(next);
+      this.commit(next, skipped);
     }
   }
 
@@ -233,18 +266,27 @@ export class WorkspaceIndex implements vscode.Disposable {
     }
   }
 
-  private async readIfPresent(uri: vscode.Uri): Promise<NoteRecord | undefined> {
+  /**
+   * The read, or `absent` for a file that is not there.
+   *
+   * The third case is the point: "absent" and "too large" used to arrive here as the same
+   * `undefined`, and the difference is exactly what every surface downstream needed.
+   */
+  private async readIfPresent(uri: vscode.Uri): Promise<NoteRead | Absent> {
     try {
       return await readNoteRecord(uri);
     } catch (error) {
       if (error instanceof vscode.FileSystemError && error.code === "FileNotFound") {
-        return undefined;
+        return ABSENT;
       }
       throw error;
     }
   }
 
-  private commit(next: ReadonlyMap<string, NoteRecord>): void {
+  private commit(
+    next: ReadonlyMap<string, NoteRecord>,
+    skipped: ReadonlyMap<string, SkippedNote>,
+  ): void {
     if (this.disposed) {
       return;
     }
@@ -252,6 +294,10 @@ export class WorkspaceIndex implements vscode.Disposable {
     this.notes.clear();
     for (const [key, note] of next) {
       this.notes.set(key, note);
+    }
+    this.skipped.clear();
+    for (const [key, entry] of skipped) {
+      this.skipped.set(key, entry);
     }
     /*
      * Handed over unsorted. `buildSnapshot` puts the notes in `compareNotes` order itself, and
@@ -264,6 +310,7 @@ export class WorkspaceIndex implements vscode.Disposable {
         this.currentSnapshot.version + 1,
         Date.now(),
         this.projector,
+        [...this.skipped.values()],
       ),
     );
     this.changeEmitter.fire(this.currentSnapshot);
@@ -295,6 +342,22 @@ export class WorkspaceIndex implements vscode.Disposable {
       this.statusEmitter.fire(status);
     }
   }
+}
+
+/**
+ * Drops a file from the index entirely, and says whether it was in it.
+ *
+ * Both maps are asked, and neither delete is allowed to short-circuit the other: a file sits in
+ * one or the other, and which one is exactly the thing this is here to stop the caller having
+ * to keep track of.
+ */
+function forget(
+  key: string,
+  notes: Map<string, NoteRecord>,
+  skipped: Map<string, SkippedNote>,
+): boolean {
+  const dropped = notes.delete(key);
+  return skipped.delete(key) || dropped;
 }
 
 function createProjector(): NoteProjector {

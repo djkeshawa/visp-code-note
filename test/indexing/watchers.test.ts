@@ -39,8 +39,8 @@ async function open(files: Readonly<Record<string, string>>): Promise<Harness> {
   }
   const records: NoteRecord[] = [];
   for (const path of Object.keys(files)) {
-    const record = await readNoteRecord(uriOf(path));
-    if (record) records.push(record);
+    const read = await readNoteRecord(uriOf(path));
+    if (read.kind === "note") records.push(read.note);
   }
   const snapshot = buildSnapshot(records);
   const changes: Change[] = [];
