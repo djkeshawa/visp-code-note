@@ -92,6 +92,20 @@
 }
 
 /*
+ * The squeeze is spent on the last chip first. Sharing it evenly meant a row a few pixels too
+ * wide came back as four ellipses and not one readable tag, when shortening the last name
+ * alone would have paid the whole difference. The factor is large rather than absolute so the
+ * chips before it still give way once the last one has nothing left, which keeps the add
+ * button in the row instead of clipping it off the end.
+ *
+ * The last chip, not the last child: the add button follows the chips and is a button, so it
+ * is not of their type and never takes the squeeze.
+ */
+.note-tag:last-of-type {
+  flex-shrink: 200;
+}
+
+/*
  * Truncation happens on the name, not on the chip: a chip clipped by the row is sliced through
  * a letter, while the name ends in an ellipsis and still reads as a shortened word. The dot and
  * the remove control keep their width, so a squeezed chip is still recognisably a tag.
@@ -273,7 +287,7 @@
   overflow: hidden;
   border-radius: 5px;
   background: transparent;
-  color: var(--visp-muted);
+  color: var(--visp-muted-strong);
   font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
