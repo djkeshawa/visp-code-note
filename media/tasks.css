@@ -106,7 +106,7 @@
 }
 
 .task-group-count {
-  color: var(--visp-muted);
+  color: var(--visp-muted-strong);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
@@ -224,7 +224,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  color: var(--visp-muted);
+  color: var(--visp-muted-strong);
   font-size: 11px;
   white-space: nowrap;
 }
@@ -278,13 +278,45 @@
   }
 }
 
+/*
+ * Narrow enough to be docked in a split rather than opened as a tab.
+ *
+ * Grouping and sort used to be hidden outright here, which took them out of the tab order as
+ * well as off the screen: a docked Tasks view was stuck with whatever grouping and direction
+ * had last been chosen somewhere else, with nothing on screen to say so and no way to change
+ * it. They stay, compacted instead. Each already carries an sr-only name and a title, and the
+ * leading list-tree and sort-precedence glyphs tell the two apart, so only the printed word
+ * is lost — the same trade the toolbar's icon buttons already make.
+ */
 @media (max-width: 560px) {
   /*
-   * The sort unit goes as a whole. Hiding only the select left its direction arrow behind as
-   * a bare button with nothing to say what it reorders.
+   * A native select always draws its own value, so the compact controls are still wider than
+   * icons and the row will not fit at the narrowest docked widths. It wraps rather than
+   * clipping — which needs the fixed height and the toolbar's own clipping lifted, or the
+   * second row is drawn outside the header and nothing of this is visible.
    */
-  .toolbar-select,
-  .toolbar-sort,
+  .tasks-shell .view-toolbar {
+    height: auto;
+    flex-wrap: wrap;
+    padding-block: 6px;
+    overflow: visible;
+    row-gap: 6px;
+  }
+
+  .tasks-search {
+    flex: 0 1 120px;
+  }
+
+  .toolbar-select {
+    gap: 4px;
+    padding: 0 5px;
+  }
+
+  .toolbar-select-label,
+  .toolbar-select .codicon-chevron-down {
+    display: none;
+  }
+
   .task-meta-note,
   .task-meta-tag {
     display: none;
@@ -294,6 +326,6 @@
 /* Said plainly when the host has capped the list, so the count above is not read as the rows. */
 .reminder-overflow {
   margin: 6px 0 0;
-  color: var(--visp-muted);
+  color: var(--visp-muted-strong);
   font-size: 11px;
 }

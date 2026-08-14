@@ -59,15 +59,27 @@
   flex: 0 0 auto;
 }
 
+/*
+ * The tag row is what a crowded toolbar spends first. It used to refuse to shrink, and the
+ * row clips, so a note with many or long tags pushed the mode toggle, the sync status and the
+ * overflow button past the right edge — where they were not merely cramped but unreachable by
+ * mouse, taking every action in the overflow menu with them.
+ *
+ * The shrink factor is the one `.toolbar-subtitle` uses, two orders of magnitude above its
+ * neighbours, so the tags give way long before the title or the breadcrumb notice.
+ */
 .note-tags {
+  min-width: 0;
   display: flex;
-  flex: 0 0 auto;
+  flex: 0 200 auto;
   align-items: center;
   gap: 5px;
+  overflow: hidden;
 }
 
 .note-tag {
   height: 19px;
+  min-width: 0;
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -77,6 +89,17 @@
   color: var(--visp-muted-strong);
   font-size: 11px;
   white-space: nowrap;
+}
+
+/*
+ * Truncation happens on the name, not on the chip: a chip clipped by the row is sliced through
+ * a letter, while the name ends in an ellipsis and still reads as a shortened word. The dot and
+ * the remove control keep their width, so a squeezed chip is still recognisably a tag.
+ */
+.note-tag-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Tag colour is assigned from the tag's own name, so a tag keeps its hue across every view. */
@@ -354,7 +377,7 @@
 
 .editor-menu-hint {
   flex: 0 0 auto;
-  color: var(--visp-muted);
+  color: var(--visp-muted-strong);
   font-size: 10.5px;
 }
 
@@ -373,7 +396,7 @@
 
 .editor-menu-row-label {
   flex: 1;
-  color: var(--visp-muted);
+  color: var(--visp-muted-strong);
   font-size: 11px;
 }
 
@@ -631,7 +654,7 @@
   margin-top: 4px;
   padding: 6px 9px 3px;
   border-top: 1px solid var(--visp-hairline);
-  color: var(--visp-muted);
+  color: var(--visp-muted-strong);
   font-size: 10.5px;
 }
 
@@ -711,7 +734,7 @@
   min-width: 0;
   flex: 1;
   overflow: hidden;
-  color: var(--visp-muted);
+  color: var(--visp-muted-strong);
   font-family: var(--visp-mono);
   font-size: 10.5px;
   text-align: right;
@@ -1386,7 +1409,7 @@
 
 .inspector-backlink-line {
   margin-left: auto;
-  color: var(--visp-muted);
+  color: var(--visp-muted-strong);
   font-size: 10px;
   font-variant-numeric: tabular-nums;
 }
@@ -1394,7 +1417,7 @@
 .inspector-backlink-context {
   display: block;
   margin-top: 3px;
-  color: var(--visp-muted);
+  color: var(--visp-muted-strong);
   font-size: 11px;
   line-height: 1.55;
 }
@@ -1433,7 +1456,7 @@
 .inspector-task-meta {
   display: block;
   margin-top: 1px;
-  color: var(--visp-muted);
+  color: var(--visp-muted-strong);
   font-size: 10.5px;
 }
 
@@ -1448,16 +1471,29 @@
   padding: 2px 14px 0;
 }
 
+/*
+ * Bounded to the column it sits in. A link to a long note title made a chip wider than the
+ * 300px inspector, and the column scrolls, so one long target dragged the whole panel — every
+ * section of it — sideways; an unresolved link, which carries "· unresolved" as well, was
+ * wider still. The chip's `title` already holds the full target, so the ellipsis costs nothing.
+ *
+ * A block box rather than the flex one it was: text-overflow has nothing to act on inside a
+ * flex container, where the label is an anonymous item, and the chip's only content is text.
+ */
 .inspector-link {
   height: 22px;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
+  max-width: 100%;
+  min-width: 0;
+  display: block;
   padding: 0 8px;
+  overflow: hidden;
   border-radius: 999px;
   background: var(--visp-chip);
   color: var(--visp-hue-reference);
   font-size: 11px;
+  line-height: 22px;
+  text-align: left;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -1471,7 +1507,7 @@
 
 .inspector-empty {
   padding: 2px 14px 4px;
-  color: var(--visp-muted);
+  color: var(--visp-muted-strong);
   font-size: 11px;
 }
 
@@ -1607,6 +1643,6 @@ body.vscode-high-contrast-light .live-wiki-link.is-unresolved {
 .editor-host .live-spell-empty {
   margin: 0;
   padding: 5px 8px;
-  color: var(--visp-muted);
+  color: var(--visp-muted-strong);
   font-size: 11px;
 }

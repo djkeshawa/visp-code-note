@@ -34,7 +34,7 @@
   flex: 0 0 auto;
   padding: 0 2px;
   background: transparent;
-  color: var(--visp-muted);
+  color: var(--visp-muted-strong);
   font-family: var(--visp-font);
   font-size: 10px;
   letter-spacing: 0.02em;
@@ -93,7 +93,7 @@
 
 .workspace-row-count {
   flex: 0 0 auto;
-  color: var(--visp-muted);
+  color: var(--visp-muted-strong);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
@@ -196,7 +196,7 @@
 
 .workspace-note-count {
   flex: 0 0 auto;
-  color: var(--visp-muted);
+  color: var(--visp-muted-strong);
   font-size: 10.5px;
   font-variant-numeric: tabular-nums;
 }
@@ -265,6 +265,7 @@
 
 .workspace-tag {
   height: 22px;
+  max-width: 100%;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -289,7 +290,19 @@
   background: var(--tag-hue, var(--visp-brand));
 }
 
+/*
+ * The name is the only part of the chip that may give way. A long tag used to widen the chip
+ * past the panel and scroll the whole column sideways; the dot and the count keep their width
+ * so what is left still reads as a tag with a count rather than as a truncated sentence.
+ */
+.workspace-tag-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .workspace-tag-count {
+  flex: 0 0 auto;
   font-variant-numeric: tabular-nums;
   opacity: 0.6;
 }
@@ -302,7 +315,7 @@
   gap: 7px;
   padding: 0 12px;
   border-top: 1px solid var(--visp-border);
-  color: var(--visp-muted);
+  color: var(--visp-muted-strong);
   font-size: 11px;
 }
 
@@ -323,12 +336,17 @@
   background: var(--visp-danger);
 }
 
+/*
+ * When the index last ran is the quieter half of this line, said in colour rather than in
+ * opacity: a quarter of the panel bleeding through 11px text measured under 4:1 on the light
+ * theme, which undoes the stronger token the line above it now carries.
+ */
 .workspace-status-indexed {
   margin-left: auto;
   overflow: hidden;
+  color: color-mix(in srgb, var(--visp-muted-strong) 70%, var(--visp-muted));
   text-overflow: ellipsis;
   white-space: nowrap;
-  opacity: 0.75;
 }
 
 @keyframes visp-pulse {
@@ -345,7 +363,7 @@
 
 .workspace-empty {
   padding: 4px 12px 8px;
-  color: var(--visp-muted);
+  color: var(--visp-muted-strong);
   font-size: 11px;
 }
 
@@ -373,7 +391,7 @@
   margin: 0;
   padding: 3px 8px 5px;
   overflow: hidden;
-  color: var(--visp-muted);
+  color: var(--visp-muted-strong);
   font-size: 10.5px;
   text-overflow: ellipsis;
   white-space: nowrap;

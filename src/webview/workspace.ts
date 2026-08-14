@@ -561,9 +561,11 @@ function renderTags(current: WorkspacePanelStateWire): void {
       chip.title = `#${tag.name} · ${tag.count} note${tag.count === 1 ? "" : "s"}`;
       const dot = htmlElement("span", "workspace-tag-dot");
       dot.style.setProperty("--tag-hue", tagHueColor(tag.name));
+      // The name carries the ellipsis when it is too long for the panel, and a bare text node
+      // cannot: it becomes an anonymous flex item, which text-overflow has no hold on.
       chip.append(
         dot,
-        document.createTextNode(tag.name),
+        htmlElement("span", "workspace-tag-label", tag.name),
         htmlElement("span", "workspace-tag-count", String(tag.count)),
       );
       chip.addEventListener("click", () => api.postMessage({ type: "workspace/openTag", tag: tag.name }));
