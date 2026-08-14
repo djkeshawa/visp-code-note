@@ -346,7 +346,7 @@
         "command": "vispNotes.openLocalGraph",
         "key": "ctrl+shift+g",
         "mac": "cmd+shift+g",
-        "when": "resourceExtname == .md"
+        "when": "resourceExtname == .md && activeCustomEditorId != vispNotes.noteEditor"
       }
     ],
     "configuration": {

@@ -60,7 +60,7 @@ export const EDITOR_BODY = `
           <button class="editor-menu-item" type="button" role="menuitem" data-command="openLocalGraph">
             <span class="codicon codicon-type-hierarchy" aria-hidden="true"></span>
             <span class="editor-menu-label">Open Local Graph</span>
-            <span class="editor-menu-hint" data-binding="openLocalGraph"></span>
+            <span class="editor-menu-hint"></span>
           </button>
           <button class="editor-menu-item" type="button" role="menuitem" data-command="rebuildIndex">
             <span class="codicon codicon-refresh" aria-hidden="true"></span>

@@ -380,12 +380,18 @@ function closeMenuOnEscape(event: KeyboardEvent): void {
  *
  * "Ctrl/Cmd+Shift+L" names both at once and runs to three times the width the design gives
  * the hint column, so it dominated the row it was meant to trail.
+ *
+ * Only the keys that reach this window are named. Insert Link moved off Ctrl+Shift+L when
+ * that turned out to be the editor's own Select All Occurrences, and this went on printing
+ * the old key for two releases. Open Local Graph has no key here at all: Ctrl+Shift+G is the
+ * editor's Find Previous, so the command's binding is scoped to leave this window alone, and
+ * a hint naming a key that does nothing where it is read is worse than no hint.
  */
 function renderKeyboardHints(): void {
   const mac = /Mac|iPhone|iPad/i.test(navigator.userAgent);
   const bindings: Readonly<Record<string, string>> = mac
-    ? { insertLink: "\u2318\u21e7L", openLocalGraph: "\u2318\u21e7G" }
-    : { insertLink: "Ctrl+Shift+L", openLocalGraph: "Ctrl+Shift+G" };
+    ? { insertLink: "\u2325\u2318L" }
+    : { insertLink: "Shift+Alt+L" };
   for (const hint of bindingHints) {
     const binding = hint.dataset.binding;
     hint.textContent = binding === undefined ? "" : bindings[binding] ?? "";
