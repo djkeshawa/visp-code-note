@@ -303,6 +303,8 @@ export type WorkspaceDensityWire = "comfortable" | "compact";
 
 export interface WorkspacePanelStateWire {
   readonly density: WorkspaceDensityWire;
+  /** Whether the window has a folder open at all, which decides what an empty list says. */
+  readonly hasWorkspaceFolder: boolean;
   readonly views: readonly WorkspaceViewRowWire[];
   readonly dueToday: readonly WorkspaceTaskRowWire[];
   readonly folders: readonly WorkspaceFolderRowWire[];
@@ -327,7 +329,7 @@ export type HostToWorkspaceWire =
   | { readonly type: "workspace/filterMatches"; readonly query: string; readonly uris: readonly string[] }
   | { readonly type: "workspace/error"; readonly message: string };
 
-export type WorkspaceMenuCommandWire = "search";
+export type WorkspaceMenuCommandWire = "search" | "newNote";
 
 export type WorkspaceNoteActionWire = "rename" | "graph" | "delete";
 

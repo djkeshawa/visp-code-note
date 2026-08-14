@@ -268,6 +268,12 @@ export type WorkspaceDensity = "comfortable" | "compact";
 
 export interface WorkspacePanelState {
   readonly density: WorkspaceDensity;
+  /**
+   * Whether the window has a folder open at all. An index holding no notes looks identical
+   * either way, and the two are different problems: one is answered by opening a folder, the
+   * other by writing the first note.
+   */
+  readonly hasWorkspaceFolder: boolean;
   readonly views: readonly WorkspaceViewRow[];
   /** Late or landing today, capped for the wire; the row's count carries the true total. */
   readonly dueToday: readonly WorkspaceTaskRow[];
@@ -299,11 +305,14 @@ export type HostToWorkspaceMessage =
 
 /** What the panel's header and row menus delegate to the host. */
 /**
- * What the panel itself can ask the host to run. Everything else it offers — new note, new
- * task, rebuild, the workspace graph — is a contributed view-title action, which VS Code
+ * What the panel itself can ask the host to run. Everything else it offers — new task,
+ * rebuild, the workspace graph — is a contributed view-title action, which VS Code
  * dispatches without the webview being involved.
+ *
+ * `newNote` is here as well as in the view title because the empty panel has to offer it
+ * where the reader is looking, which is the middle of the list, not the header.
  */
-export type WorkspaceMenuCommand = "search";
+export type WorkspaceMenuCommand = "search" | "newNote";
 
 /** What a note row's own context menu offers, beyond opening the note. */
 export type WorkspaceNoteAction = "rename" | "graph" | "delete";
