@@ -376,6 +376,15 @@
   opacity: 0.45;
 }
 
+/* The formatting rows are a reference card, not controls: the key is the way to run them. */
+.editor-menu-item.is-static {
+  cursor: default;
+}
+
+.editor-menu-row.is-static {
+  padding-bottom: 0;
+}
+
 .editor-menu-item .codicon {
   flex: 0 0 auto;
   color: var(--visp-muted);
@@ -704,6 +713,19 @@
 .editor-host .wiki-completion-icon {
   flex: 0 0 auto;
   font-size: 14px;
+}
+
+/*
+ * A tag row is drawn as its colour rather than as a glyph, because that hue is what the reader
+ * will meet again on the chip, in the panel and on the graph node. Sized to sit on the same
+ * 14px optical column the codicons occupy, so the labels beside them still line up.
+ */
+.editor-host .wiki-completion-icon.tag-dot {
+  width: 8px;
+  height: 8px;
+  margin: 0 3px;
+  border-radius: 50%;
+  background: var(--tag-hue, var(--visp-brand));
 }
 
 .editor-host .wiki-completion-icon.is-reference {

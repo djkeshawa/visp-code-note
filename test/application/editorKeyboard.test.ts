@@ -43,6 +43,7 @@ function openNote(source: string): OpenEditor {
   const openedLinks: string[] = [];
   const editor = new CodeMirrorEditor(createHost(), "test-nonce", source, {
     suggestions: () => [],
+    workspaceTags: () => [],
     unresolvedLinks: () => new Set<string>(),
     sourcePatched: () => undefined,
     saveRequested: () => { saveRequests += 1; },

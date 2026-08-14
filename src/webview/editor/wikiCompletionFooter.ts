@@ -1,6 +1,9 @@
 import { ViewPlugin } from "@codemirror/view";
 import type { EditorView } from "@codemirror/view";
-import type { Extension } from "@codemirror/state";
+import type { EditorState, Extension } from "@codemirror/state";
+import { slashQueryAt } from "./slashCompletion.js";
+import { findTagQuery } from "./tagSuggestionModel.js";
+import { findWikiQuery } from "./wikiSuggestionModel.js";
 
 /**
  * The footer under the wiki-link suggestions.
@@ -14,6 +17,23 @@ const KEYS: readonly (readonly [string, string])[] = [
   ["^", "block"],
   ["|", "alias"],
 ];
+
+/**
+ * Whether the popup showing is the wiki-link one, and so the only one this footer is true of.
+ *
+ * Three sources share the popup and only one of them accepts `#`, `^` and `|`. The wiki test
+ * runs first because two of them can answer at once: `[[#Overview` links to a heading in this
+ * same note, and the tag grammar reads that `#` as opening a tag — asking about tags first
+ * took the footer away at the exact moment it was explaining the character being typed.
+ */
+export function wikiFooterApplies(state: EditorState): boolean {
+  const head = state.selection.main.head;
+  const line = state.doc.lineAt(head);
+  const prefix = state.sliceDoc(line.from, head);
+  if (findWikiQuery(prefix, prefix.length, prefix.length) !== undefined) return true;
+  if (slashQueryAt(state, head) !== undefined) return false;
+  return findTagQuery(prefix) === undefined;
+}
 
 function buildFooter(): HTMLElement {
   const footer = document.createElement("div");

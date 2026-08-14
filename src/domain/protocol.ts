@@ -32,6 +32,8 @@ export interface EditorState extends EditorDocumentState {
   readonly personalDictionary: readonly string[];
   /** Whether misspellings are underlined at all. */
   readonly spellingEnabled: boolean;
+  /** Every tag in the workspace, most used first, for the `#` completion. */
+  readonly workspaceTags: readonly string[];
 }
 
 /**
@@ -84,6 +86,12 @@ export type HostToEditorMessage =
       readonly unresolvedLinks: readonly string[];
       readonly brokenLinkCount: number;
       readonly context?: NoteContext;
+      /*
+       * Rides here as well as on the opening state, because a tag is workspace-wide: some
+       * other note gaining `#project` is the moment this note's `#` menu should start
+       * offering it, and this is the only message this editor gets when that happens.
+       */
+      readonly workspaceTags: readonly string[];
     }
   | {
       readonly type: "editor/error";

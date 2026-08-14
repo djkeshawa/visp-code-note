@@ -1,30 +1,6 @@
 import * as vscode from "vscode";
 import type { IndexSnapshot } from "../../domain/models";
-
-export interface TagChoice {
-  readonly tag: string;
-  readonly count: number;
-}
-
-/**
- * Every tag in the workspace with how many notes carry it, most used first. Names are
- * de-duplicated case-insensitively, keeping the first spelling seen — the same rule the
- * parser applies when merging a note's frontmatter and inline tags.
- */
-export function workspaceTags(snapshot: IndexSnapshot): readonly TagChoice[] {
-  const counts = new Map<string, { tag: string; count: number }>();
-  for (const note of snapshot.notes) {
-    for (const tag of note.tags) {
-      const key = tag.toLocaleLowerCase();
-      const current = counts.get(key);
-      counts.set(key, { tag: current?.tag ?? tag, count: (current?.count ?? 0) + 1 });
-    }
-  }
-  return [...counts.values()].sort(
-    (left, right) => right.count - left.count ||
-      left.tag.localeCompare(right.tag, undefined, { sensitivity: "base" }),
-  );
-}
+import { workspaceTags } from "../../indexing/workspaceTags";
 
 /** Tags share the inline `#tag` grammar, so the picker rejects what the parser would not read. */
 export function isUsableTagName(value: string): boolean {

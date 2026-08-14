@@ -1,5 +1,5 @@
 /**
- * The `/` menu: block-level syntax, offered by name.
+ * The `/` menu: the syntax this editor can write, offered by name.
  *
  * Markdown's block syntax is the part a reader has to remember rather than recognise — a table
  * is four lines of pipes before it is a table, and a callout is a blockquote with a bracketed
@@ -8,8 +8,13 @@
  * It fires only where a block can start, which is what keeps it out of the way of prose: a `/`
  * inside a sentence, a URL or a date is not a command and never opens a menu.
  *
+ * The four inline marks are here as well as on the keyboard. They are the only syntax a writer
+ * uses mid-sentence, so a menu that lists every block and none of them answers "what can I
+ * write here" with a half-truth.
+ *
  * No `@codemirror` import here, so the list and the query are testable without an editor.
  */
+import { INLINE_MARKS } from "./inlineMarks.js";
 
 /** Where the caret lands inside an expanded template. */
 const CARET = "\u0000";
@@ -47,6 +52,21 @@ export interface SlashQuery {
   readonly start: number;
   readonly query: string;
 }
+
+/**
+ * The inline marks as menu rows, written from the same table the keymap reads so the menu
+ * cannot come to offer a mark the keyboard no longer writes, or the reverse.
+ */
+const INLINE_MARK_COMMANDS: readonly SlashCommand[] = INLINE_MARKS.map((mark) => ({
+  id: mark.id,
+  label: mark.label,
+  detail: `${mark.open}…${mark.close}`,
+  keywords: [...mark.keywords],
+  icon: mark.icon,
+  // Selected text is not in play here — the menu only opens where a block can start — so this
+  // writes the empty pair and leaves the caret between the delimiters, ready to type into.
+  template: `${mark.open}${CARET}${mark.close}`,
+}));
 
 export const SLASH_COMMANDS: readonly SlashCommand[] = Object.freeze([
   {
@@ -161,6 +181,7 @@ export const SLASH_COMMANDS: readonly SlashCommand[] = Object.freeze([
     icon: "horizontal-rule",
     template: "---\n",
   },
+  ...INLINE_MARK_COMMANDS,
   {
     id: "wiki-link",
     label: "Link to Note",
@@ -177,6 +198,9 @@ export const SLASH_COMMANDS: readonly SlashCommand[] = Object.freeze([
     keywords: ["label", "topic"],
     icon: "tag",
     template: `#${CARET}`,
+    // A bare `#` is not a tag, it is the first character of one. The workspace's tags are
+    // behind it the same way the note picker is behind `[[`.
+    opensCompletion: true,
   },
   {
     id: "block-id",

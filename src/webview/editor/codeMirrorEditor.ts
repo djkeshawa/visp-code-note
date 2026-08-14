@@ -44,6 +44,7 @@ import {
 } from "./editorDocument.js";
 import { createEditorPatch } from "./editorPatch.js";
 import { hostSourceChange } from "./hostSourceChange.js";
+import { inlineFormattingKeymap } from "./inlineFormatting.js";
 import { createSpellCheck, setSpellDictionary } from "./spellCheck.js";
 import { createSpellDictionary, parseDictionary } from "../../application/spellDictionary.js";
 import { createLivePreview, refreshLivePreview, revealLiveLine } from "./livePreview.js";
@@ -51,8 +52,10 @@ import { isRecognizedWikiLink, markdownContext } from "./markdownContext.js";
 import { detectLineSeparator, rawOffsetToEditorOffset } from "./offsetMapping.js";
 import type { LineSeparator } from "./offsetMapping.js";
 import { createWikiCompletionSource } from "./wikiCompletion.js";
-import { createSlashCompletionSource, slashQueryAt } from "./slashCompletion.js";
-import { wikiCompletionFooter } from "./wikiCompletionFooter.js";
+import { createSlashCompletionSource } from "./slashCompletion.js";
+import { createTagCompletionSource, TAG_COMPLETION_TYPE } from "./tagCompletion.js";
+import { tagHueColor } from "../../application/tagHue.js";
+import { wikiCompletionFooter, wikiFooterApplies } from "./wikiCompletionFooter.js";
 import { planWikiLinkInsertion } from "./wikiLinkInsertion.js";
 import { findWikiLinkAtPosition } from "./wikiLinkNavigation.js";
 import type { TextPatch } from "../../application/textPatch.js";
@@ -61,6 +64,8 @@ export type MarkdownEditorMode = "live" | "markdown";
 
 export interface CodeMirrorEditorDependencies {
   readonly suggestions: () => readonly NoteSuggestionWire[];
+  /** Every tag in the workspace, most used first, so `#` can offer what already exists. */
+  readonly workspaceTags: () => readonly string[];
   readonly unresolvedLinks: () => ReadonlySet<string>;
   readonly sourcePatched: (patch: TextPatch) => void;
   readonly saveRequested: () => void;
@@ -354,6 +359,7 @@ export class CodeMirrorEditor {
   private extensions(): Extension {
     const completionSource = createWikiCompletionSource(this.dependencies.suggestions);
     const slashSource = createSlashCompletionSource();
+    const tagSource = createTagCompletionSource(this.dependencies.workspaceTags);
     return [
       EditorState.allowMultipleSelections.of(true),
       EditorView.cspNonce.of(this.cspNonce),
@@ -379,11 +385,11 @@ export class CodeMirrorEditor {
       highlightSpecialChars(),
       highlightSelectionMatches(),
       /*
-       * Two sources share this popup: wiki links after `[[`, and block commands after `/`.
-       * They render identically — icon, label, right-aligned syntax — but only the wiki one
-       * gets the footer naming the three suffixes a link accepts, so the tooltip carries a
-       * second class saying which it currently is. `slashQueryAt` is the same test the slash
-       * source itself applies, so the two cannot disagree about which menu is open.
+       * Three sources share this popup: wiki links after `[[`, block commands after `/`, and
+       * tags after `#`. They render identically — icon, label, right-aligned syntax — but only
+       * the wiki one gets the footer naming the three suffixes a link accepts, so the tooltip
+       * carries a second class saying which it currently is. The tests here are the ones the
+       * sources themselves apply, so the two cannot disagree about which menu is open.
        *
        * `icons: false` turns off CodeMirror's own glyph column, which has no rule for the
        * types these sources emit and so drew an empty box beside every row. The design's
@@ -391,19 +397,35 @@ export class CodeMirrorEditor {
        * rather than trailing the label as free text.
        */
       autocompletion({
-        override: [completionSource, slashSource],
+        override: [completionSource, slashSource, tagSource],
         defaultKeymap: false,
         activateOnTyping: true,
         icons: false,
-        tooltipClass: (state) => slashQueryAt(state, state.selection.main.head) === undefined
+        tooltipClass: (state) => wikiFooterApplies(state)
           ? "wiki-completion-tooltip"
           : "wiki-completion-tooltip is-slash",
         addToOptions: [
           {
             position: 15,
             render: (completion) => {
+              const type = completion.type ?? "";
+              /*
+               * A tag is drawn as its own colour rather than as a glyph. The hue is what the
+               * reader will see on the chip, in the panel and on the graph node, so showing it
+               * here is what lets them recognise the tag before committing to the name.
+               */
+              if (type.startsWith(TAG_COMPLETION_TYPE)) {
+                const dot = document.createElement("span");
+                dot.className = "wiki-completion-icon tag-dot";
+                dot.style.setProperty(
+                  "--tag-hue",
+                  tagHueColor(type.slice(TAG_COMPLETION_TYPE.length)),
+                );
+                dot.setAttribute("aria-hidden", "true");
+                return dot;
+              }
               const icon = document.createElement("span");
-              const { codicon, tone } = completionIcon(completion.type ?? "");
+              const { codicon, tone } = completionIcon(type);
               icon.className = `wiki-completion-icon codicon codicon-${codicon} is-${tone}`;
               icon.setAttribute("aria-hidden", "true");
               return icon;
@@ -424,6 +446,7 @@ export class CodeMirrorEditor {
       wikiCompletionFooter(),
       Prec.highest(keymap.of([
         ...completionKeymap,
+        ...inlineFormattingKeymap,
         { key: "Mod-s", preventDefault: true, run: () => this.requestSave() },
         { key: "Mod-Enter", preventDefault: true, run: () => this.openLinkAtCursor() },
       ])),

@@ -54,6 +54,8 @@ export interface EditorStateWire extends EditorDocumentStateWire {
   readonly personalDictionary: readonly string[];
   /** Whether misspellings are underlined at all. */
   readonly spellingEnabled: boolean;
+  /** Every tag in the workspace, most used first, for the `#` completion. */
+  readonly workspaceTags: readonly string[];
 }
 
 export type EditorMenuCommandWire =
@@ -96,6 +98,7 @@ export type HostToEditorWire =
       readonly unresolvedLinks: readonly string[];
       readonly brokenLinkCount: number;
       readonly context?: NoteContextWire;
+      readonly workspaceTags: readonly string[];
     }
   | {
       readonly type: "editor/error";
