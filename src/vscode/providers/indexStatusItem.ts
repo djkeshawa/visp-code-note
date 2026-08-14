@@ -1,5 +1,7 @@
 import * as vscode from "vscode";
+import type { SkippedNote } from "../../domain/models";
 import type { WorkspaceIndex } from "../../indexing/workspaceIndex";
+import { oversizedReason, oversizedTally } from "../../application/oversizedNotes";
 import { COMMAND_IDS } from "../ids";
 
 /**
@@ -11,6 +13,28 @@ import { COMMAND_IDS } from "../ids";
  * and a real rebuild outlasts it comfortably.
  */
 const BUSY_ANNOUNCE_DELAY_MS = 400;
+
+/**
+ * How many skipped files the tooltip names before it stops counting them out.
+ *
+ * A vault that has just been cloned can hit the ceiling with a whole directory of generated
+ * Markdown, and a tooltip listing four hundred paths is a tooltip nobody can read past. The
+ * first few are what tells the reader whether this is the note they were looking for.
+ */
+const NAMED_SKIPS = 5;
+
+function skippedTooltipLines(skipped: readonly SkippedNote[]): readonly string[] {
+  const reason = oversizedReason(skipped);
+  if (reason === undefined) return [];
+  const remaining = skipped.length - NAMED_SKIPS;
+  return [
+    reason,
+    [
+      ...skipped.slice(0, NAMED_SKIPS).map((entry) => `\`${entry.path}\``),
+      ...(remaining > 0 ? [`and ${remaining} more`] : []),
+    ].join("\n\n"),
+  ];
+}
 
 export interface IndexStatusPresentation {
   readonly text: string;
@@ -77,22 +101,31 @@ export class IndexStatusItem implements vscode.Disposable {
         errored: true,
       };
     }
-    const { notes, tasks } = this.index.snapshot;
+    const { notes, tasks, skippedOversized } = this.index.snapshot;
     const openTasks = tasks.filter((task) => !task.completed).length;
     /*
-     * The same two figures the workspace panel's footer prints, so the two cannot appear to
+     * The same figures the workspace panel's footer prints, so the two cannot appear to
      * contradict each other. How many of those tasks are still open is in the tooltip: it is a
      * different question, and answering it here in the same words as the footer answers a
      * different one was simply confusing.
+     *
+     * The skipped tally joins the text rather than staying in the tooltip, because a note count
+     * that silently disagrees with the number of `.md` files in the workspace is the whole
+     * complaint. The tooltip is where the reason and the file names go — a status bar entry has
+     * no room to name a path, and a reader who has noticed the tally is already hovering.
      */
+    const skippedCount = skippedOversized.length;
     return {
       text: `$(database) ${notes.length} note${notes.length === 1 ? "" : "s"} · ${
         tasks.length
-      } task${tasks.length === 1 ? "" : "s"}`,
+      } task${tasks.length === 1 ? "" : "s"}${
+        skippedCount === 0 ? "" : ` · ${oversizedTally(skippedCount)}`
+      }`,
       tooltip: new vscode.MarkdownString(
         [
           `**${notes.length}** indexed note${notes.length === 1 ? "" : "s"}`,
           `**${openTasks}** of ${tasks.length} task${tasks.length === 1 ? "" : "s"} still open`,
+          ...skippedTooltipLines(skippedOversized),
           "",
           "Select to search notes and tasks.",
         ].join("\n\n"),

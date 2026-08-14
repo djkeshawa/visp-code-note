@@ -9,6 +9,7 @@ import type {
 import { tagHueColor } from "../application/tagHue.js";
 import { dueUrgency } from "./tasks/grouping.js";
 import { formatIndexedAt } from "../application/indexFreshness.js";
+import { oversizedReason, oversizedTally } from "../application/oversizedNotes.js";
 import {
   codicon,
   emptyState,
@@ -636,16 +637,33 @@ function renderTags(current: WorkspacePanelStateWire): void {
     })));
 }
 
+/*
+ * The footer counts what the index holds, so it is also where the index has to admit what it
+ * left out. A note past `vispNotes.maxNoteSizeKB` is not read, and until now nothing anywhere
+ * said so: the note simply was not in this list, its links were reported broken, and the
+ * reader had no way from either symptom to the setting that caused them.
+ *
+ * The tally goes in the row's text beside the note and task counts, because that count
+ * disagreeing with the number of files in the folder is the complaint; the sentence explaining
+ * it goes on the row's tooltip, which is the only room this footer has. Both come from
+ * `oversizedNotes`, which the status bar item also reads — the two sit in the same window and a
+ * reader compares them.
+ */
 function renderStatus(current: WorkspacePanelStateWire): void {
   statusRow.dataset.state = current.status;
+  const skipped = current.skippedOversized;
   statusText.textContent = current.status === "error"
     ? "Index needs attention"
     : `${current.noteCount} note${current.noteCount === 1 ? "" : "s"} · ${
       current.taskCount
-    } task${current.taskCount === 1 ? "" : "s"}`;
+    } task${current.taskCount === 1 ? "" : "s"}${
+      skipped.length === 0 ? "" : ` · ${oversizedTally(skipped.length)}`
+    }`;
   statusIndexed.textContent = current.status === "indexing"
     ? "indexing…"
     : formatIndexedAt(current.indexedAt) ?? "";
+  const reason = oversizedReason(skipped);
+  statusRow.title = reason ?? "";
   statusDot.title = statusText.textContent;
 }
 
@@ -669,7 +687,8 @@ function isPanelState(value: unknown): value is WorkspacePanelStateWire {
     every(value.dueToday, isTaskRow) &&
     every(value.folders, isFolderRow) &&
     every(value.notes, isNoteRow) &&
-    every(value.tags, isTagRow)
+    every(value.tags, isTagRow) &&
+    every(value.skippedOversized, isSkippedNote)
   );
 }
 
@@ -726,4 +745,14 @@ function isNoteRow(value: unknown): boolean {
 
 function isTagRow(value: unknown): boolean {
   return isRecord(value) && typeof value.name === "string" && isCount(value.count);
+}
+
+function isSkippedNote(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.uri === "string" &&
+    typeof value.path === "string" &&
+    isCount(value.sizeBytes) &&
+    isCount(value.limitBytes)
+  );
 }

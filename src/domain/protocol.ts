@@ -2,6 +2,7 @@ import type {
   GraphData,
   IndexSnapshot,
   NoteContext,
+  SkippedNote,
   TaskPriority,
 } from "./models";
 
@@ -282,6 +283,12 @@ export interface WorkspacePanelState {
   readonly tags: readonly WorkspaceTagRow[];
   readonly noteCount: number;
   readonly taskCount: number;
+  /**
+   * The files the size limit left out. Whole entries rather than a count, because the footer
+   * says why as well as how many, and it says it in the same words as the status bar item —
+   * which it can only do by running the same function over the same facts.
+   */
+  readonly skippedOversized: readonly SkippedNote[];
   readonly indexedAt: number;
   readonly status: "idle" | "indexing" | "error";
   readonly version: number;

@@ -299,6 +299,14 @@ export interface WorkspaceTagRowWire {
   readonly count: number;
 }
 
+/** A Markdown file the size limit kept out of the index. Mirrors `SkippedNote`. */
+export interface SkippedNoteWire {
+  readonly uri: string;
+  readonly path: string;
+  readonly sizeBytes: number;
+  readonly limitBytes: number;
+}
+
 export type WorkspaceDensityWire = "comfortable" | "compact";
 
 export interface WorkspacePanelStateWire {
@@ -312,6 +320,7 @@ export interface WorkspacePanelStateWire {
   readonly tags: readonly WorkspaceTagRowWire[];
   readonly noteCount: number;
   readonly taskCount: number;
+  readonly skippedOversized: readonly SkippedNoteWire[];
   readonly indexedAt: number;
   readonly status: "idle" | "indexing" | "error";
   readonly version: number;
