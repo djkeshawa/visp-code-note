@@ -17,8 +17,22 @@ export function graphEmptyState(
   totalNodes: number,
   visibleNodes: number,
   isLocalScope: boolean,
+  restrictedToMatches = false,
 ): GraphEmptyState | undefined {
   if (visibleNodes > 0) return undefined;
+  /*
+   * Asked first, because a matches-only search that found nothing is the one cause the
+   * filter wording gets wrong in the most annoying way: it sends the reader to the chips
+   * above, which are all still on, while the thing that emptied the canvas is what they
+   * just typed.
+   */
+  if (restrictedToMatches) {
+    return {
+      icon: "search",
+      message: "Nothing on the canvas matches that search.",
+      hint: "Try fewer letters, or turn Matches only off to see the graph again.",
+    };
+  }
   if (totalNodes > 0) {
     return {
       icon: "filter",

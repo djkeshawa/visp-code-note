@@ -13,6 +13,7 @@ import {
   cycleNodeId,
   filterGraph,
   findMatchingNodeIds,
+  graphAroundMatches,
   keyboardNodeId,
   resolveSelection,
 } from "./graph/interactionModel.js";
@@ -32,7 +33,7 @@ import { GraphViewportController } from "./graph/viewportController.js";
 const api = acquireMessageSender<GraphToHostWire>();
 const {
   svg, emptyState: canvasMessage, summary, depthControl, search, searchStatus, orphanToggle,
-  connections, zoomIn, zoomOut, fitGraph, centerSelected, zoomStatus,
+  matchesOnlyToggle, connections, zoomIn, zoomOut, fitGraph, centerSelected, zoomStatus,
   resetLayout, kindToggles, depthButtons, chipCounts, menu, menuButton, menuItems, details,
 } = getGraphPageElements();
 const openSelected = details.openButton;
@@ -58,9 +59,10 @@ const emphasis = new GraphEmphasis(svg);
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 const motion = new GraphMotionController(svg, updateRenderedGraph, () => !reducedMotion.matches);
 
-search.addEventListener("input", updateSearch);
+search.addEventListener("input", applySearch);
 search.addEventListener("keydown", handleSearchKeydown);
 orphanToggle.addEventListener("click", () => toggleChip(orphanToggle));
+matchesOnlyToggle.addEventListener("click", toggleMatchesOnly);
 kindToggles.forEach((toggle) => toggle.addEventListener("click", () => toggleChip(toggle)));
 depthButtons.forEach((button) => button.addEventListener("click", () => selectDepth(button)));
 menuButton.addEventListener("click", () => setMenuOpen(menu.hidden));
@@ -146,12 +148,22 @@ function refreshVisibleGraph(): void {
       .filter(isChipActive)
       .map((toggle) => toggle.dataset.kind as GraphNodeKindWire),
   );
-  visibleGraph = filterGraph(graph, kinds, isChipActive(orphanToggle));
+  const filtered = filterGraph(graph, kinds, isChipActive(orphanToggle));
+  /*
+   * Matching runs against the filtered graph, before the restriction is applied — otherwise
+   * each keystroke would search only what the previous keystroke had already left standing,
+   * and a deleted character could never bring a node back.
+   */
+  const query = search.value.trim();
+  matchingIds = findMatchingNodeIds(filtered, query);
+  matchingIdSet = new Set(matchingIds);
+  const restricting = isMatchesOnly();
+  visibleGraph = restricting ? graphAroundMatches(filtered, matchingIds) : filtered;
   visibleNodesById = new Map(visibleGraph.nodes.map((node) => [node.id, node]));
   selectedId = resolveSelection(visibleGraph, selectedId);
   hoveredId = undefined;
   paintCanvasMessage(
-    graphEmptyState(graph.nodes.length, visibleGraph.nodes.length, isLocalScope),
+    graphEmptyState(graph.nodes.length, visibleGraph.nodes.length, isLocalScope, restricting),
   );
   svg.toggleAttribute("hidden", visibleGraph.nodes.length === 0);
   renderedGraph = motion.render(visibleGraph, selectedId, renderedGraph.positions);
@@ -162,7 +174,8 @@ function refreshVisibleGraph(): void {
     fitPending = false;
   }
   updateSummary();
-  updateSearch();
+  updateSearchStatus();
+  updateEmphasis();
   renderGraphDetails(details, visibleGraph, selectedId);
   updateViewportControls();
   if (restoreNodeFocus) {
@@ -195,12 +208,46 @@ function updateSummary(): void {
   ].join(" · ");
 }
 
+/**
+ * A search either dims what it did not match or takes it off the canvas, and the two cost
+ * very different amounts: dimming touches the nodes already drawn, while restricting rebuilds
+ * the drawing. Only the second needs a full refresh, so only the second gets one.
+ */
+function applySearch(): void {
+  if (isMatchesOnly()) {
+    // What is left has moved, and mostly shrunk, so the view goes back around it. Without
+    // this the nodes that survived the last keystroke are usually off the edge of the canvas.
+    fitPending = true;
+    refreshVisibleGraph();
+    return;
+  }
+  updateSearch();
+}
+
 function updateSearch(): void {
-  const query = search.value.trim();
-  matchingIds = findMatchingNodeIds(visibleGraph, query);
+  matchingIds = findMatchingNodeIds(visibleGraph, search.value.trim());
   matchingIdSet = new Set(matchingIds);
-  searchStatus.textContent = searchStatusText(query, matchingIds.length, visibleGraph.nodes.length);
+  updateSearchStatus();
   updateEmphasis();
+}
+
+function updateSearchStatus(): void {
+  searchStatus.textContent = searchStatusText(
+    search.value.trim(),
+    matchingIds.length,
+    visibleGraph.nodes.length,
+  );
+}
+
+function isMatchesOnly(): boolean {
+  // With nothing typed there is nothing to keep, so the toggle waits rather than emptying
+  // the canvas the moment it is pressed.
+  return isChipActive(matchesOnlyToggle) && search.value.trim().length > 0;
+}
+
+function toggleMatchesOnly(): void {
+  fitPending = true;
+  toggleChip(matchesOnlyToggle);
 }
 
 function updateEmphasis(): void {
@@ -217,7 +264,7 @@ function handleSearchKeydown(event: KeyboardEvent): void {
   if (event.key === "Escape" && search.value.length > 0) {
     event.preventDefault();
     search.value = "";
-    updateSearch();
+    applySearch();
     return;
   }
   if (event.key !== "Enter" || matchingIds.length === 0) return;
@@ -292,7 +339,8 @@ function selectNode(
 ): void {
   if (findNode(nodeId) === undefined) return;
   selectedId = nodeId;
-  updateSearch();
+  // Selection moves the emphasis, not the drawing, so the matches are the ones already found.
+  updateEmphasis();
   renderGraphDetails(details, visibleGraph, selectedId);
   updateViewportControls();
   if (options.center) centerSelectedNode();
@@ -308,7 +356,7 @@ function clearSelection(): void {
    */
   const hadFocusInCard = details.card.contains(document.activeElement);
   selectedId = visibleGraph.focusId;
-  updateSearch();
+  updateEmphasis();
   renderGraphDetails(details, visibleGraph, selectedId);
   updateViewportControls();
   if (hadFocusInCard) {
@@ -454,5 +502,9 @@ function findNode(id: string | undefined): GraphNodeWire | undefined {
 function searchStatusText(query: string, matches: number, visibleNodes: number): string {
   if (query.length === 0) return `${visibleNodes} visible node${visibleNodes === 1 ? "" : "s"}`;
   if (matches === 0) return "No matching nodes";
-  return `${matches} match${matches === 1 ? "" : "es"} · Enter to cycle`;
+  const found = `${matches} match${matches === 1 ? "" : "es"}`;
+  // How much is left on the canvas is the whole point of the toggle, so it is said aloud.
+  return isMatchesOnly()
+    ? `${found} · ${visibleNodes} node${visibleNodes === 1 ? "" : "s"} shown · Enter to cycle`
+    : `${found} · Enter to cycle`;
 }
