@@ -35,13 +35,42 @@ export async function planFileRenameEdit(
   snapshot: IndexSnapshot,
   renames: readonly FileRename[],
 ): Promise<vscode.WorkspaceEdit | undefined> {
-  if (suppressed > 0) return undefined;
+  if (suppressed > 0 || !linkMigrationEnabled()) return undefined;
   const relocations = await relocationsFor(snapshot, renames);
   if (relocations.length === 0) return undefined;
   const plan = planRelocationMigration(snapshot, relocations);
   if (plan.replacements.length === 0) return undefined;
   await confirmPlanNotesExist(plan.dependsOn, relocations);
   return planLinkReplacementEdit(plan.replacements);
+}
+
+const MIGRATION_SETTING = "vispNotes.updateLinksOnFileMove.enabled";
+
+/**
+ * Whether the reader has agreed to this at all — the decision this participant shipped without.
+ *
+ * It is the only thing the extension writes to files nobody opened, and it happens during a
+ * gesture the reader believes is a file rename, so being able to find out in advance that a
+ * drag edits other notes is not optional. Three ways were on the table and two are taken here.
+ *
+ * The setting, first, and shaped like `markdown.updateLinksOnFileMove.enabled` because that is
+ * the convention a VS Code user already has an opinion about — same suffix, same values, same
+ * place in the settings search. With one difference: no `prompt`. VS Code's own version can
+ * offer it because it does its asking outside the participant; this handler *is* the
+ * participant, running under `files.participants.timeout` with a spinner over the Explorer, so
+ * a question here is a hung rename rather than a question. Offering a value that would have to
+ * time out into one answer or the other would be worse than not offering it.
+ *
+ * Second, and the reason the default stays `always`: the migration no longer rewrites prose.
+ * `preservedLinkText` keeps the word the link puts on the page and moves only what it points
+ * at, so what this setting now switches off is a repair, not an edit to anyone's sentences.
+ * `README.md` says the same thing where a reader looks before installing rather than after.
+ *
+ * Read per call rather than cached: it is one `getConfiguration` against a value VS Code
+ * already has in memory, and a rename is not where a stale copy of a consent flag belongs.
+ */
+function linkMigrationEnabled(): boolean {
+  return vscode.workspace.getConfiguration().get<string>(MIGRATION_SETTING) !== "never";
 }
 
 /**

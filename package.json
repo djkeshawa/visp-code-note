@@ -34,7 +34,8 @@
         "vispNotes.exclude",
         "vispNotes.notesFolder",
         "vispNotes.maxNoteSizeKB",
-        "vispNotes.index.bypassProjectionCache"
+        "vispNotes.index.bypassProjectionCache",
+        "vispNotes.updateLinksOnFileMove.enabled"
       ]
     },
     "virtualWorkspaces": {
@@ -513,6 +514,20 @@
           "default": 5120,
           "scope": "window",
           "markdownDescription": "Largest note, in kilobytes, that Visp Notes will index. A note above this is skipped entirely — it will not appear in the note list, the graph, search results or backlinks. The index keeps every note's full text in memory, so this bounds what a very large workspace can cost. Set to `0` for no limit."
+        },
+        "vispNotes.updateLinksOnFileMove.enabled": {
+          "type": "string",
+          "enum": [
+            "always",
+            "never"
+          ],
+          "enumDescriptions": [
+            "Rewrite the wiki links that would otherwise stop reaching the note. Only what a link points at changes; the words it puts on the page are kept.",
+            "Leave every other note alone. Links that named the moved note by its file name stop resolving until they are fixed by hand."
+          ],
+          "default": "always",
+          "scope": "window",
+          "markdownDescription": "Update wiki links when a note is renamed or moved **from the Explorer**. This is the only thing Visp Notes writes to files you did not open, so it is worth knowing about: dragging one note can edit several. It never asks — VS Code runs rename participants under a timeout with the Explorer frozen behind them, so there is nowhere to put the question — and it never changes a word a link puts on the page, only where that link points. `Visp Notes: Rename Note and Update Links` is the path that asks, previews the diff, and can update the prose too."
         },
         "vispNotes.index.bypassProjectionCache": {
           "type": "boolean",

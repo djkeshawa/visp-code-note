@@ -174,6 +174,8 @@ export interface VscodeStub {
   readonly documents: Map<string, StubTextDocument>;
   folders: StubWorkspaceFolder[];
   excludes: readonly string[];
+  /** Settings the workspace has set, by full id, for the handful of tests that need one. */
+  readonly settings: Map<string, unknown>;
   readonly warnings: string[];
   readonly willRenameFiles: StubEmitter<WillRenamePayload>;
   readonly didRenameFiles: StubEmitter<FileRenamePayload>;
@@ -196,6 +198,7 @@ const state: VscodeStub = {
   documents: new Map<string, StubTextDocument>(),
   folders: [{ uri: StubUri.file("/vault"), name: "vault", index: 0 }],
   excludes: ["**/node_modules/**"],
+  settings: new Map<string, unknown>(),
   warnings: [],
   willRenameFiles,
   didRenameFiles,
@@ -206,6 +209,7 @@ const state: VscodeStub = {
     state.documents.clear();
     state.folders = [{ uri: StubUri.file("/vault"), name: "vault", index: 0 }];
     state.excludes = ["**/node_modules/**"];
+    state.settings.clear();
     state.warnings.length = 0;
   },
 };
@@ -264,6 +268,7 @@ const api = {
     getConfiguration(): { get(key: string, fallback?: unknown): unknown } {
       return {
         get(key: string, fallback?: unknown): unknown {
+          if (state.settings.has(key)) return state.settings.get(key);
           if (key === "exclude") return state.excludes;
           if (key === "maxNoteSizeKB") return 5120;
           return fallback;
