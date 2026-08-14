@@ -26,6 +26,9 @@ export interface NoteProjector {
   /**
    * How many times the resolvable name-space has moved. Exposed so the invalidation table can
    * be pinned: correctness alone cannot tell a cache that works from one that never hits.
+   *
+   * Only under the cache. The bypass keys nothing on this and moves it once per commit, so
+   * reading it there counts commits and says nothing about any name.
    */
   readonly generation: number;
 }
