@@ -27,17 +27,36 @@ export interface SearchRequest {
   readonly phrase: SearchTerm | undefined;
 }
 
+/**
+ * Splits a query into the terms a result has to match, all of them.
+ *
+ * Quoted words are one term rather than several. Quoting a phrase is the one search
+ * convention every reader arrives already knowing, and until it was read as one the quote
+ * characters became part of what had to be matched — so a query that had just been narrowed
+ * by hand returned nothing at all, and the reader concluded the note was gone.
+ *
+ * A quote the reader has not closed yet is read as closing at the end of the query, so the
+ * list narrows while the phrase is being typed instead of only once it is finished. Curly
+ * quotes count as quotes: a Mac, a phone and every word processor produce them from the same
+ * keystroke, and this code base already treats the curly apostrophe as real. The apostrophe
+ * itself is not a quote here — it is a letter in the middle of ordinary words.
+ */
 export function createSearchRequest(query: string): SearchRequest {
-  const trimmed = query.trim();
-  if (trimmed === "") {
-    return { terms: [], phrase: undefined };
+  const terms: SearchTerm[] = [];
+  for (const [, quoted, bare] of query.trim().matchAll(QUERY_TOKEN)) {
+    const text = quoted ?? bare;
+    if (text !== undefined && text !== "") {
+      terms.push(createTerm(text));
+    }
   }
-  const terms = trimmed.split(/\s+/u).map(createTerm);
   return {
     terms,
-    phrase: terms.length > 1 ? createTerm(trimmed) : undefined,
+    phrase: terms.length > 1 ? createTerm(terms.map((term) => term.raw).join(" ")) : undefined,
   };
 }
+
+/** A quoted run, whether or not it was closed, or a run of anything that is not whitespace. */
+const QUERY_TOKEN = /["“”]([^"“”]*)["“”]?|([^\s"“”]+)/gu;
 
 /**
  * Every term must match some candidate; the reported match is the highest-scoring one,
