@@ -5,9 +5,10 @@ import type {
   GraphNodeWire,
   GraphToHostWire,
 } from "./contracts.js";
-import { isRecord } from "./shared/dom.js";
+import { emptyState, isRecord } from "./shared/dom.js";
 import { acquireMessageSender } from "./shared/vscodeApi.js";
 import { renderGraphDetails } from "./graph/details.js";
+import { type GraphEmptyState, graphEmptyState } from "./graph/emptyStates.js";
 import {
   cycleNodeId,
   filterGraph,
@@ -30,7 +31,7 @@ import { GraphViewportController } from "./graph/viewportController.js";
 
 const api = acquireMessageSender<GraphToHostWire>();
 const {
-  svg, emptyState, summary, depthControl, search, searchStatus, orphanToggle,
+  svg, emptyState: canvasMessage, summary, depthControl, search, searchStatus, orphanToggle,
   connections, zoomIn, zoomOut, fitGraph, centerSelected, zoomStatus,
   resetLayout, kindToggles, depthButtons, chipCounts, menu, menuButton, menuItems, details,
 } = getGraphPageElements();
@@ -81,6 +82,8 @@ resetLayout.addEventListener("click", resetNodeLayout);
 window.addEventListener("message", handleHostMessage);
 window.addEventListener("unload", disposeControllers, { once: true });
 
+// Paint the loading state before the host replies; otherwise the canvas opens blank.
+paintCanvasMessage({ icon: "loading", message: "Building the graph…" });
 api.postMessage({ type: "graph/ready" });
 
 function handleHostMessage(event: MessageEvent<unknown>): void {
@@ -145,7 +148,9 @@ function refreshVisibleGraph(): void {
   visibleNodesById = new Map(visibleGraph.nodes.map((node) => [node.id, node]));
   selectedId = resolveSelection(visibleGraph, selectedId);
   hoveredId = undefined;
-  emptyState.hidden = visibleGraph.nodes.length > 0;
+  paintCanvasMessage(
+    graphEmptyState(graph.nodes.length, visibleGraph.nodes.length, isLocalScope),
+  );
   svg.toggleAttribute("hidden", visibleGraph.nodes.length === 0);
   renderedGraph = motion.render(visibleGraph, selectedId, renderedGraph.positions);
   // The SVG was rebuilt, so cached element handles and adjacency are stale.
@@ -165,6 +170,17 @@ function refreshVisibleGraph(): void {
       if (!focusConnectionRow(connections, focusedConnectionId)) focusGraphNode(svg, selectedId);
     });
   }
+}
+
+/**
+ * The canvas carries one message at a time — first that the graph is being built, then whatever
+ * reason it has for being empty — and nothing at all once there are nodes over it.
+ */
+function paintCanvasMessage(state: GraphEmptyState | undefined): void {
+  canvasMessage.replaceChildren(
+    ...(state === undefined ? [] : [emptyState(state.icon, state.message, state.hint)]),
+  );
+  canvasMessage.hidden = state === undefined;
 }
 
 function updateSummary(): void {

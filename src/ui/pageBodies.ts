@@ -227,11 +227,7 @@ export const GRAPH_BODY = `
             Drag nodes to reshape the graph. Use arrow keys to move between nodes, Enter to open,
             and Space to select.
           </span>
-          <div id="graph-empty" class="empty-state" hidden>
-            <span class="codicon codicon-filter" aria-hidden="true"></span>
-            <p class="empty-state-message">No nodes match these filters.</p>
-            <p class="empty-state-hint">Re-enable a type above, or turn orphan notes back on.</p>
-          </div>
+          <div id="graph-empty" class="graph-empty" hidden></div>
           <div class="graph-filters" role="group" aria-label="Graph filters">
             <button class="graph-chip is-active" type="button" data-kind="note" aria-pressed="true">
               <span class="graph-chip-dot dot-note"></span>Notes
