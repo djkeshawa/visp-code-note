@@ -40,7 +40,8 @@ Checkbox tasks from every note in one place, grouped by due date, note, or tag.
 1. Open a folder containing Markdown files.
 2. Open **Visp Notes** from the Activity Bar.
 3. Run **Visp Notes: New Note**. New notes open in the Visp Notes editor in Live mode; use the toolbar to switch to raw Markdown without changing editors or losing your selection and undo history.
-4. Type `[[` anywhere to fuzzy-search notes and aliases. Continue with `#` for headings or `^` for block IDs. You can also press `Ctrl+Shift+L` (`Cmd+Shift+L` on macOS) to insert a note link at the active caret.
+4. Type `[[` anywhere to fuzzy-search notes and aliases. Continue with `#` for headings or `^` for block IDs. You can also press `Shift+Alt+L` (`Cmd+Alt+L` on macOS) to insert a note link at the active caret.
+5. Press `Shift+Alt+N` (`Cmd+Alt+N` on macOS) to search every note and task by title, path, alias, tag, or text.
 
 New notes are created under `notes/` by default. Change `vispNotes.notesFolder` to use another workspace-relative folder.
 

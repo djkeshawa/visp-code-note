@@ -319,21 +319,27 @@
     },
     "keybindings": [
       {
+        "command": "vispNotes.search",
+        "key": "shift+alt+n",
+        "mac": "cmd+alt+n"
+      },
+      {
         "command": "vispNotes.insertLink",
-        "key": "ctrl+shift+l",
-        "mac": "cmd+shift+l",
+        "key": "shift+alt+l",
+        "mac": "cmd+alt+l",
         "when": "editorTextFocus && editorLangId == markdown"
       },
       {
         "command": "vispNotes.insertLink",
-        "key": "ctrl+shift+l",
-        "mac": "cmd+shift+l",
+        "key": "shift+alt+l",
+        "mac": "cmd+alt+l",
         "when": "activeCustomEditorId == vispNotes.noteEditor"
       },
       {
         "command": "vispNotes.showBacklinks",
         "key": "ctrl+shift+b",
-        "mac": "cmd+shift+b"
+        "mac": "cmd+shift+b",
+        "when": "resourceExtname == .md || activeCustomEditorId == vispNotes.noteEditor"
       },
       {
         "command": "vispNotes.openLocalGraph",
