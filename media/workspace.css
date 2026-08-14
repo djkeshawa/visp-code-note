@@ -368,6 +368,15 @@
 }
 
 /*
+ * The Notes list with nothing in it, which on a first launch is the whole panel. It gets the
+ * shared empty state rather than the one-line note the other sections use, because it is the
+ * only one carrying a way out; the padding is trimmed for a side bar 200px wide.
+ */
+.workspace-notes .empty-state {
+  padding: 18px 12px 20px;
+}
+
+/*
  * What a note offers besides opening it.
  *
  * A webview cannot raise VS Code's own context menu, so the panel draws one — at the pointer,

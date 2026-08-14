@@ -9,8 +9,16 @@ import type {
 import { tagHueColor } from "../application/tagHue.js";
 import { dueUrgency } from "./tasks/grouping.js";
 import { formatIndexedAt } from "../application/indexFreshness.js";
-import { codicon, htmlElement, isRecord, requireElement, setNotice } from "./shared/dom.js";
+import {
+  codicon,
+  emptyState,
+  htmlElement,
+  isRecord,
+  requireElement,
+  setNotice,
+} from "./shared/dom.js";
 import { acquireWebviewApi } from "./shared/vscodeApi.js";
+import { workspaceEmptyState } from "./workspace/emptyState.js";
 
 /**
  * The workspace panel.
@@ -428,8 +436,28 @@ function renderNotes(current: WorkspacePanelStateWire): void {
     ...current.notes.filter((note) => note.folder === "").map((note) => noteRow(note, false)),
   );
   notesRoot.replaceChildren(...(rows.length === 0
-    ? [htmlElement("p", "workspace-empty", "No notes yet. Open a folder holding Markdown files.")]
+    ? emptyNotes(current)
     : capped(rows, rows.length)));
+}
+
+/**
+ * What stands in for the note list when there is none. The wording is chosen away from here,
+ * in `workspaceEmptyState`, because which sentence is true depends on the workspace and only
+ * one of the two has anything to click.
+ */
+function emptyNotes(current: WorkspacePanelStateWire): HTMLElement[] {
+  const empty = workspaceEmptyState(current.hasWorkspaceFolder, current.noteCount);
+  if (empty === undefined) return [];
+  const panel = emptyState(empty.icon, empty.message, empty.hint);
+  const action = empty.action;
+  if (action !== undefined) {
+    const button = htmlElement("button", "primary-button empty-state-action", action.label);
+    button.type = "button";
+    button.addEventListener("click", () =>
+      api.postMessage({ type: "workspace/runCommand", command: action.command }));
+    panel.append(button);
+  }
+  return [panel];
 }
 
 function folderRow(folder: WorkspaceFolderRowWire): HTMLElement {
@@ -630,6 +658,7 @@ function isPanelState(value: unknown): value is WorkspacePanelStateWire {
   return (
     isRecord(value) &&
     (value.density === "comfortable" || value.density === "compact") &&
+    typeof value.hasWorkspaceFolder === "boolean" &&
     isCount(value.noteCount) &&
     isCount(value.taskCount) &&
     isCount(value.indexedAt) &&
