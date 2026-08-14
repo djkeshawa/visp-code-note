@@ -164,3 +164,30 @@ test("a command that places a plain caret selects nothing", () => {
     );
   }
 });
+
+test("the syntax that has a menu behind it says so, and the syntax that has none does not", () => {
+  /*
+   * `[[` and `#` are both half an action: the note picker and the tag list are the other half,
+   * and stopping at the punctuation leaves the reader holding a bare bracket or a bare hash.
+   * `/tag` shipped without this for as long as `/wiki-link` sat directly beside it with it.
+   */
+  const opens = SLASH_COMMANDS
+    .filter((command) => command.opensCompletion === true)
+    .map((command) => command.id);
+
+  assert.deepEqual(opens, ["wiki-link", "tag"]);
+});
+
+test("the inline marks are in the menu, writing a pair with the caret inside it", () => {
+  // The menu only opens where a block can start, so there is never a selection to wrap here.
+  for (const id of ["bold", "italic", "inline-code", "strikethrough"]) {
+    const command = commandById(id);
+    const { text, caret } = expandSlashCommand(command, "2026-08-15");
+    assert.equal(text.length > 0, true, `${id} writes nothing`);
+    assert.equal(
+      caret,
+      text.length / 2,
+      `${id} leaves the caret at ${caret} in ${JSON.stringify(text)} rather than between the marks`,
+    );
+  }
+});

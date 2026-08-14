@@ -715,6 +715,19 @@
   font-size: 14px;
 }
 
+/*
+ * A tag row is drawn as its colour rather than as a glyph, because that hue is what the reader
+ * will meet again on the chip, in the panel and on the graph node. Sized to sit on the same
+ * 14px optical column the codicons occupy, so the labels beside them still line up.
+ */
+.editor-host .wiki-completion-icon.tag-dot {
+  width: 8px;
+  height: 8px;
+  margin: 0 3px;
+  border-radius: 50%;
+  background: var(--tag-hue, var(--visp-brand));
+}
+
 .editor-host .wiki-completion-icon.is-reference {
   color: var(--visp-brand);
 }
