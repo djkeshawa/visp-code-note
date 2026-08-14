@@ -1399,6 +1399,18 @@
   color: var(--visp-muted);
 }
 
+/*
+ * The section the caret is in. Said with the same left edge the outline already uses for depth
+ * plus a tint, rather than with weight: a bold row changes the width of the label and made the
+ * whole column reflow as the caret moved between sections. The rule beats `.is-top` and
+ * `.is-anchor` by coming after them, so the current row reads as current whatever kind it is.
+ */
+.inspector-outline-row.is-current {
+  border-left-color: var(--visp-accent);
+  background: var(--visp-brand-soft);
+  color: var(--visp-text);
+}
+
 .inspector-outline-label {
   min-width: 0;
   overflow: hidden;

@@ -28,15 +28,33 @@
  * first screenful, where walking the block list from the front finds its answer immediately.
  * A reader halfway down a long note paid for the walk on every visible line, and that is
  * pinned in test/application/markdownContext.test.ts instead.
+ *
+ * The second table answers the question the caret signal has to answer for itself, since
+ * `selectionSet` fires on every caret move and on every keystroke. At 10,000 lines and 196
+ * outline entries, a caret move dispatched with the listener attached measured 5.29ms against
+ * 5.38ms without it, and again 3.36ms against 3.50ms — that is to say, nothing above the
+ * noise. The frame's own work — reading the caret out, walking the outline and moving one
+ * class — is 0.18ms, once per frame however many caret moves have piled up.
+ *
+ * Read the absolute numbers in that table as a pair, not as a reading. The same measurement
+ * taken in a fresh process is 0.86ms; everything this file has already mounted is still on
+ * the heap when it runs.
  */
 
 // Must come first: it installs the globals `@codemirror/view` reads while loading.
-import { createHost } from "../support/domEnvironment";
+import { createHost, window } from "../support/domEnvironment";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
+import { EDITOR_BODY } from "../../src/ui/pageBodies";
+import { CodeMirrorEditor } from "../../src/webview/editor/codeMirrorEditor";
 import { createLivePreview } from "../../src/webview/editor/livePreview";
 import { markdownContext } from "../../src/webview/editor/markdownContext";
+import {
+  getNoteInspectorElements,
+  markCurrentOutlineEntry,
+  renderNoteInspector,
+} from "../../src/webview/editor/noteInspector";
 import { outlineFolding } from "../../src/webview/editor/outlineFolding";
 
 const SIZES = [1_000, 5_000, 10_000] as const;
@@ -101,6 +119,78 @@ function timeEach(runs: number, action: (run: number) => void): number {
   }
   return median(samples);
 }
+
+/**
+ * What the caret signal costs, which is the question the signal has to answer for itself:
+ * `selectionSet` fires on every caret move and on every keystroke, so a listener here could
+ * undo everything above.
+ *
+ * Two costs, measured apart because they happen at different moments. The dispatch is what
+ * happens inside the keypress; the report is what happens on the next frame, once, however
+ * many caret moves have piled up since.
+ */
+function caretSignalReport(): string {
+  const source = noteOfLines(10_000);
+  window.document.body.innerHTML = EDITOR_BODY;
+  const inspector = getNoteInspectorElements();
+  renderNoteInspector(inspector, source, undefined, {
+    reveal: () => undefined,
+    openBacklink: () => undefined,
+    toggleTask: () => undefined,
+    openLink: () => undefined,
+  });
+  const headings = inspector.outline.children.length;
+
+  const measureDispatch = (listening: boolean): number => {
+    const editor = new CodeMirrorEditor(createHost(), "bench-nonce", source, {
+      suggestions: () => [],
+      workspaceTags: () => [],
+      unresolvedLinks: () => new Set<string>(),
+      sourcePatched: () => undefined,
+      saveRequested: () => undefined,
+      openLink: () => undefined,
+      openExternal: () => undefined,
+      noteTitle: () => "Benchmark",
+      ...(listening
+        ? { selectionChanged: (report) => markCurrentOutlineEntry(inspector, report.caret) }
+        : {}),
+    });
+    const view = (editor as unknown as { view: EditorView }).view;
+    const anchor = view.state.doc.line(Math.floor(view.state.doc.lines / 2)).from;
+    view.dispatch({ selection: { anchor } });
+    const elapsed = timeEach(60, (run) => {
+      view.dispatch({ selection: { anchor: anchor + (run % 40) } });
+    });
+    editor.destroy();
+    return elapsed;
+  };
+
+  /*
+   * Each configuration is mounted and measured twice, and only the second reading is kept.
+   * Measuring each once said the listener doubled the cost of a caret move; measured again in
+   * the other order it said the same of the silent one. It was the just-in-time compiler
+   * warming up, not the listener.
+   */
+  measureDispatch(false);
+  measureDispatch(true);
+  const silent = measureDispatch(false);
+  const listening = measureDispatch(true);
+  const report = timeEach(200, (run) => {
+    markCurrentOutlineEntry(inspector, run * 97);
+  });
+
+  return [
+    `caret signal, 10,000 lines and ${headings} outline entries:`,
+    `  dispatch, no listener   ${silent.toFixed(3)}ms`,
+    `  dispatch, listening     ${listening.toFixed(3)}ms`,
+    `  the frame's own work    ${report.toFixed(3)}ms`,
+    "",
+  ].join("\n");
+}
+
+// First, while the process is still young: mounting three ten-thousand-line editors below
+// leaves enough garbage behind to double every absolute reading taken after it.
+process.stdout.write(`\n${caretSignalReport()}\n`);
 
 const rows: string[] = [];
 for (const size of SIZES) {

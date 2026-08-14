@@ -7,7 +7,10 @@ import type {
   NoteSuggestionWire,
 } from "./contracts.js";
 import { CodeMirrorEditor } from "./editor/codeMirrorEditor.js";
-import type { MarkdownEditorMode } from "./editor/codeMirrorEditor.js";
+import type {
+  EditorSelectionReport,
+  MarkdownEditorMode,
+} from "./editor/codeMirrorEditor.js";
 import { DocumentSyncModel } from "./editor/documentSync.js";
 import type { DocumentSyncAction, HostStateTransition } from "./editor/documentSync.js";
 import type { TextPatch } from "../application/textPatch.js";
@@ -31,7 +34,11 @@ import {
 } from "./editor/validation.js";
 import { INLINE_MARKS, keyHint } from "./editor/inlineMarks.js";
 import { createIdleRedraw } from "./editor/idleRedraw.js";
-import { getNoteInspectorElements, renderNoteInspector } from "./editor/noteInspector.js";
+import {
+  getNoteInspectorElements,
+  markCurrentOutlineEntry,
+  renderNoteInspector,
+} from "./editor/noteInspector.js";
 import type { NoteInspectorSections } from "./editor/noteInspector.js";
 import { planTagAddition, planTagRemoval } from "../application/noteMetadataEdits.js";
 import { planTaskToggle } from "../application/taskEditing.js";
@@ -101,6 +108,8 @@ let lastStashedSaveRequested = false;
  * their listeners, for a panel nobody reads mid-word.
  */
 const idleDraftRedraw = createIdleRedraw(() => renderInspector("draft"));
+/** Where the caret last was, so a redrawn outline can say which section it is in again. */
+let caretOffset = 0;
 
 liveMode.addEventListener("click", () => setMode("live"));
 markdownMode.addEventListener("click", () => setMode("markdown"));
@@ -299,6 +308,7 @@ function mountOrReplaceEditor(source: string): void {
     }),
     openExternal: (url) => api.postMessage({ type: "editor/openExternal", url }),
     addDictionaryWord: (word) => api.postMessage({ type: "editor/addDictionaryWord", word }),
+    selectionChanged: handleSelectionChange,
   });
   updateMenuAvailability();
   renderInspector();
@@ -309,6 +319,16 @@ function mountOrReplaceEditor(source: string): void {
   } else {
     window.requestAnimationFrame(() => editor?.focus());
   }
+}
+
+/**
+ * The caret moved. Already throttled to a frame by the editor, so this may touch the DOM —
+ * but it must stay to what a frame can afford, which is a walk of the outline rows and no
+ * parsing at all.
+ */
+function handleSelectionChange(selection: EditorSelectionReport): void {
+  caretOffset = selection.caret;
+  markCurrentOutlineEntry(inspector, caretOffset);
 }
 
 function handleLocalPatch(patch: TextPatch): void {
@@ -663,6 +683,8 @@ function renderInspector(sections: NoteInspectorSections = "all"): void {
     },
     openLink: (target) => api.postMessage({ type: "editor/openLink", target }),
   }, sections);
+  // The rows are new elements, so the section the caret is in has to be said again.
+  markCurrentOutlineEntry(inspector, caretOffset);
 }
 
 function revealOffset(offset: number): void {

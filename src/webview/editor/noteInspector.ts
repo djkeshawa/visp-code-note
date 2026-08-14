@@ -105,6 +105,8 @@ function renderOutline(
     if (entry.anchor) classes.push("is-anchor");
     const row = htmlElement("button", classes.join(" "));
     row.type = "button";
+    // Where the entry begins, so the caret can be matched against the list without reparsing.
+    row.dataset.offset = String(entry.offset);
     // One step per level, then flat: past the third the label matters more than the depth.
     row.style.paddingLeft = `${14 + Math.min(entry.level - 1, 3) * 12}px`;
     row.title = entry.anchor
@@ -114,6 +116,41 @@ function renderOutline(
     row.addEventListener("click", () => actions.reveal(entry.offset));
     return row;
   }));
+}
+
+/**
+ * Marks the section the caret is in: the last entry at or before it.
+ *
+ * Without this the outline is a list of places to go and says nothing about where the reader
+ * already is — in a fifty-heading note, fifty identical buttons. The entries are in document
+ * order in the DOM, so the row itself carries the offset and nothing has to be parsed again.
+ *
+ * The scroll only happens when the current entry changes, so a long outline follows the caret
+ * without the panel moving under a reader who is scrolling it themselves.
+ */
+export function markCurrentOutlineEntry(
+  elements: NoteInspectorElements,
+  caret: number,
+): void {
+  /*
+   * A query rather than `children`, which is a live collection: indexing one is a walk of the
+   * parent per element, so reading fifty rows that way cost more than the whole rest of this.
+   */
+  const rows = Array.from(elements.outline.querySelectorAll<HTMLElement>(".inspector-outline-row"));
+  let current: HTMLElement | undefined;
+  for (const row of rows) {
+    const offset = Number(row.dataset.offset);
+    if (!Number.isFinite(offset) || offset > caret) break;
+    current = row;
+  }
+  if (current !== undefined && current.classList.contains("is-current")) return;
+  for (const marked of Array.from(elements.outline.querySelectorAll<HTMLElement>(".is-current"))) {
+    marked.classList.remove("is-current");
+  }
+  if (current === undefined) return;
+  current.classList.add("is-current");
+  // jsdom has no layout and so no `scrollIntoView`; the panel is drawn by a browser that has.
+  current.scrollIntoView?.({ block: "nearest" });
 }
 
 function renderBacklinks(
