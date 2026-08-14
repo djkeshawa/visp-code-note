@@ -315,9 +315,35 @@ test("the Rename Note command's own rename is not migrated a second time", async
   // The command renames through applyEdit, which fires this event exactly as a drag does. It
   // has already planned the same rewrite plus a title change; migrating it again here rewrites
   // the links underneath its own "did this file change since the preview" check.
-  const edit = await withoutRenameParticipation(() => willRename([["Target.md", "Renamed.md"]]));
+  const edit = await withoutRenameParticipation(
+    [uriOf("Target.md"), uriOf("Renamed.md")],
+    () => willRename([["Target.md", "Renamed.md"]]),
+  );
 
   assert.equal(edit.size, 0);
+  harness.dispose();
+});
+
+test("an Explorer rename during a command rename is still migrated", async () => {
+  const harness = await open({
+    "Target.md": "Body.\n",
+    "Other.md": "Body.\n",
+    "refers.md": "See [[Target]] and [[Other]].\n",
+  });
+
+  /*
+   * The command holds the exemption across a file rename, a content edit and a save of every
+   * document that edit touched — hundreds of milliseconds on a large migration. A drag the user
+   * makes inside that window is a different file and none of the command's business, and while
+   * the exemption was a flag it was dropped on the floor: the file moved and its incoming links
+   * stayed pointing at where it used to be, with nothing said.
+   */
+  const edit = await withoutRenameParticipation(
+    [uriOf("Target.md"), uriOf("Renamed.md")],
+    () => willRename([["Other.md", "Elsewhere.md"]]),
+  );
+
+  assert.deepEqual(textOf(edit, "refers.md"), ["[[Elsewhere|Other]]"]);
   harness.dispose();
 });
 

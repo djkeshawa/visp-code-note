@@ -101,7 +101,18 @@ export async function prepareRenameTransaction(
 }
 
 export async function applyRenameTransaction(transaction: RenameTransaction): Promise<void> {
-  await withoutRenameParticipation(() => applyRenameEdits(transaction));
+  /*
+   * Every path this transaction renames a file *from*, including the intermediate a case-only
+   * rename bounces through and the reverse legs a rollback walks back. Only these: an Explorer
+   * rename the user makes while the migration is saving its documents is none of the command's
+   * business, and used to be dropped on the floor because the exemption was a global flag.
+   */
+  const renamed = [
+    transaction.previousUri,
+    transaction.nextUri,
+    ...(transaction.intermediateUri ? [transaction.intermediateUri] : []),
+  ];
+  await withoutRenameParticipation(renamed, () => applyRenameEdits(transaction));
 }
 
 async function applyRenameEdits(transaction: RenameTransaction): Promise<void> {

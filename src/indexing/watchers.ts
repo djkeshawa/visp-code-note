@@ -63,10 +63,21 @@ export function createIndexWatchers(
      * the Explorer; a modal here is a hung rename, not a question. The Rename Note command is
      * where the mode picker and the confirmation live, and it stays that way.
      *
-     * It is all or nothing. If any part of the plan cannot be trusted — a link has moved since
-     * the index last read the file, a document will not open — no edit is contributed at all.
-     * Half the links moving is worse than none moving, because nothing on screen says which half,
-     * and the user is left diffing their own vault to find out.
+     * It is all or nothing, over the links the index has parsed. If any part of the plan cannot
+     * be trusted — a link has moved since the index last read the file, a document will not open
+     * — no edit is contributed at all. Half the links moving is worse than none moving, because
+     * nothing on screen says which half, and the user is left diffing their own vault to find
+     * out.
+     *
+     * "All" is not every link in the workspace, though, and calling it that was untrue. The plan
+     * is made from the snapshot, and a note the user is typing in reaches the snapshot 120ms
+     * after they stop — `scheduleTextChange` below. A `[[Target]]` typed into an open buffer
+     * inside that window is in no snapshot yet, so no rewrite is planned for it and none of the
+     * checks notice: the text under every planned range is exactly where it was, so the plan is
+     * contributed, the rename succeeds, and that one link is left behind pointing at a name
+     * nothing answers to any more. It is the newest link in the vault and the one the user is
+     * most likely to be looking at. Widening the window would mean reading open buffers here,
+     * inside the participant timeout, for every note in the workspace.
      *
      * The rename always happens. Whatever goes wrong in here resolves to an empty edit; the
      * participant never rejects and never throws, because a failure to rewrite links is not a
