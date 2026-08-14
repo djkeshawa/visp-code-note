@@ -1,6 +1,6 @@
 import type * as vscode from "vscode";
 import type { IndexSnapshot, NoteRecord } from "../../domain/models";
-import type { NoteListing } from "../../domain/protocol";
+import type { EditorInlineMark, NoteListing } from "../../domain/protocol";
 
 export interface CommandIndex {
   readonly snapshot: IndexSnapshot;
@@ -20,6 +20,8 @@ export interface FeatureViews {
   toggleEditor(uri?: vscode.Uri): Promise<void>;
   activeNoteUri(): vscode.Uri | undefined;
   insertLink(target: string): Promise<boolean>;
+  /** Toggles one of the note editor's inline marks over whatever it has selected. */
+  formatInline(mark: EditorInlineMark): Promise<boolean>;
   insertTag(tag: string): Promise<boolean>;
   removeTag(tag: string): Promise<boolean>;
   showDiffPreview(title: string, before: string, after: string): Promise<void>;

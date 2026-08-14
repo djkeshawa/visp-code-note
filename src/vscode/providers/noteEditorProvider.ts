@@ -6,6 +6,7 @@ import { parseProseFont } from "../../application/proseFont";
 import type { EditorContentWidth } from "../../application/editorContentWidth";
 import type {
   EditorDocumentState,
+  EditorInlineMark,
   EditorMenuCommand,
   EditorToHostMessage,
   HostToEditorMessage,
@@ -180,6 +181,22 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
     for (const panel of this.panels.forDocument(uri) ?? []) {
       if (this.panels.isReady(panel)) await this.publishPendingReveal(uri, panel);
     }
+  }
+
+  /**
+   * Asks the focused note editor to toggle an inline mark over its own selection.
+   *
+   * The editor decides whether to act: the same key press arrives here through VS Code's
+   * keybinding table and inside the webview through its own keymap, and only the page can see
+   * which of its widgets has focus. `toggleInlineMark` documents the two refusals.
+   */
+  public async applyInlineFormat(mark: EditorInlineMark): Promise<boolean> {
+    const panel = this.panels.active;
+    if (!panel?.active || !this.panels.isReady(panel)) {
+      return false;
+    }
+    await panel.webview.postMessage({ type: "editor/format", mark } satisfies HostToEditorMessage);
+    return true;
   }
 
   public async insertLink(target: string): Promise<boolean> {

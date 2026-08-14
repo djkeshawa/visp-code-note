@@ -8,6 +8,7 @@ import {
   showBacklinks,
   showLocalGraph,
   showWorkspaceGraph,
+  toggleInlineFormat,
   toggleRenderedEditor,
 } from "./navigationCommands";
 import { renameNote } from "./renameNote";
@@ -17,7 +18,8 @@ import { createTask, toggleTaskAtEditor } from "./taskCommands";
 import { createMissingNote } from "./createMissingNote";
 import { useTextEditorByDefault, useVispNotesAsDefaultEditor } from "./editorAssociation";
 import { addTagToNote, removeTagFromNote } from "./tagCommands";
-import { COMMAND_IDS } from "../ids";
+import { COMMAND_IDS, INLINE_FORMAT_COMMANDS } from "../ids";
+import type { EditorInlineMark } from "../../domain/protocol";
 
 export function registerCommands(
   context: vscode.ExtensionContext,
@@ -65,6 +67,11 @@ export function registerCommands(
   register(COMMAND_IDS.removeTag, (tag) => removeTagFromNote(index, views, tag));
   register(COMMAND_IDS.useAsDefaultEditor, () => useVispNotesAsDefaultEditor());
   register(COMMAND_IDS.useTextEditorByDefault, () => useTextEditorByDefault());
+  // From the table, so a mark added to the note editor cannot ship with a keybinding that
+  // names a command nobody registered — which is a "command not found" toast on every press.
+  for (const [mark, id] of Object.entries(INLINE_FORMAT_COMMANDS)) {
+    register(id, () => toggleInlineFormat(views, mark as EditorInlineMark));
+  }
 }
 
 function reportError(output: vscode.LogOutputChannel, error: unknown): void {

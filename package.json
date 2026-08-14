@@ -179,6 +179,26 @@
         "command": "vispNotes.useTextEditorByDefault",
         "title": "Restore the Built-in Markdown Text Editor",
         "category": "Visp Notes"
+      },
+      {
+        "command": "vispNotes.toggleBold",
+        "title": "Bold",
+        "category": "Visp Notes"
+      },
+      {
+        "command": "vispNotes.toggleItalic",
+        "title": "Italic",
+        "category": "Visp Notes"
+      },
+      {
+        "command": "vispNotes.toggleInlineCode",
+        "title": "Inline Code",
+        "category": "Visp Notes"
+      },
+      {
+        "command": "vispNotes.toggleStrikethrough",
+        "title": "Strikethrough",
+        "category": "Visp Notes"
       }
     ],
     "customEditors": [
@@ -347,6 +367,30 @@
         "key": "ctrl+shift+g",
         "mac": "cmd+shift+g",
         "when": "resourceExtname == .md && activeCustomEditorId != vispNotes.noteEditor"
+      },
+      {
+        "command": "vispNotes.toggleBold",
+        "key": "ctrl+b",
+        "mac": "cmd+b",
+        "when": "activeCustomEditorId == vispNotes.noteEditor"
+      },
+      {
+        "command": "vispNotes.toggleItalic",
+        "key": "ctrl+i",
+        "mac": "cmd+i",
+        "when": "activeCustomEditorId == vispNotes.noteEditor"
+      },
+      {
+        "command": "vispNotes.toggleInlineCode",
+        "key": "ctrl+e",
+        "mac": "cmd+e",
+        "when": "activeCustomEditorId == vispNotes.noteEditor"
+      },
+      {
+        "command": "vispNotes.toggleStrikethrough",
+        "key": "ctrl+shift+x",
+        "mac": "cmd+shift+x",
+        "when": "activeCustomEditorId == vispNotes.noteEditor"
       }
     ],
     "configuration": {

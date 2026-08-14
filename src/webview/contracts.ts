@@ -80,6 +80,9 @@ export interface NoteSuggestionWire {
   readonly blockIds: readonly string[];
 }
 
+/** Mirrors `EditorInlineMark`. `INLINE_MARKS` takes its own id type from this. */
+export type EditorInlineMarkWire = "bold" | "italic" | "inline-code" | "strikethrough";
+
 export type HostToEditorWire =
   | { readonly type: "editor/state"; readonly state: EditorStateWire }
   | { readonly type: "editor/documentState"; readonly state: EditorDocumentStateWire }
@@ -88,6 +91,7 @@ export type HostToEditorWire =
   | { readonly type: "editor/insertLink"; readonly target: string }
   | { readonly type: "editor/insertTag"; readonly tag: string }
   | { readonly type: "editor/removeTag"; readonly tag: string }
+  | { readonly type: "editor/format"; readonly mark: EditorInlineMarkWire }
   | { readonly type: "editor/proseFont"; readonly fontFamily?: string }
   | { readonly type: "editor/contentWidth"; readonly contentWidth: EditorContentWidthWire }
   | { readonly type: "editor/showInspector"; readonly showInspector: boolean }

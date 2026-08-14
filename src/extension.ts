@@ -164,6 +164,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       toggleEditor: (uri) => noteEditor.toggle(uri),
       activeNoteUri: () => noteEditor.activeUri,
       insertLink: (target) => noteEditor.insertLink(target),
+      formatInline: (mark) => noteEditor.applyInlineFormat(mark),
       insertTag: (tag) => noteEditor.applyTag(tag, "add"),
       removeTag: (tag) => noteEditor.applyTag(tag, "remove"),
       showDiffPreview: (title, before, after) => diffPreview.show(title, before, after),
