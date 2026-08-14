@@ -115,7 +115,7 @@
   min-width: 0;
   flex: 1;
   overflow: hidden;
-  color: var(--visp-muted);
+  color: var(--visp-muted-strong);
   font-family: var(--visp-mono);
   font-size: 11px;
   text-align: right;
@@ -125,7 +125,7 @@
 
 .note-row-line {
   flex: 0 0 auto;
-  color: var(--visp-muted);
+  color: var(--visp-muted-strong);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
 }

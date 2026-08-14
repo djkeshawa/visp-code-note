@@ -514,7 +514,12 @@ function tagChip(tag: string, editable: boolean): HTMLElement {
   const dot = document.createElement("span");
   dot.className = "tag-dot";
   dot.style.setProperty("--tag-hue", tagHueColor(tag));
-  chip.append(dot, document.createTextNode(tag));
+  // The name is wrapped so it can carry the ellipsis when the toolbar squeezes the tag row.
+  // A bare text node becomes an anonymous flex item, which text-overflow has no hold on.
+  const label = document.createElement("span");
+  label.className = "note-tag-label";
+  label.textContent = tag;
+  chip.append(dot, label);
   if (!editable) {
     chip.title = `#${tag} is written in the note body`;
     return chip;

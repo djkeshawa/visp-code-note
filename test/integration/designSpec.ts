@@ -61,9 +61,27 @@ export const STYLE_RULES: readonly StyleRule[] = [
   },
   {
     file: "editor.css",
+    selector: ".note-tags",
+    declaration: "overflow: hidden",
+    because:
+      "The 38px row clips, so whatever refuses to shrink inside it pushes its neighbours out " +
+      "of reach rather than out of the way. The tags are what may give way; the mode toggle, " +
+      "the sync status and the overflow button are what stay clickable.",
+  },
+  {
+    file: "editor.css",
     selector: ".editor-body",
     declaration: "grid-template-columns: minmax(0, 1fr) 300px",
     because: "The note inspector is a 300px column beside the note, not an overlay on it.",
+  },
+  {
+    file: "editor.css",
+    selector: ".inspector-link",
+    declaration: "text-overflow: ellipsis",
+    because:
+      "A wiki link is named by the note it points at, which can be longer than the 300px " +
+      "column the chip sits in — and an unresolved one says so as well. The column scrolls, " +
+      "so one long target dragged every section of the inspector sideways.",
   },
   {
     file: "editor.css",
@@ -172,6 +190,15 @@ export const STYLE_RULES: readonly StyleRule[] = [
     selector: ".workspace-tag",
     declaration: "height: 22px",
     because: "Tags are 22px pills with a coloured dot and a count.",
+  },
+  {
+    file: "workspace.css",
+    selector: ".workspace-tag-label",
+    declaration: "text-overflow: ellipsis",
+    because:
+      "A tag name is written by whoever wrote the note, so it has no length the panel can " +
+      "count on. Unbounded, one long tag made its chip wider than the column and scrolled " +
+      "the whole panel sideways.",
   },
   {
     file: "workspace.css",

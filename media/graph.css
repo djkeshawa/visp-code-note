@@ -445,7 +445,7 @@
 
 .graph-viewport-controls output {
   min-width: 40px;
-  color: var(--visp-muted);
+  color: var(--visp-muted-strong);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   text-align: center;
@@ -610,7 +610,7 @@
 
 .connection-empty {
   padding: 6px 4px 0;
-  color: var(--visp-muted);
+  color: var(--visp-muted-strong);
   font-size: 11px;
 }
 

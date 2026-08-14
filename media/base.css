@@ -382,7 +382,7 @@ label > .codicon {
 }
 
 .eyebrow {
-  color: var(--visp-muted);
+  color: var(--visp-muted-strong);
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -413,7 +413,7 @@ label > .codicon {
 
 .section-rule > .section-count {
   order: 2;
-  color: var(--visp-muted);
+  color: var(--visp-muted-strong);
   font-size: 10px;
   font-variant-numeric: tabular-nums;
 }
@@ -437,7 +437,7 @@ label > .codicon {
   padding: 0 10px;
   border-radius: 4px;
   background: transparent;
-  color: var(--visp-muted);
+  color: var(--visp-muted-strong);
   font-size: 11px;
   font-weight: 500;
   white-space: nowrap;
@@ -535,13 +535,19 @@ label > .codicon {
   gap: 12px;
   padding: 0 12px;
   border-top: 1px solid var(--visp-border);
-  color: var(--visp-muted);
+  color: var(--visp-muted-strong);
   font-size: 11px;
 }
 
+/*
+ * Quieter than the count it sits beside, but said in colour rather than in opacity: a fifth
+ * of the background bleeding through 11px text put it back under AA on the light theme, which
+ * is the whole reason the row above uses the stronger token. Mixing toward the weaker token
+ * instead keeps the step in tone and stays above 6:1 in both polarities.
+ */
 .footer-hint {
   margin-left: auto;
-  opacity: 0.8;
+  color: color-mix(in srgb, var(--visp-muted-strong) 70%, var(--visp-muted));
 }
 
 .muted {
