@@ -38,8 +38,20 @@ export interface WorkspaceSearchResult {
  * renders at most `limit` snippets.
  */
 type PendingResult =
-  | { readonly kind: "note"; readonly score: number; readonly note: NoteRecord; readonly match: CandidateMatch }
-  | { readonly kind: "task"; readonly score: number; readonly task: TaskRecord; readonly match: CandidateMatch };
+  | {
+      readonly kind: "note";
+      readonly score: number;
+      readonly note: NoteRecord;
+      readonly match: CandidateMatch;
+      readonly modifiedAt: number;
+    }
+  | {
+      readonly kind: "task";
+      readonly score: number;
+      readonly task: TaskRecord;
+      readonly match: CandidateMatch;
+      readonly modifiedAt: number;
+    };
 
 /**
  * The notes a query matches, by any searchable field — title, path, alias, tag, or body
@@ -118,8 +130,18 @@ export function buildWorkspaceSearchPage(
         note,
         match,
         score: request.terms.length === 0 ? 100 : match.score,
+        modifiedAt: note.modifiedAt,
       });
     }
+  }
+  /*
+   * A task's recency is its note's, and a task record does not carry it. The map is built up
+   * front only when there are tasks to rank at all, and it is the same map the returned slice
+   * needs afterwards to render task previews.
+   */
+  let notesByUri: Map<string, NoteRecord> | undefined;
+  if (snapshot.tasks.length > 0) {
+    notesByUri = new Map(snapshot.notes.map((note) => [note.uri, note]));
   }
   for (const task of snapshot.tasks) {
     const match = selectSearchMatch(taskSearchCandidates(task), request);
@@ -129,19 +151,18 @@ export function buildWorkspaceSearchPage(
         task,
         match,
         score: request.terms.length === 0 ? 90 : match.score,
+        modifiedAt: notesByUri?.get(task.noteUri)?.modifiedAt ?? 0,
       });
     }
   }
 
   pending.sort(comparePending);
 
-  let notesByUri: Map<string, NoteRecord> | undefined;
   const results = pending.slice(0, resultLimit).map((entry) => {
     if (entry.kind === "note") {
       return noteResult(entry.note, entry.match);
     }
-    notesByUri ??= new Map(snapshot.notes.map((note) => [note.uri, note]));
-    return taskResult(entry.task, notesByUri.get(entry.task.noteUri), entry.match);
+    return taskResult(entry.task, notesByUri?.get(entry.task.noteUri), entry.match);
   });
   return { results, matched: pending.length };
 }
@@ -237,11 +258,19 @@ function taskMatchOffset(
  */
 const tieBreaker = new Intl.Collator();
 
+/*
+ * The last tie-break used to be the path, collated. By the time two results have matched
+ * equally well, carry the same note title and the same text, alphabetical order of the file
+ * they happen to sit in is arbitrary — and a broad query produces hundreds of those. Which one
+ * was touched most recently is not arbitrary, and it is the same question the reader is
+ * usually asking. The path stays underneath it so the order is still total and stable.
+ */
 function comparePending(left: PendingResult, right: PendingResult): number {
   return (
     right.score - left.score ||
     tieBreaker.compare(pendingNoteTitle(left), pendingNoteTitle(right)) ||
     tieBreaker.compare(pendingDisplayText(left), pendingDisplayText(right)) ||
+    right.modifiedAt - left.modifiedAt ||
     tieBreaker.compare(pendingNotePath(left), pendingNotePath(right))
   );
 }

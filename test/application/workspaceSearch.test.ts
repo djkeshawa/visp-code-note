@@ -72,3 +72,27 @@ test("matches multiple terms across searchable fields and enforces the result li
   assert.equal(buildWorkspaceSearchResults(snapshot, "", 1).length, 1);
   assert.equal(buildWorkspaceSearchResults(snapshot, "", 0).length, 0);
 });
+
+/*
+ * When a hundred results score identically — which a broad query produces easily — the order
+ * used to come down to the file path, alphabetically. That is arbitrary. Which note was
+ * written most recently is not, and it is usually the one being looked for.
+ */
+test("results that score the same are ordered by which note was touched last", () => {
+  const older = makeNote({ path: "a-first.md", content: "# Standup\n\nplanning\n", modifiedAt: 100 });
+  const newer = makeNote({ path: "z-last.md", content: "# Standup\n\nplanning\n", modifiedAt: 900 });
+
+  const results = buildWorkspaceSearchResults(buildSnapshot([older, newer], 1, 1), "planning");
+
+  assert.deepEqual(results.map((result) => result.notePath), ["z-last.md", "a-first.md"]);
+});
+
+/* Two notes written in the same second still need one order, and the path is the one to use. */
+test("notes touched at the same moment keep a stable order", () => {
+  const first = makeNote({ path: "a-first.md", content: "# Standup\n\nplanning\n", modifiedAt: 500 });
+  const second = makeNote({ path: "z-last.md", content: "# Standup\n\nplanning\n", modifiedAt: 500 });
+
+  const results = buildWorkspaceSearchResults(buildSnapshot([second, first], 1, 1), "planning");
+
+  assert.deepEqual(results.map((result) => result.notePath), ["a-first.md", "z-last.md"]);
+});
