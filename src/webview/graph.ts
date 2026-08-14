@@ -36,6 +36,7 @@ const {
   resetLayout, kindToggles, depthButtons, chipCounts, menu, menuButton, menuItems, details,
 } = getGraphPageElements();
 const openSelected = details.openButton;
+const focusSelected = details.focusButton;
 
 let graph: GraphDataWire = { nodes: [], edges: [] };
 let visibleGraph: GraphDataWire = graph;
@@ -74,6 +75,7 @@ svg.addEventListener("pointerout", handleNodePointerOut);
 connections.addEventListener("click", handleConnectionSelection);
 details.closeButton.addEventListener("click", clearSelection);
 openSelected.addEventListener("click", openSelectedNode);
+focusSelected.addEventListener("click", focusSelectedNode);
 zoomIn.addEventListener("click", () => viewport.zoomBy(1.25));
 zoomOut.addEventListener("click", () => viewport.zoomBy(0.8));
 fitGraph.addEventListener("click", fitVisibleGraph);
@@ -364,6 +366,18 @@ function disposeControllers(): void {
 function openSelectedNode(): void {
   const uri = findNode(selectedId)?.uri;
   if (uri !== undefined) api.postMessage({ type: "graph/open", uri });
+}
+
+/**
+ * Ask the host to redraw around this note. The host answers with a whole new graph, which
+ * arrives as a scope change and resets the layout, the selection and the view — so nothing
+ * is done here beyond asking. Open Workspace Graph, in the overflow menu, is the way back.
+ */
+function focusSelectedNode(): void {
+  const uri = findNode(selectedId)?.uri;
+  if (uri !== undefined && selectedId !== visibleGraph.focusId) {
+    api.postMessage({ type: "graph/focus", uri });
+  }
 }
 
 function setMenuOpen(open: boolean): void {

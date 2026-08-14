@@ -614,10 +614,21 @@
   font-size: 11px;
 }
 
-.graph-details .primary-button {
+/*
+ * Open it, or make it the centre. The two share the row evenly: which one the reader wants
+ * depends on whether they are reading or still looking, and the card cannot know which.
+ */
+.graph-details-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.graph-details .primary-button,
+.graph-details .secondary-button {
   height: 28px;
   min-height: 28px;
-  margin-top: 12px;
+  flex: 1 1 0;
   border-radius: 5px;
   font-size: 12px;
   font-weight: 500;

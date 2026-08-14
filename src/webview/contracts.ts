@@ -258,6 +258,7 @@ export type GraphMenuCommandWire = "openWorkspaceGraph" | "rebuildIndex";
 
 export type GraphToHostWire =
   | { readonly type: "graph/open"; readonly uri: string }
+  | { readonly type: "graph/focus"; readonly uri: string }
   | { readonly type: "graph/depth"; readonly depth: 1 | 2 }
   | { readonly type: "graph/runCommand"; readonly command: GraphMenuCommandWire }
   | { readonly type: "graph/ready" };

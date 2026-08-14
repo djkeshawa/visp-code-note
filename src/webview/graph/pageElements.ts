@@ -61,6 +61,7 @@ export function getGraphPageElements(): GraphPageElements {
       connectionList: connections,
       closeButton: requireElement("#graph-details-close", HTMLButtonElement),
       openButton: requireElement("#open-selected", HTMLButtonElement),
+      focusButton: requireElement("#focus-selected", HTMLButtonElement),
     },
   };
 }

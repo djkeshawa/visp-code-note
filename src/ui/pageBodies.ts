@@ -292,7 +292,10 @@ export const GRAPH_BODY = `
             </dl>
             <div id="selected-connections" class="connection-list"></div>
             <span id="selected-connection-count" class="sr-only">0</span>
-            <button id="open-selected" class="primary-button full-width" type="button" disabled>Open note</button>
+            <div class="graph-details-actions">
+              <button id="open-selected" class="primary-button" type="button" disabled>Open note</button>
+              <button id="focus-selected" class="secondary-button" type="button" disabled>Focus here</button>
+            </div>
           </aside>
         </main>
       </div>`;

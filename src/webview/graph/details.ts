@@ -3,6 +3,8 @@ import { codicon, htmlElement } from "../shared/dom.js";
 import { tagHueColor } from "../../application/tagHue.js";
 import { connectionsFor } from "./interactionModel.js";
 import type { GraphConnection } from "./interactionModel.js";
+import { graphFocusAction } from "./focusAction.js";
+import type { GraphFocusAction } from "./focusAction.js";
 
 /**
  * The card for the selected node. It reports the node's degree, lists what it touches with
@@ -22,6 +24,7 @@ export interface GraphDetailsElements {
   readonly connectionList: HTMLElement;
   readonly closeButton: HTMLButtonElement;
   readonly openButton: HTMLButtonElement;
+  readonly focusButton: HTMLButtonElement;
 }
 
 export function renderGraphDetails(
@@ -30,6 +33,7 @@ export function renderGraphDetails(
   selectedId: string | undefined,
 ): void {
   const node = findNode(graph, selectedId);
+  applyFocusAction(elements.focusButton, graphFocusAction(node, graph.focusId));
   if (node === undefined) {
     elements.card.hidden = true;
     elements.connectionList.replaceChildren();
@@ -56,6 +60,12 @@ export function renderGraphDetails(
   elements.connectionList.replaceChildren(...connectionRows(connections));
   elements.openButton.disabled = node.uri === undefined;
   elements.openButton.textContent = node.kind === "task" ? "Open source note" : "Open note";
+}
+
+function applyFocusAction(button: HTMLButtonElement, action: GraphFocusAction): void {
+  button.textContent = action.label;
+  button.disabled = action.disabled;
+  button.title = action.title;
 }
 
 function connectionRows(connections: readonly GraphConnection[]): readonly HTMLElement[] {
