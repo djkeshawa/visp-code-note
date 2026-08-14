@@ -110,8 +110,20 @@ export function createIndexWatchers(
         else rebuild();
       }
     }),
+    /*
+     * The two settings that change what is in the index rather than how it is shown.
+     *
+     * `maxNoteSizeKB` is here because the sentence the workspace panel shows a reader whose
+     * note has vanished is "Raise vispNotes.maxNoteSizeKB to include them" — and raising it did
+     * nothing at all until the reader happened to find Rebuild Index, which is the same dead
+     * end the skipped-note work exists to get them out of. Nothing re-reads a file on its own:
+     * a size is only known by reading, and no watcher fires when a ceiling moves.
+     */
     vscode.workspace.onDidChangeConfiguration((event) => {
-      if (event.affectsConfiguration("vispNotes.exclude")) {
+      if (
+        event.affectsConfiguration("vispNotes.exclude") ||
+        event.affectsConfiguration("vispNotes.maxNoteSizeKB")
+      ) {
         onRebuild();
       }
     }),
