@@ -28,6 +28,7 @@ import {
   isNoteSuggestions,
   isUnresolvedLinks,
 } from "./editor/validation.js";
+import { INLINE_MARKS, keyHint } from "./editor/inlineMarks.js";
 import { getNoteInspectorElements, renderNoteInspector } from "./editor/noteInspector.js";
 import type { NoteInspectorSections } from "./editor/noteInspector.js";
 import { planTagAddition, planTagRemoval } from "../application/noteMetadataEdits.js";
@@ -65,6 +66,7 @@ const inspector = getNoteInspectorElements();
 const bindingHints = Array.from(
   document.querySelectorAll<HTMLElement>(".editor-menu-hint[data-binding]"),
 );
+const formattingHints = requireElement("#editor-menu-formatting", HTMLElement);
 const cspNonce = requireCspNonce();
 
 const sync = new DocumentSyncModel();
@@ -380,16 +382,45 @@ function closeMenuOnEscape(event: KeyboardEvent): void {
  *
  * "Ctrl/Cmd+Shift+L" names both at once and runs to three times the width the design gives
  * the hint column, so it dominated the row it was meant to trail.
+ *
+ * Every hint is now written from the key itself. Insert Link's was still advertising
+ * Ctrl+Shift+L after the command had been moved off it \u2014 the editor reads that key as Select
+ * All Occurrences \u2014 so the menu was naming a key that does something else entirely. A hint
+ * that lies costs more than a missing one: the reader presses it, watches the wrong thing
+ * happen, and stops trusting the rest of the column.
  */
 function renderKeyboardHints(): void {
   const mac = /Mac|iPhone|iPad/i.test(navigator.userAgent);
-  const bindings: Readonly<Record<string, string>> = mac
-    ? { insertLink: "\u2318\u21e7L", openLocalGraph: "\u2318\u21e7G" }
-    : { insertLink: "Ctrl+Shift+L", openLocalGraph: "Ctrl+Shift+G" };
+  const bindings: Readonly<Record<string, string>> = {
+    insertLink: keyHint(mac ? "Mod-Alt-l" : "Shift-Alt-l", mac),
+    openLocalGraph: keyHint("Mod-Shift-g", mac),
+  };
   for (const hint of bindingHints) {
     const binding = hint.dataset.binding;
     hint.textContent = binding === undefined ? "" : bindings[binding] ?? "";
   }
+  renderFormattingHints(mac);
+}
+
+/**
+ * The four inline marks and their keys.
+ *
+ * Listed rather than clickable: the keys run inside the editor's own keymap, which VS Code
+ * never sees, so this menu is the only place in the product they are written down.
+ */
+function renderFormattingHints(mac: boolean): void {
+  formattingHints.replaceChildren(...INLINE_MARKS.map((mark) => {
+    const row = document.createElement("div");
+    row.className = "editor-menu-item is-static";
+    const label = document.createElement("span");
+    label.className = "editor-menu-label";
+    label.textContent = mark.label;
+    const hint = document.createElement("span");
+    hint.className = "editor-menu-hint";
+    hint.textContent = keyHint(mark.key, mac);
+    row.append(codicon(mark.icon), label, hint);
+    return row;
+  }));
 }
 
 /**

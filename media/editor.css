@@ -376,6 +376,15 @@
   opacity: 0.45;
 }
 
+/* The formatting rows are a reference card, not controls: the key is the way to run them. */
+.editor-menu-item.is-static {
+  cursor: default;
+}
+
+.editor-menu-row.is-static {
+  padding-bottom: 0;
+}
+
 .editor-menu-item .codicon {
   flex: 0 0 auto;
   color: var(--visp-muted);
