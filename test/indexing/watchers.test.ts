@@ -441,6 +441,24 @@ test("renaming a note to a name with no stem leaves the link text as the user wr
 });
 
 /**
+ * The same rename, from inside the note being renamed.
+ *
+ * A link is checked by resolving it from the note it sits in, and an empty target resolves to
+ * that note — so a note with no name at all verified an empty name against its own body, and the
+ * check that stops `[[]]` being written into every other note let it through here. It is the same
+ * one string, in the one file the reader is most likely to have open.
+ */
+test("a note's link to itself survives being renamed to a name with no stem", async () => {
+  const harness = await open({
+    "Target.md": "This note links to [[Target]] and [[Target|its alias]].\n",
+  });
+  const edit = await willRename([["Target.md", ".md"]]);
+
+  assert.equal(edit.size, 0, "[[]] is not a link, and [[|its alias]] is a link to nowhere");
+  harness.dispose();
+});
+
+/**
  * On a case-sensitive file system two notes can differ only in case, and the resolver — which
  * matches names without case — can only answer with one of them. The rewrite used to name the
  * one it could not reach, so the link opened a completely different note's content.

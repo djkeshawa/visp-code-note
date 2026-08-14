@@ -140,11 +140,19 @@ export function createWikiTargetPlanner(notes: readonly NoteRecord[]): WikiTarge
       encodeWikiTarget(targetPath),
     ];
   };
+  /*
+   * The empty name is rejected before it is resolved, not after. An empty target resolves to
+   * the note the link sits in, so a note with no name at all answers to it from its own body —
+   * and `[[]]` is what a self-link in a note renamed to `.md` was rewritten to, which is the
+   * one string that does not parse as a link at all. A name nothing can be written as is not a
+   * name that reaches the note; it is the absence of one.
+   */
   const reaching = (
     sourceUri: string | undefined,
     targetNote: NoteRecord,
   ): string | undefined => candidates(sourceUri, targetNote).find(
-    (candidate) => resolver.resolve(sourceUri ?? "", candidate)?.uri === targetNote.uri,
+    (candidate) => candidate !== "" &&
+      resolver.resolve(sourceUri ?? "", candidate)?.uri === targetNote.uri,
   );
   return {
     targetFor(sourceUri, targetNote) {
