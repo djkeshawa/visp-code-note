@@ -8,7 +8,7 @@ import type {
   SkippedNote,
 } from "../domain/models";
 import { mergeTagNames } from "../markdown/tags";
-import { compareNotes, noteResolverFor } from "./noteResolver";
+import { compareNotes, noteResolverFor, skippedNoteFinderFor } from "./noteResolver";
 import { createNoteProjector } from "./noteProjection";
 import type { NoteProjector } from "./noteProjection";
 import { wikiReferenceResolverFor } from "./wikiReferenceResolver";
@@ -93,12 +93,32 @@ export function resolveWikiTarget(
   return noteResolverFor(notes).resolve(sourceUri, target);
 }
 
+/**
+ * Every wiki link that lands nowhere — not counting the ones that land on a file the size
+ * limit skipped.
+ *
+ * That file is on disk and opens normally; what is missing is the index entry, and calling
+ * that a broken link sends the reader looking for a note they already have. The click path
+ * learned this first, and the count over the editor, the workspace panel's Broken row and the
+ * Find Broken Links list all read it from here, so they learn it in the same place.
+ *
+ * The lookup costs nothing in a workspace that has skipped nothing, which is nearly all of
+ * them: `empty` is checked before a link is asked about, and the paths behind it are ordered
+ * once per commit rather than once per link.
+ */
 export function getBrokenLinks(snapshot: IndexSnapshot): readonly ResolvedLink[] {
   const resolver = wikiReferenceResolverFor(snapshot.notes);
+  const skipped = skippedNoteFinderFor(snapshot.skippedOversized);
+  const pathByUri = skipped.empty
+    ? undefined
+    : new Map(snapshot.notes.map((note) => [note.uri, note.path]));
   return Object.freeze(
-    snapshot.links.filter(
-      ({ sourceUri, link }) => resolver.resolve(sourceUri, link).status !== "resolved",
-    ),
+    snapshot.links.filter(({ sourceUri, link }) => {
+      const result = resolver.resolve(sourceUri, link);
+      if (result.status === "resolved") return false;
+      if (skipped.empty || result.status !== "missing-note") return true;
+      return skipped.find(pathByUri?.get(sourceUri), link.target) === undefined;
+    }),
   );
 }
 
