@@ -1,19 +1,15 @@
 import { Prec, StateEffect, StateField } from "@codemirror/state";
-import type { EditorState, Extension, Range } from "@codemirror/state";
+import type { Extension, Range } from "@codemirror/state";
 import { Decoration, EditorView, ViewPlugin, keymap, showTooltip } from "@codemirror/view";
 import type { DecorationSet, Tooltip, ViewUpdate } from "@codemirror/view";
 import { misspelledWords } from "../../application/spellCheckText.js";
 import { spellSuggestions } from "../../application/spellSuggestions.js";
 import type { SpellDictionary } from "../../application/spellDictionary.js";
-import type { OffsetRange } from "../../domain/models.js";
-import { findTags } from "../../markdown/tags.js";
 import {
   markdownBlockAtPosition,
   markdownFrontmatterRange,
-  markdownInlineCodeRanges,
-  markdownInlineLinks,
 } from "./markdownContext.js";
-import { wikiLinkSpans } from "./wikiLinkSpans.js";
+import { nonProseRanges } from "./proseRanges.js";
 
 /**
  * Spelling, underlined where it is prose and nowhere else.
@@ -41,36 +37,6 @@ const dictionaryField = StateField.define<SpellDictionary | undefined>({
     return value;
   },
 });
-
-/**
- * The parts of a line that are not English and must never be underlined.
- *
- * A notes file is mostly not prose: the target of a wiki link is a file name, a tag is an
- * address, inline code is code, a link's destination is a URL, and task markers are syntax.
- * Each is already found elsewhere, so this only collects them.
- */
-function nonProseRanges(state: EditorState, from: number, to: number, text: string): OffsetRange[] {
-  const ranges: OffsetRange[] = [];
-  for (const span of wikiLinkSpans(text)) {
-    ranges.push({ start: from + span.start, end: from + span.end });
-  }
-  for (const tag of findTags(text, from)) {
-    ranges.push({ start: tag.start, end: tag.end });
-  }
-  for (const span of markdownInlineCodeRanges(state, from, to)) {
-    ranges.push({ start: span.start, end: span.end });
-  }
-  for (const link of markdownInlineLinks(state, from, to)) {
-    // The label is prose and is checked; the destination is a URL and is not.
-    ranges.push({ start: link.labelEnd, end: link.end });
-  }
-  // `@due(2026-08-14)`, `@priority(high)` and the identifier the extension writes.
-  for (const match of text.matchAll(/@(?:due|remind|priority)\([^)]*\)|<!--\s*task:[^>]*-->/gi)) {
-    if (match.index === undefined) continue;
-    ranges.push({ start: from + match.index, end: from + match.index + match[0].length });
-  }
-  return ranges;
-}
 
 function buildMisspellings(view: EditorView): DecorationSet {
   const dictionary = view.state.field(dictionaryField, false);
