@@ -97,3 +97,42 @@ test("treats missing heading and block anchors as broken references", () => {
     "[[Target^missing]]",
   ]);
 });
+
+/*
+ * Backlinks are ordered by target, then by the path of the note doing the mentioning, then by
+ * where in that note the mention sits. The inspector shows the first fifty of a note's
+ * mentions and no more, so this order decides which mentions a reader ever sees.
+ *
+ * They are collected into per-target groups rather than sorted in one pass at the end, which
+ * is a different route to the same array — and only the same array while paths of mixed case
+ * and mixed depth still land where the single sort put them. Hence the awkward names here.
+ */
+test("mentions are ordered by target, then by the mentioning note's path, then position", () => {
+  const notes = [
+    makeNote({ path: "Zeta/Note.md", content: "[[Hub]] and again [[Hub]]\n" }),
+    makeNote({ path: "archive/2025/deep.md", content: "[[Hub]]\n" }),
+    makeNote({ path: "a/early.md", content: "[[Other]] first, then [[Hub]]\n" }),
+    makeNote({ path: "notes/hub.md", title: "Hub" }),
+    makeNote({ path: "notes/other.md", title: "Other" }),
+  ];
+
+  const snapshot = buildSnapshot(notes);
+  const expected = [...snapshot.backlinks].sort((left, right) =>
+    compare(left.targetUri, right.targetUri) ||
+    compare(left.sourcePath, right.sourcePath) ||
+    left.range.start - right.range.start);
+
+  assert.deepEqual(snapshot.backlinks, expected);
+  assert.deepEqual(
+    snapshot.backlinks.map((backlink) => [backlink.sourcePath, backlink.range.start]),
+    expected.map((backlink) => [backlink.sourcePath, backlink.range.start]),
+  );
+  // Both of a note's two mentions of one target stay together and in reading order.
+  const repeated = snapshot.backlinks.filter((backlink) => backlink.sourcePath === "Zeta/Note.md");
+  assert.equal(repeated.length, 2);
+  assert.ok((repeated[0]?.range.start ?? 0) < (repeated[1]?.range.start ?? 0));
+});
+
+function compare(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}

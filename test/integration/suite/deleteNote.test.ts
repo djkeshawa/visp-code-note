@@ -118,5 +118,15 @@ integrationTest("every setting this release adds is readable the way the code re
     "boolean",
     "createNote reads this nested key from the vispNotes section",
   );
+  /*
+   * The projection bypass is the one setting whose absence would be silent: an undeclared key
+   * reads as undefined, the cache would stay on, and the switch someone was asked to flip
+   * would do nothing while they reported that it had.
+   */
+  assert.equal(
+    typeof vscode.workspace.getConfiguration().get("vispNotes.index.bypassProjectionCache"),
+    "boolean",
+    "the workspace index reads this as a full key off the root configuration",
+  );
   return Promise.resolve();
 });

@@ -179,6 +179,35 @@ test("a note is never its own backlink", () => {
   assert.equal(context?.backlinkCount, 0);
 });
 
+/*
+ * The context is answered once per note per commit and reused for the rest of them, because
+ * the note editor asks for one on every keystroke. Two snapshots must never answer for each
+ * other — and they carry the same version number unless someone says otherwise, so version is
+ * not what tells them apart.
+ */
+test("a note that gains a mention says so on the next commit", () => {
+  const mentioned = makeNote({ path: "notes/mentioned.md", content: "# Mentioned\n" });
+  const admirer = makeNote({
+    path: "notes/admirer.md",
+    content: "# Admirer\n\nAbout [[Mentioned]].\n",
+  });
+
+  const before = buildNoteContext(buildSnapshot([mentioned]), mentioned.uri);
+  const after = buildNoteContext(buildSnapshot([mentioned, admirer]), mentioned.uri);
+
+  assert.equal(before?.backlinkCount, 0);
+  assert.equal(after?.backlinkCount, 1);
+  assert.deepEqual(after?.backlinks.map((backlink) => backlink.title), ["Admirer"]);
+});
+
+test("a note dropped from the workspace stops having a context", () => {
+  const departing = makeNote({ path: "notes/departing.md", content: "# Departing\n" });
+  const staying = makeNote({ path: "notes/staying.md", content: "# Staying\n" });
+
+  assert.ok(buildNoteContext(buildSnapshot([departing, staying]), departing.uri) !== undefined);
+  assert.equal(buildNoteContext(buildSnapshot([staying]), departing.uri), undefined);
+});
+
 test("a note linking only to its own headings is still an orphan", () => {
   const anchored = makeNote({
     path: "notes/inward.md",
