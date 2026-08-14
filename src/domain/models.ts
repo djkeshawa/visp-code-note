@@ -167,6 +167,24 @@ export interface GraphData {
   readonly focusId?: string;
 }
 
+/**
+ * A Markdown file the index found and deliberately did not read.
+ *
+ * The size ceiling does its job, but a note missing from the index used to be indistinguishable
+ * from a note that was never on disk, and every surface said the second thing: it disappeared
+ * from the panel, from search, from the graph and from backlinks, every `[[link]]` to it was
+ * reported unresolved, and clicking one offered to create the file that was sitting right
+ * there. Carrying the skipped files on the snapshot is what lets those surfaces tell the
+ * difference — nothing here changes what is indexed.
+ */
+export interface SkippedNote {
+  readonly uri: string;
+  readonly path: string;
+  /** What was measured: the file on disk, or the text of an open document with unsaved edits. */
+  readonly sizeBytes: number;
+  readonly limitBytes: number;
+}
+
 export interface IndexSnapshot {
   readonly notes: readonly NoteRecord[];
   readonly links: readonly ResolvedLink[];
@@ -177,6 +195,8 @@ export interface IndexSnapshot {
     readonly notePath: string;
     readonly noteCreatedAt?: number;
   })[];
+  /** The files the size limit left out, in path order. Never empty for a reason the user cannot see. */
+  readonly skippedOversized: readonly SkippedNote[];
   readonly version: number;
   readonly indexedAt: number;
 }

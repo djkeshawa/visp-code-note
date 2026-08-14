@@ -5,6 +5,7 @@ import type {
   NoteOutgoingLinkContext,
   NoteRecord,
   ResolvedLink,
+  SkippedNote,
 } from "../domain/models";
 import { mergeTagNames } from "../markdown/tags";
 import { compareNotes, noteResolverFor } from "./noteResolver";
@@ -23,12 +24,18 @@ export type { NoteProjector, NoteProjectorOptions } from "./noteProjection";
  * Pass the same `projector` across commits to keep the per-note work that a one-file save did
  * not invalidate; leaving it out projects the vault from scratch, which is what a caller
  * building a one-off snapshot wants.
+ *
+ * `skippedOversized` is carried through untouched apart from being put in path order. It takes
+ * no part in the projection and never will: these are files nothing has read, so there is no
+ * title, no alias and no link text to resolve anything against, and letting one into `notes`
+ * as a stub would put a name back into the resolvable name-space with nothing behind it.
  */
 export function buildSnapshot(
   notes: readonly NoteRecord[],
   version = 1,
   indexedAt = Date.now(),
   projector: NoteProjector = createNoteProjector(),
+  skippedOversized: readonly SkippedNote[] = [],
 ): IndexSnapshot {
   const orderedNotes = Object.freeze([...notes].sort(compareNotes));
   const projections = projector.project(orderedNotes);
@@ -69,6 +76,9 @@ export function buildSnapshot(
     links: Object.freeze(links),
     backlinks: Object.freeze(backlinks),
     tasks: Object.freeze(tasks),
+    skippedOversized: Object.freeze(
+      [...skippedOversized].sort((left, right) => compareText(left.path, right.path)),
+    ),
     version,
     indexedAt,
   });

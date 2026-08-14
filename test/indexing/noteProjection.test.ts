@@ -1,6 +1,6 @@
 import assert = require("node:assert/strict");
 import { test } from "node:test";
-import type { IndexSnapshot, NoteRecord } from "../../src/domain/models";
+import type { IndexSnapshot, NoteRecord, SkippedNote } from "../../src/domain/models";
 import { buildSnapshot } from "../../src/indexing/projections";
 import { createNoteProjector } from "../../src/indexing/noteProjection";
 import { makeNote } from "./fixtures";
@@ -22,7 +22,7 @@ import { makeNote } from "./fixtures";
  */
 
 interface Committer {
-  commit(notes: readonly NoteRecord[]): IndexSnapshot;
+  commit(notes: readonly NoteRecord[], skipped?: readonly SkippedNote[]): IndexSnapshot;
   readonly generation: number;
 }
 
@@ -30,14 +30,19 @@ function committer(): Committer {
   const projector = createNoteProjector();
   let version = 0;
   return {
-    commit(notes) {
+    commit(notes, skipped = []) {
       version += 1;
-      return buildSnapshot(notes, version, version, projector);
+      return buildSnapshot(notes, version, version, projector, skipped);
     },
     get generation() {
       return projector.generation;
     },
   };
+}
+
+/** A file the size limit left out, as the index would describe it. */
+function skip(path: string, sizeBytes = 9_000_000): SkippedNote {
+  return { uri: `file:///${path}`, path, sizeBytes, limitBytes: 5_242_880 };
 }
 
 /** What a note's link with this raw text currently lands on, or undefined for nowhere. */
@@ -155,7 +160,65 @@ test("a record replaced by an equal one re-projects that note and no other", () 
   );
 });
 
+/*
+ * A skipped note is a file, not a name.
+ *
+ * The snapshot carries the files the size limit left out so the panel and the status bar can
+ * say a note is missing and why. They are reported, never resolved — and the link written by
+ * file name is where that has to be proved, because a file name is the one name something that
+ * has never been read could be given. Standing a stub record in `notes` for each skipped file
+ * is the obvious way to make these "findable" again, and it would answer `[[t-9f2]]` with a
+ * note holding no text, no tasks and no links, which is worse than answering nothing: the
+ * panel would list it, search would return it empty and the graph would draw it.
+ *
+ * The size in the second commit moves and the name does not, so nothing may be re-projected.
+ */
+test("a skipped note is not reachable by its file name, however large it grows", () => {
+  const index = committer();
+  const stemLink = makeNote({
+    path: "desk/source.md",
+    content: "# Source\n\nBy file name: [[t-9f2]].\n",
+  });
+  const first = index.commit([stemLink, ...FILLER], [skip("notes/t-9f2.md")]);
+  const generation = index.generation;
+
+  assert.equal(landsOn(first, stemLink.uri, "[[t-9f2]]"), undefined);
+  assert.deepEqual(first.notes.map((note) => note.path).includes("notes/t-9f2.md"), false);
+  assert.deepEqual(first.skippedOversized.map((entry) => entry.path), ["notes/t-9f2.md"]);
+
+  const after = index.commit([stemLink, ...FILLER], [skip("notes/t-9f2.md", 20_000_000)]);
+
+  assert.equal(index.generation, generation, "a file's size is not a name");
+  assert.equal(landsOn(after, stemLink.uri, "[[t-9f2]]"), undefined);
+  assert.equal(after.skippedOversized[0]?.sizeBytes, 20_000_000);
+});
+
 // ── must bump ────────────────────────────────────────────────────────────────
+
+/*
+ * The threshold is a name-space boundary crossed in both directions, and the index reaches it
+ * by a route no other case here takes: the note leaves `notes` and appears in
+ * `skippedOversized` in the same commit. Every other case has an empty skipped list, so a
+ * skipped list that resolved anything would pass all of them and fail this.
+ */
+test("a note growing past the size limit takes its name with it, and gets it back", () => {
+  const index = committer();
+  const before = index.commit(vault(TARGET));
+  assert.equal(landsOn(before, SOURCE.uri, "[[Target]]"), TARGET.uri);
+  const generation = index.generation;
+
+  const skipped = index.commit(vault(), [skip("notes/t-9f2.md")]);
+  assert.notEqual(index.generation, generation);
+  assert.equal(
+    landsOn(skipped, SOURCE.uri, "[[Target]]"),
+    undefined,
+    "the note is on disk, but nothing has read the title that answered to this",
+  );
+
+  const restored = index.commit(vault(TARGET));
+  assert.equal(landsOn(restored, SOURCE.uri, "[[Target]]"), TARGET.uri);
+  assert.deepEqual(restored.skippedOversized, []);
+});
 
 test("a title change in frontmatter moves the name-space", () => {
   const index = committer();
