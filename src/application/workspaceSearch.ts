@@ -73,14 +73,32 @@ export function matchingNoteUris(
   return uris;
 }
 
+export interface WorkspaceSearchPage {
+  readonly results: readonly WorkspaceSearchResult[];
+  /**
+   * How many matched, not how many were returned. A vault where the answer is result 340 of
+   * 1,200 looked exactly like a vault where the note does not exist: the list stopped at the
+   * limit and said nothing, so the reader retyped a query that was already right.
+   */
+  readonly matched: number;
+}
+
 export function buildWorkspaceSearchResults(
   snapshot: Pick<IndexSnapshot, "notes" | "tasks">,
   query: string,
   limit = 200,
 ): readonly WorkspaceSearchResult[] {
+  return buildWorkspaceSearchPage(snapshot, query, limit).results;
+}
+
+export function buildWorkspaceSearchPage(
+  snapshot: Pick<IndexSnapshot, "notes" | "tasks">,
+  query: string,
+  limit = 200,
+): WorkspaceSearchPage {
   const resultLimit = Math.max(0, Math.floor(limit));
   if (resultLimit === 0) {
-    return [];
+    return { results: [], matched: 0 };
   }
 
   const request = createSearchRequest(query);
@@ -118,13 +136,14 @@ export function buildWorkspaceSearchResults(
   pending.sort(comparePending);
 
   let notesByUri: Map<string, NoteRecord> | undefined;
-  return pending.slice(0, resultLimit).map((entry) => {
+  const results = pending.slice(0, resultLimit).map((entry) => {
     if (entry.kind === "note") {
       return noteResult(entry.note, entry.match);
     }
     notesByUri ??= new Map(snapshot.notes.map((note) => [note.uri, note]));
     return taskResult(entry.task, notesByUri.get(entry.task.noteUri), entry.match);
   });
+  return { results, matched: pending.length };
 }
 
 function noteResult(note: NoteRecord, match: CandidateMatch): WorkspaceSearchResult {
