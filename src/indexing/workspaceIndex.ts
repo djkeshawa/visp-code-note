@@ -11,10 +11,21 @@ import { freezeSnapshot } from "./immutable";
 import { mapConcurrent } from "./concurrency";
 import { createIndexWatchers } from "./watchers";
 import type { MarkdownChange } from "./watchers";
-import { createNoteResolver } from "./noteResolver";
-import type { NoteResolver } from "./noteResolver";
+import { noteResolverFor } from "./noteResolver";
+import { createNoteProjector } from "./noteProjection";
+import type { NoteProjector } from "./noteProjection";
 
 export type IndexStatus = "idle" | "indexing" | "error";
+
+/**
+ * Turns off the per-note projection cache, rebuilding the whole projection on every commit.
+ *
+ * A cache whose invalidation is wrong shows no symptom except a link pointing at a note that
+ * no longer answers to that name — nothing throws, nothing slows down. Anyone who suspects
+ * they are looking at one can be asked to flip this and reload, which settles it in one
+ * message rather than one release.
+ */
+const BYPASS_PROJECTION_CACHE_SETTING = "vispNotes.index.bypassProjectionCache";
 
 type PendingChange = MarkdownChange;
 
@@ -40,7 +51,7 @@ export class WorkspaceIndex implements vscode.Disposable {
   private currentSnapshot = EMPTY_SNAPSHOT;
   private currentStatus: IndexStatus = "idle";
   private errorMessage: string | undefined;
-  private resolver: NoteResolver = createNoteResolver([]);
+  private projector: NoteProjector = createProjector();
 
   readonly onDidChange = this.changeEmitter.event;
   readonly onDidChangeStatus = this.statusEmitter.event;
@@ -64,6 +75,17 @@ export class WorkspaceIndex implements vscode.Disposable {
           (change) => this.queueChange(change),
           () => { void this.rebuild().catch(() => undefined); },
         ),
+        /*
+         * Reaching the bypass has to be one step, not "change this and restart VS Code", or
+         * it is not a bisection tool. The projector is thrown away with everything it
+         * remembered and the workspace is read again from the files.
+         */
+        vscode.workspace.onDidChangeConfiguration((event) => {
+          if (event.affectsConfiguration(BYPASS_PROJECTION_CACHE_SETTING)) {
+            this.projector = createProjector();
+            void this.rebuild().catch(() => undefined);
+          }
+        }),
       );
       this.initialization = this.rebuild();
     }
@@ -108,7 +130,7 @@ export class WorkspaceIndex implements vscode.Disposable {
   }
 
   resolveTarget(sourceUri: vscode.Uri | string, target: string): NoteRecord | undefined {
-    return this.resolver.resolve(uriKey(sourceUri), target);
+    return noteResolverFor(this.currentSnapshot.notes).resolve(uriKey(sourceUri), target);
   }
 
   dispose(): void {
@@ -230,12 +252,18 @@ export class WorkspaceIndex implements vscode.Disposable {
     for (const [key, note] of next) {
       this.notes.set(key, note);
     }
-    const ordered = [...this.notes.values()].sort((left, right) =>
-      left.path.localeCompare(right.path),
-    );
-    this.resolver = createNoteResolver(ordered);
+    /*
+     * Handed over unsorted. `buildSnapshot` puts the notes in `compareNotes` order itself, and
+     * this sorted them first by `localeCompare` — a slower comparison, on the same list, for an
+     * order that was then thrown away.
+     */
     this.currentSnapshot = freezeSnapshot(
-      buildSnapshot(ordered, this.currentSnapshot.version + 1, Date.now()),
+      buildSnapshot(
+        [...this.notes.values()],
+        this.currentSnapshot.version + 1,
+        Date.now(),
+        this.projector,
+      ),
     );
     this.changeEmitter.fire(this.currentSnapshot);
   }
@@ -266,4 +294,11 @@ export class WorkspaceIndex implements vscode.Disposable {
       this.statusEmitter.fire(status);
     }
   }
+}
+
+function createProjector(): NoteProjector {
+  const bypass = vscode.workspace
+    .getConfiguration()
+    .get<boolean>(BYPASS_PROJECTION_CACHE_SETTING) === true;
+  return createNoteProjector({ cache: !bypass });
 }

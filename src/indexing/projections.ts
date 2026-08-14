@@ -6,73 +6,64 @@ import type {
   NoteRecord,
   ResolvedLink,
 } from "../domain/models";
-import { lineNumberAtOffset, scanLines } from "../markdown/lines";
 import { mergeTagNames } from "../markdown/tags";
-import { compareNotes, createNoteResolver } from "./noteResolver";
+import { compareNotes, noteResolverFor } from "./noteResolver";
+import { createNoteProjector } from "./noteProjection";
+import type { NoteProjector } from "./noteProjection";
 import { wikiReferenceResolverFor } from "./wikiReferenceResolver";
 
 export { buildLocalGraph, buildWorkspaceGraph } from "./graphProjection";
 export type { GraphOptions } from "./graphProjection";
+export { createNoteProjector } from "./noteProjection";
+export type { NoteProjector, NoteProjectorOptions } from "./noteProjection";
 
+/**
+ * The whole workspace as the views read it.
+ *
+ * Pass the same `projector` across commits to keep the per-note work that a one-file save did
+ * not invalidate; leaving it out projects the vault from scratch, which is what a caller
+ * building a one-off snapshot wants.
+ */
 export function buildSnapshot(
   notes: readonly NoteRecord[],
   version = 1,
   indexedAt = Date.now(),
+  projector: NoteProjector = createNoteProjector(),
 ): IndexSnapshot {
   const orderedNotes = Object.freeze([...notes].sort(compareNotes));
+  const projections = projector.project(orderedNotes);
   const links: ResolvedLink[] = [];
-  const backlinks: Backlink[] = [];
   const tasks: IndexSnapshot["tasks"][number][] = [];
-  const resolver = createNoteResolver(orderedNotes);
+  /*
+   * Grouped by target on the way in rather than sorted in one pass at the end.
+   *
+   * The order is the same either way — target, then the path of the note doing the mentioning,
+   * then where in that note the mention sits — but a vault's mentions nearly all belong to
+   * different targets, so sorting them together compares pairs that never needed comparing.
+   * Collecting and sorting 28,000 mentions in one pass measured 27ms at 2,000 notes against
+   * 15ms grouped, and 92ms against 39ms at 4,000. Which mentions a reader sees depends on this
+   * order — the inspector shows a note's first fifty — so `projections.test.ts` pins it.
+   */
+  const byTarget = new Map<string, Backlink[]>();
 
-  for (const note of orderedNotes) {
-    const lines = scanLines(note.content);
-    for (const link of note.links) {
-      const target = resolver.resolve(note.uri, link.target);
-      const resolved: ResolvedLink = {
-        sourceUri: note.uri,
-        link,
-        ...(target === undefined ? {} : { targetUri: target.uri }),
-      };
-      links.push(Object.freeze(resolved));
-      /*
-       * A backlink is a mention from somewhere else. `[[#Heading]]` and `[[^block]]` point
-       * inside the note being read, and the resolver answers them with that same note, so
-       * recording them here made a note appear in its own backlinks list — once per anchor.
-       */
-      if (target !== undefined && target.uri !== note.uri) {
-        backlinks.push(
-          Object.freeze({
-            sourceUri: note.uri,
-            sourceTitle: note.title,
-            sourcePath: note.path,
-            targetUri: target.uri,
-            range: link.range,
-            context: lineContext(note.content, link.range.start),
-            line: lineNumberAtOffset(lines, link.range.start),
-          }),
-        );
-      }
-    }
-    for (const task of note.tasks) {
-      tasks.push(
-        Object.freeze({
-          ...task,
-          noteUri: note.uri,
-          noteTitle: note.title,
-          notePath: note.path,
-          ...(note.createdAt === undefined ? {} : { noteCreatedAt: note.createdAt }),
-        }),
-      );
+  for (const projection of projections) {
+    for (const link of projection.links) links.push(link);
+    for (const task of projection.tasks) tasks.push(task);
+    for (const backlink of projection.backlinks) {
+      const group = byTarget.get(backlink.targetUri);
+      if (group === undefined) byTarget.set(backlink.targetUri, [backlink]);
+      else group.push(backlink);
     }
   }
 
-  backlinks.sort(
-    (left, right) =>
-      compareText(left.targetUri, right.targetUri) ||
-      compareText(left.sourcePath, right.sourcePath) ||
-      left.range.start - right.range.start,
-  );
+  const backlinks: Backlink[] = [];
+  for (const targetUri of [...byTarget.keys()].sort(compareText)) {
+    const group = byTarget.get(targetUri) ?? [];
+    group.sort((left, right) =>
+      compareText(left.sourcePath, right.sourcePath) || left.range.start - right.range.start);
+    for (const backlink of group) backlinks.push(backlink);
+  }
+
   return Object.freeze({
     notes: orderedNotes,
     links: Object.freeze(links),
@@ -89,7 +80,7 @@ export function resolveWikiTarget(
   target: string,
 ): NoteRecord | undefined {
   const notes = isSnapshot(snapshotOrNotes) ? snapshotOrNotes.notes : snapshotOrNotes;
-  return createNoteResolver(notes).resolve(sourceUri, target);
+  return noteResolverFor(notes).resolve(sourceUri, target);
 }
 
 export function getBrokenLinks(snapshot: IndexSnapshot): readonly ResolvedLink[] {
@@ -219,14 +210,6 @@ function dedupeLinks(links: readonly ResolvedLink[]): NoteOutgoingLinkContext[] 
     );
   }
   return outgoing;
-}
-
-function lineContext(content: string, offset: number): string {
-  let start = Math.min(Math.max(0, offset), content.length);
-  let end = start;
-  while (start > 0 && content[start - 1] !== "\n" && content[start - 1] !== "\r") start -= 1;
-  while (end < content.length && content[end] !== "\n" && content[end] !== "\r") end += 1;
-  return content.slice(start, end).trim();
 }
 
 function compareText(left: string, right: string): number {

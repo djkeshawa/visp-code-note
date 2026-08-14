@@ -33,7 +33,8 @@
       "restrictedConfigurations": [
         "vispNotes.exclude",
         "vispNotes.notesFolder",
-        "vispNotes.maxNoteSizeKB"
+        "vispNotes.maxNoteSizeKB",
+        "vispNotes.index.bypassProjectionCache"
       ]
     },
     "virtualWorkspaces": {
@@ -463,7 +464,13 @@
           "scope": "window",
           "markdownDescription": "Largest note, in kilobytes, that Visp Notes will index. A note above this is skipped entirely — it will not appear in the note list, the graph, search results or backlinks. The index keeps every note's full text in memory, so this bounds what a very large workspace can cost. Set to `0` for no limit."
         },
-        "vispNotes.spelling.enabled": {
+        "vispNotes.index.bypassProjectionCache": {
+      "type": "boolean",
+      "default": false,
+      "scope": "window",
+      "markdownDescription": "Rebuild the whole index projection on every change instead of reusing the parts that did not move. Slower on a large workspace — this exists so that a link which appears to point at the wrong note, or at a note that no longer exists, can be checked against a projection built from scratch."
+    },
+    "vispNotes.spelling.enabled": {
           "type": "boolean",
           "default": true,
           "scope": "window",

@@ -15,6 +15,26 @@ export interface WikiTargetPlanner {
   targetFor(sourceUri: string | undefined, targetNote: NoteRecord): string;
 }
 
+/*
+ * One resolver per index commit, for callers holding a snapshot's notes.
+ *
+ * Building one indexes every note by path, by title, by alias, by stem and by every path
+ * suffix — 10ms over 2,000 notes on this machine. The index publishes a fresh frozen array on
+ * every commit and never mutates one, so the array is itself the statement that a resolver is
+ * still true, and a WeakMap lets it go with the snapshot rather than pinning the last vault in
+ * memory. The records it answers with are always the ones the caller is holding.
+ */
+const resolvers = new WeakMap<readonly NoteRecord[], NoteResolver>();
+
+export function noteResolverFor(notes: readonly NoteRecord[]): NoteResolver {
+  let resolver = resolvers.get(notes);
+  if (resolver === undefined) {
+    resolver = createNoteResolver(notes);
+    resolvers.set(notes, resolver);
+  }
+  return resolver;
+}
+
 export function createNoteResolver(notes: readonly NoteRecord[]): NoteResolver {
   const byUri = new Map(notes.map((note) => [note.uri, note]));
   const byPath = new Map<string, NoteRecord>();
@@ -57,8 +77,28 @@ export function createNoteResolver(notes: readonly NoteRecord[]): NoteResolver {
   };
 }
 
+/*
+ * Canonical paths, remembered beside the record they belong to.
+ *
+ * `compareNotes` orders every note list in the extension, and it canonicalised both sides on
+ * every single comparison — a backslash replace, an extension strip, a trim, a locale
+ * lowercase and a segment walk, run about 44,000 times to sort 2,000 notes. That measured
+ * 36ms of a 60ms commit, more than the projection it was ordering. A record's path never
+ * changes; a changed path is a new record.
+ */
+const canonicalPaths = new WeakMap<NoteRecord, string>();
+
+function notePathKey(note: NoteRecord): string {
+  let key = canonicalPaths.get(note);
+  if (key === undefined) {
+    key = canonicalPath(note.path);
+    canonicalPaths.set(note, key);
+  }
+  return key;
+}
+
 export function compareNotes(left: NoteRecord, right: NoteRecord): number {
-  return compareText(canonicalPath(left.path), canonicalPath(right.path)) || compareText(left.uri, right.uri);
+  return compareText(notePathKey(left), notePathKey(right)) || compareText(left.uri, right.uri);
 }
 
 export function wikiTargetForNote(
