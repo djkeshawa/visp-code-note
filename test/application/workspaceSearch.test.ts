@@ -96,3 +96,32 @@ test("notes touched at the same moment keep a stable order", () => {
 
   assert.deepEqual(results.map((result) => result.notePath), ["a-first.md", "z-last.md"]);
 });
+
+/*
+ * A task ranks by its note's date, on a query carrying no facet — which is nearly every query.
+ *
+ * A task record has no date of its own, so the uri->note map is what supplies it, and this is
+ * what says that map has to be built whenever there are tasks at all. Narrowing it to the
+ * queries whose facets need a note would leave every task here sorted as if it were written at
+ * the epoch, and the two tests above would go on passing while it happened: they hold notes
+ * only, and a note carries its own `modifiedAt`.
+ */
+test("a task ranks by the note it was written in, with no facet in the query", () => {
+  const older = makeNote({
+    path: "a-first.md",
+    content: "# Standup\n\n- [ ] Send the planning note\n",
+    modifiedAt: 100,
+  });
+  const newer = makeNote({
+    path: "z-last.md",
+    content: "# Standup\n\n- [ ] Send the planning note\n",
+    modifiedAt: 900,
+  });
+
+  const results = buildWorkspaceSearchResults(buildSnapshot([older, newer], 1, 1), "planning");
+
+  assert.deepEqual(
+    results.filter((result) => result.kind === "task").map((result) => result.notePath),
+    ["z-last.md", "a-first.md"],
+  );
+});
