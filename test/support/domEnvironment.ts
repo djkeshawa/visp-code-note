@@ -57,6 +57,12 @@ for (const name of [
   "Event", "KeyboardEvent", "MouseEvent", "InputEvent", "CustomEvent", "MutationObserver",
   "ResizeObserver", "IntersectionObserver", "requestAnimationFrame", "cancelAnimationFrame",
   "DocumentFragment", "Selection", "DOMParser",
+  /*
+   * The panels reach for these while wiring themselves up — `requireElement` names the
+   * constructor it expects, and the roving lists build keyboard events. A missing global here
+   * is a ReferenceError at import time, so a panel driven by a test cannot even load.
+   */
+  "HTMLButtonElement", "HTMLSelectElement", "HTMLHeadingElement", "MessageEvent", "CSS",
 ]) {
   const value = (window as unknown as Record<string, unknown>)[name];
   if (value !== undefined && globals[name] === undefined) {

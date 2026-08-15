@@ -146,6 +146,10 @@
   color: var(--visp-hue-reference);
 }
 
+.workspace-row .row-icon.is-recent {
+  color: var(--visp-hue-string);
+}
+
 /*
  * The fallback for anything without a hue of its own, and for the note and folder rows that
  * share this class.
@@ -158,7 +162,8 @@
 .workspace-row .row-icon.is-due,
 .workspace-row .row-icon.is-graph,
 .workspace-row .row-icon.is-broken,
-.workspace-row .row-icon.is-orphans {
+.workspace-row .row-icon.is-orphans,
+.workspace-row .row-icon.is-recent {
   opacity: 0.92;
 }
 
@@ -172,8 +177,17 @@
   font-size: 14px;
 }
 
-.workspace-row.is-nested {
-  padding-left: 26px;
+/*
+ * How deep a row sits in the folder tree. Driven by a custom property rather than a class per
+ * level, because the tree is as deep as the vault is: a fixed `.is-nested` padding could only
+ * ever say "one level in", which is why the panel used to draw a nested vault flat.
+ *
+ * Clamped so that a vault filed twelve folders deep still leaves room for a note title; past
+ * that the indentation stops growing and the row's tooltip carries the full path.
+ */
+.workspace-row {
+  --row-depth: 0;
+  padding-left: calc(12px + min(var(--row-depth), 6) * 14px);
 }
 
 /* A note's connectedness, at a glance: bright when well linked, hollow when linked to nothing. */
@@ -201,6 +215,21 @@
   font-variant-numeric: tabular-nums;
 }
 
+/*
+ * Where a note lives, shown only on rows whose title is shared with another note. Quieter and
+ * smaller than the title, and allowed to shrink before the title does: it is there to break a
+ * tie, not to be read first.
+ */
+.workspace-row-parent {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--visp-muted);
+  font-size: 10.5px;
+}
+
 /* A task under Due Today: completable in place, with how urgent it is on the right. */
 .workspace-task {
   width: 100%;
@@ -225,12 +254,17 @@
   accent-color: var(--visp-accent);
 }
 
+/* A button, so the note behind a task is reachable without a pointer. It has to be undressed
+ * back to text: the row's shape is the row's, not the control's. */
 .workspace-task-text {
   flex: 1;
   min-width: 0;
+  padding: 0;
   overflow: hidden;
+  background: transparent;
   color: var(--visp-text);
   font-size: 12px;
+  text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

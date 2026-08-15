@@ -7,6 +7,7 @@ import { createHost, window } from "../support/domEnvironment";
 import { CodeMirrorEditor } from "../../src/webview/editor/codeMirrorEditor";
 import { INLINE_MARKS } from "../../src/webview/editor/inlineMarks";
 import { INLINE_FORMAT_COMMANDS } from "../../src/vscode/ids";
+import { isBareKey } from "../../src/webview/shared/rovingList";
 
 /**
  * Which keys the extension is allowed to take, checked against the two tables that already
@@ -333,4 +334,36 @@ test("Ctrl+Alt+G is a note editor key, which is why Cmd+Alt+G could not be the m
     true,
     "Go to Line stopped claiming this key, so the graph could follow the house pattern",
   );
+});
+
+/*
+ * The panels' list keys.
+ *
+ * The workspace panel, the note list and the tasks view now answer Enter, the arrows, Home and
+ * End so that a filtered list can be worked without a mouse. None of those is a key this
+ * extension can contribute — they are keys the whole editor is already using — so the panels
+ * take them only in the bare form, and only inside their own list. Every modified version
+ * belongs to somebody else: Ctrl+Home and Ctrl+End scroll, and Alt+Left and Alt+Right are Go
+ * Back and Go Forward, all of which fire inside a webview.
+ */
+const PANEL_LIST_KEYS: readonly string[] = ["Enter", "ArrowDown", "ArrowUp", "Home", "End"];
+
+test("the panels' list keys are never contributed to the whole editor", () => {
+  for (const binding of keybindings) {
+    const last = binding.key.split("+").at(-1) ?? "";
+    assert.ok(
+      !PANEL_LIST_KEYS.some((key) => key.toLowerCase() === last.toLowerCase()),
+      `${binding.command} contributes ${binding.key}, which the panels' lists answer themselves`,
+    );
+  }
+});
+
+test("a list leaves a modified press for whoever else is listening", () => {
+  for (const key of PANEL_LIST_KEYS) {
+    for (const held of ["ctrlKey", "altKey", "metaKey", "shiftKey"] as const) {
+      const event = new window.KeyboardEvent("keydown", { key, [held]: true });
+      assert.equal(isBareKey(event), false, `${held} + ${key} was treated as a bare press`);
+    }
+    assert.equal(isBareKey(new window.KeyboardEvent("keydown", { key })), true);
+  }
 });

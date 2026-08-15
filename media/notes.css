@@ -130,6 +130,19 @@
   font-variant-numeric: tabular-nums;
 }
 
+/*
+ * How long ago a note's file changed, on the recent list. A fixed column at the end of the row
+ * so the stamps line up and the list can be scanned down as one, rather than read row by row.
+ */
+.note-row-when {
+  width: 6.5em;
+  flex: 0 0 auto;
+  color: var(--visp-muted-strong);
+  font-size: 11px;
+  text-align: right;
+  white-space: nowrap;
+}
+
 /* An empty list here is good news, so it reads as a sentence rather than as a blank pane. */
 .notes-empty {
   padding: 18px 16px;

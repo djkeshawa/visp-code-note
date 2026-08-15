@@ -19,7 +19,10 @@ import {
   setNotice,
 } from "./shared/dom.js";
 import { acquireWebviewApi } from "./shared/vscodeApi.js";
+import { RovingList, isBareKey } from "./shared/rovingList.js";
 import { workspaceEmptyState } from "./workspace/emptyState.js";
+import { workspaceTreeRows } from "../application/workspaceFolderTree.js";
+import { noteRowQualifiers } from "../application/noteRowQualifier.js";
 
 /**
  * The workspace panel.
@@ -104,6 +107,17 @@ filter.addEventListener("input", () => {
     }
   }, FILTER_DEBOUNCE_MS);
 });
+/**
+ * The two lists the panel can be steered around. Each is one tab stop rather than one per row:
+ * a filtered list of 60 notes used to be 60 Tab presses deep, through a list that redraws
+ * under the reader between presses.
+ */
+const viewsNavigation = new RovingList(viewsRoot, {
+  rows: ".workspace-row, .workspace-task",
+  controls: "button, input",
+});
+const notesNavigation = new RovingList(notesRoot, { rows: ".workspace-row" });
+
 filter.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && filter.value.length > 0) {
     event.preventDefault();
@@ -113,8 +127,47 @@ filter.addEventListener("keydown", (event) => {
     clearAnswerFallback();
     contentMatches = undefined;
     render();
+    return;
+  }
+  /*
+   * Typing narrowed 60 rows to 3 and then there was nothing to do with them without a mouse:
+   * Enter did nothing and ArrowDown did nothing. Enter opens the top row, ArrowDown steps into
+   * the list — the two things a reader who has just finished typing reaches for.
+   *
+   * Both aim at the same row, the topmost one on screen, which is why they run through the
+   * same list of candidates in the order the panel draws them.
+   */
+  if (!isBareKey(event)) return;
+  if (event.key === "Enter") {
+    const row = firstListRow();
+    if (row === undefined) return;
+    event.preventDefault();
+    /*
+     * Flushed first: the field is debounced, so Enter typed straight after the last character
+     * would otherwise open whichever row the *previous* query had left at the top.
+     */
+    settleFilter();
+    firstListRow()?.click();
+  } else if (event.key === "ArrowDown") {
+    event.preventDefault();
+    settleFilter();
+    if (!viewsNavigation.focusFirst()) notesNavigation.focusFirst();
   }
 });
+
+/** The row Enter and ArrowDown aim at: the first one drawn, views before notes. */
+function firstListRow(): HTMLElement | undefined {
+  return viewsNavigation.firstRow() ?? notesNavigation.firstRow();
+}
+
+/** Paints whatever the field currently says, without waiting out the typing pause. */
+function settleFilter(): void {
+  if (filterTimer === undefined) return;
+  window.clearTimeout(filterTimer);
+  filterTimer = undefined;
+  requestContentMatches();
+  render();
+}
 
 function scheduleAnswerFallback(): void {
   clearAnswerFallback();
@@ -286,6 +339,7 @@ function renderViews(current: WorkspacePanelStateWire): void {
     }
   }
   viewsRoot.replaceChildren(...rows);
+  viewsNavigation.refresh();
 }
 
 function viewRow(
@@ -328,7 +382,9 @@ function viewRow(
       htmlElement("span", `workspace-row-count is-${view.tone}`, String(view.count)),
     );
   }
-  row.title = view.count === undefined ? view.label : `${view.label} · ${view.count}`;
+  const summary = view.count === undefined ? view.label : `${view.label} · ${view.count}`;
+  // A view whose label promises more than it delivers says so before it is opened.
+  row.title = view.hint === undefined ? summary : `${summary}\n\n${view.hint}`;
   row.addEventListener("click", (event) => {
     // The twisty opens the list in place; the row itself opens the view.
     if (expandable && event.target instanceof Element && event.target.closest(".row-twisty")) {
@@ -342,8 +398,14 @@ function viewRow(
 
 function taskRow(task: WorkspaceTaskRowWire, version: number): HTMLElement {
   const text = task.text.length > 0 ? task.text : "Untitled task";
+  /*
+   * A div, not a label. A label forwards a click anywhere in the row to its checkbox, so the
+   * text had to cancel the default to open the note instead — and the text could then only
+   * ever be a span, which no keyboard can reach. The tasks view settled this the same way and
+   * for the same reason: the checkbox and the text each keep their own target.
+   */
   const row = htmlElement(
-    "label",
+    "div",
     task.completed ? "workspace-task is-completed" : "workspace-task",
   );
   row.title = `${text}\n${task.noteTitle}`;
@@ -365,10 +427,10 @@ function taskRow(task: WorkspaceTaskRowWire, version: number): HTMLElement {
       version,
     });
   });
-  const label = htmlElement("span", "workspace-task-text", text);
-  label.addEventListener("click", (event) => {
-    // A label forwards a plain click to its checkbox; opening the note has to opt out of that.
-    event.preventDefault();
+  const label = htmlElement("button", "workspace-task-text", text);
+  label.type = "button";
+  label.title = `${text}\nOpen in ${task.noteTitle}`;
+  label.addEventListener("click", () => {
     api.postMessage({ type: "workspace/revealTask", noteUri: task.noteUri, start: task.start });
   });
   const urgency = task.completed ? "none" : dueUrgency(task.due);
@@ -381,17 +443,22 @@ function taskRow(task: WorkspaceTaskRowWire, version: number): HTMLElement {
 }
 
 /**
- * Folders, then the notes beside them. Filtering flattens the tree: when a query is on, every
- * matching note is listed wherever it lives, because "where is that note" is the question the
- * field is being asked.
- */
-/**
  * What the filtered list last drew. A filter paint can be asked for more than once with the
  * same outcome — the index republishing mid-typing, a content answer that widens nothing —
  * and rebuilding a few hundred identical rows makes the list shimmer. Identical rows stay.
  */
 let filteredListSignature: string | undefined;
 
+/**
+ * Folders, then the notes beside them. Filtering flattens the tree: when a query is on, every
+ * matching note is listed wherever it lives, because "where is that note" is the question the
+ * field is being asked.
+ *
+ * Unfiltered, the tree draws only what is open — a folder's subfolders and its own notes,
+ * never its whole subtree. That is fewer rows than the panel used to draw, not more: opening
+ * `projects` in a nested vault used to spill every note beneath it into one flat run and hit
+ * the row limit immediately, so the first thing browsing said was "narrow the search".
+ */
 function renderNotes(current: WorkspacePanelStateWire): void {
   noteCount.textContent = String(current.noteCount);
   const filtering = filter.value.trim().length > 0;
@@ -403,6 +470,8 @@ function renderNotes(current: WorkspacePanelStateWire): void {
   filterStatus.textContent = filtering
     ? `${visible.length} note${visible.length === 1 ? "" : "s"} match`
     : "";
+  // Over every note, not only the drawn ones: a title is ambiguous because of a note elsewhere.
+  const qualifiers = noteRowQualifiers(current.notes);
 
   if (filtering) {
     const signature = visible
@@ -416,29 +485,33 @@ function renderNotes(current: WorkspacePanelStateWire): void {
     filteredListSignature = signature;
     notesRoot.replaceChildren(...(visible.length === 0
       ? [htmlElement("p", "workspace-empty", "No notes match.")]
-      : capped(visible.map((note) => noteRow(note, true)), visible.length)));
+      : capped(visible.map((note) => noteRow(note, 1, qualifiers)), visible.length)));
+    notesNavigation.refresh();
     return;
   }
   filteredListSignature = undefined;
 
-  const rows: HTMLElement[] = [];
-  for (const folder of current.folders) {
-    if (folder.path.includes("/")) continue; // Only top-level folders open from the root.
-    rows.push(folderRow(folder));
-    if (expanded.has(`folder:${folder.path}`)) {
-      rows.push(
-        ...current.notes
-          .filter((note) => note.folder === folder.path || note.folder.startsWith(`${folder.path}/`))
-          .map((note) => noteRow(note, true)),
-      );
-    }
-  }
-  rows.push(
-    ...current.notes.filter((note) => note.folder === "").map((note) => noteRow(note, false)),
-  );
+  const rows = workspaceTreeRows(current.folders, current.notes, isFolderExpanded).map((row) =>
+    row.kind === "folder"
+      ? folderRow(row.folder, row.depth)
+      : noteRow(row.note, row.depth, qualifiers));
   notesRoot.replaceChildren(...(rows.length === 0
     ? emptyNotes(current)
     : capped(rows, rows.length)));
+  notesNavigation.refresh();
+}
+
+function isFolderExpanded(path: string): boolean {
+  return expanded.has(folderKey(path));
+}
+
+/**
+ * The expansion key a folder is remembered under. Nested paths need no new persistence — the
+ * key is the path, and `api.setState` already carries whatever strings are in the set across a
+ * reload — but the two places that build it must agree, so only this one builds it.
+ */
+function folderKey(path: string): string {
+  return `folder:${path}`;
 }
 
 /**
@@ -461,10 +534,10 @@ function emptyNotes(current: WorkspacePanelStateWire): HTMLElement[] {
   return [panel];
 }
 
-function folderRow(folder: WorkspaceFolderRowWire): HTMLElement {
+function folderRow(folder: WorkspaceFolderRowWire, depth: number): HTMLElement {
   const row = htmlElement("button", "workspace-row");
   row.type = "button";
-  const open = expanded.has(`folder:${folder.path}`);
+  const open = isFolderExpanded(folder.path);
   const twisty = codicon(open ? "chevron-down" : "chevron-right");
   twisty.classList.add("row-twisty");
   row.append(
@@ -472,10 +545,32 @@ function folderRow(folder: WorkspaceFolderRowWire): HTMLElement {
     htmlElement("span", "workspace-row-label", folder.label),
     htmlElement("span", "workspace-row-count", String(folder.count)),
   );
+  indent(row, depth);
   row.setAttribute("aria-expanded", String(open));
-  row.dataset.expandKey = `folder:${folder.path}`;
-  row.addEventListener("click", () => toggleExpanded(`folder:${folder.path}`));
+  // Announced as a tree row so its level is spoken; a flat list of buttons could not say it.
+  row.setAttribute("aria-level", String(depth + 1));
+  row.title = `${folder.path} · ${folder.count} note${folder.count === 1 ? "" : "s"}`;
+  row.dataset.expandKey = folderKey(folder.path);
+  row.addEventListener("click", () => toggleExpanded(folderKey(folder.path)));
+  /*
+   * ArrowRight opens and ArrowLeft closes, the same tree convention Due Today uses — so a
+   * reader holding an arrow down a deep tree cannot shut the folder they just opened.
+   */
+  row.addEventListener("keydown", (event) => {
+    if (event.key !== (open ? "ArrowLeft" : "ArrowRight")) return;
+    event.preventDefault();
+    event.stopPropagation();
+    toggleExpanded(folderKey(folder.path));
+  });
   return row;
+}
+
+/**
+ * How far in a row sits. A calc rather than a class per level: the tree is as deep as the
+ * vault is, and `.is-nested` could only ever say "one level in".
+ */
+function indent(row: HTMLElement, depth: number): void {
+  if (depth > 0) row.style.setProperty("--row-depth", String(depth));
 }
 
 /** Trims a row list to what the panel will actually draw, and says what was left out. */
@@ -493,19 +588,30 @@ function capped(rows: readonly HTMLElement[], total: number): HTMLElement[] {
 
 function noteRow(
   note: WorkspaceNoteRowWire,
-  nested: boolean,
+  depth: number,
+  qualifiers: ReadonlyMap<string, string>,
 ): HTMLElement {
   const classes = ["workspace-row"];
-  if (nested) classes.push("is-nested");
   if (note.uri === activeNoteUri) classes.push("is-active");
   const row = htmlElement("button", classes.join(" "));
   row.type = "button";
   row.dataset.uri = note.uri;
+  indent(row, depth);
   const strength = note.links >= 3 ? "" : note.links > 0 ? " is-weak" : " is-orphan";
   row.append(
     htmlElement("span", `workspace-note-dot${strength}`),
     htmlElement("span", "workspace-row-label", note.title),
   );
+  /*
+   * Where it lives, but only when the title does not say which note this is. Four `index.md`
+   * files under four projects drew four identical rows, and hovering each in turn was the only
+   * way to tell them apart. Every row carrying its folder would be noise in a column this
+   * narrow, so only the ambiguous ones do — see `noteRowQualifiers` for how much is enough.
+   */
+  const qualifier = qualifiers.get(note.uri);
+  if (qualifier !== undefined) {
+    row.append(htmlElement("span", "workspace-row-parent", qualifier));
+  }
   if (note.links > 0) {
     row.append(htmlElement("span", "workspace-note-count", String(note.links)));
   }
@@ -706,6 +812,7 @@ function isViewRow(value: unknown): boolean {
     typeof value.label === "string" &&
     typeof value.icon === "string" &&
     (value.count === undefined || isCount(value.count)) &&
+    (value.hint === undefined || typeof value.hint === "string") &&
     (value.tone === "default" || value.tone === "brand" || value.tone === "warning")
   );
 }
@@ -723,13 +830,27 @@ function isTaskRow(value: unknown): boolean {
   );
 }
 
+/**
+ * A folder row, checked for a tree that is actually a tree.
+ *
+ * `depth` and `parent` have to agree with the path, because the renderer walks parents to
+ * decide what is drawn: a row claiming a parent that is not its own prefix could name a
+ * descendant, and the walk would then follow itself forever with the panel half drawn.
+ */
 function isFolderRow(value: unknown): boolean {
-  return (
-    isRecord(value) &&
-    typeof value.path === "string" &&
-    typeof value.label === "string" &&
-    isCount(value.count)
-  );
+  if (
+    !isRecord(value) ||
+    typeof value.path !== "string" ||
+    typeof value.label !== "string" ||
+    !isCount(value.count) ||
+    !isCount(value.depth)
+  ) {
+    return false;
+  }
+  const cut = value.path.lastIndexOf("/");
+  return cut === -1
+    ? value.depth === 0 && value.parent === undefined
+    : value.depth === value.path.split("/").length - 1 && value.parent === value.path.slice(0, cut);
 }
 
 function isNoteRow(value: unknown): boolean {

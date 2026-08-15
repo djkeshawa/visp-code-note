@@ -189,6 +189,7 @@ export type TasksToHostMessage =
 export type NoteListing =
   | { readonly kind: "orphans" }
   | { readonly kind: "broken" }
+  | { readonly kind: "recent" }
   | { readonly kind: "tag"; readonly tag: string };
 
 export interface NoteListRow {
@@ -199,6 +200,8 @@ export interface NoteListRow {
   readonly tags?: readonly string[];
   readonly start?: number;
   readonly line?: number;
+  /** When the file was last written, for a list that is about time. */
+  readonly modifiedAt?: number;
 }
 
 export interface NotesState {
@@ -244,11 +247,16 @@ export type GraphToHostMessage =
 export type WorkspaceViewTone = "default" | "brand" | "warning";
 
 export interface WorkspaceViewRow {
-  readonly id: "tasks" | "due" | "graph" | "broken" | "orphans";
+  readonly id: "tasks" | "due" | "graph" | "broken" | "orphans" | "recent";
   readonly label: string;
   readonly icon: string;
   readonly count?: number;
   readonly tone: WorkspaceViewTone;
+  /**
+   * What the view is, where its label could be read as promising something it cannot do.
+   * Shown as the row's tooltip in place of the label, so the row itself can stay one line.
+   */
+  readonly hint?: string;
 }
 
 export interface WorkspaceTaskRow {
@@ -272,10 +280,19 @@ export interface WorkspaceNoteRow {
   readonly links: number;
 }
 
+/**
+ * One folder in the panel's tree, at whatever depth it sits. Mirrors `WorkspaceFolderNode`;
+ * the panel draws a row per distinct folder path rather than per top-level folder, so `depth`
+ * and `parent` are what let it nest them.
+ */
 export interface WorkspaceFolderRow {
   readonly path: string;
+  /** The last segment; the rest of the path is said by the indentation. */
   readonly label: string;
+  /** Notes anywhere beneath it, so a closed folder still reports what it holds. */
   readonly count: number;
+  readonly depth: number;
+  readonly parent?: string;
 }
 
 export interface WorkspaceTagRow {

@@ -1,7 +1,6 @@
 import * as vscode from "vscode";
 import type {
   HostToWorkspaceMessage,
-  WorkspaceFolderRow,
   WorkspaceMenuCommand,
   NoteListing,
   WorkspaceNoteAction,
@@ -21,6 +20,8 @@ import { noteLinkCounts, todayStamp } from "./explorerModel";
 import { selectDueTasks } from "../../application/dueTasks";
 import type { DueSelection } from "../../application/dueTasks";
 import { matchingNoteUris } from "../../application/workspaceSearch";
+import { folderTreeRows } from "../../application/workspaceFolderTree";
+import { RECENT_LISTING_MEANING } from "../../application/noteRecency";
 
 /**
  * How many task rows ride to the panel.
@@ -59,7 +60,14 @@ const NOTE_ACTION_COMMANDS: Readonly<Record<WorkspaceNoteAction, string>> = {
   delete: COMMAND_IDS.deleteNote,
 };
 
-const SMART_VIEWS: readonly { readonly id: WorkspaceViewRow["id"]; readonly label: string; readonly icon: string }[] = [
+interface SmartView {
+  readonly id: WorkspaceViewRow["id"];
+  readonly label: string;
+  readonly icon: string;
+  readonly hint?: string;
+}
+
+const SMART_VIEWS: readonly SmartView[] = [
   /*
    * Today's work first: it is the only one of these that is about the next few hours. Work that
    * slipped its date counts as today's — scoped strictly to the current date, a task that missed
@@ -67,6 +75,15 @@ const SMART_VIEWS: readonly { readonly id: WorkspaceViewRow["id"]; readonly labe
    */
   { id: "due", label: "Due Today", icon: "calendar" },
   { id: "tasks", label: "All Tasks", icon: "checklist" },
+  /*
+   * Third, with the two lists you open to decide what to work on, ahead of the three that are
+   * about the shape of the vault. Nothing in this product was ordered by time until now, so
+   * "the note I wrote last Tuesday" was a question with no answer anywhere.
+   *
+   * The hint is not decoration. The row says "Recent Notes" and the list is ordered by file
+   * modification time, which is not the same thing, so the row says so before it is clicked.
+   */
+  { id: "recent", label: "Recent Notes", icon: "history", hint: RECENT_LISTING_MEANING },
   { id: "graph", label: "Knowledge Graph", icon: "type-hierarchy" },
   { id: "broken", label: "Broken Links", icon: "warning" },
   { id: "orphans", label: "Orphan Notes", icon: "circle-slash" },
@@ -257,6 +274,9 @@ export class WorkspacePanel implements vscode.WebviewViewProvider, vscode.Dispos
       case "orphans":
         this.actions.openNotesList({ kind: "orphans" });
         break;
+      case "recent":
+        this.actions.openNotesList({ kind: "recent" });
+        break;
     }
   }
 
@@ -328,7 +348,7 @@ export class WorkspacePanel implements vscode.WebviewViewProvider, vscode.Dispos
         ...(task.due === undefined ? {} : { due: task.due }),
         ...(task.priority === undefined ? {} : { priority: task.priority }),
       })),
-      folders: folderRows(snapshot),
+      folders: folderTreeRows(snapshot.notes),
       notes: snapshot.notes.map((note): WorkspaceNoteRow => ({
         uri: note.uri,
         title: note.title,
@@ -370,6 +390,11 @@ export class WorkspacePanel implements vscode.WebviewViewProvider, vscode.Dispos
       }
       case "orphans":
         return { ...view, count: getOrphanNotes(snapshot).length, tone: "default" };
+      /*
+       * No count on either of these. A number beside Recent Notes would only ever be the
+       * length of the list itself, which is a constant and says nothing about the workspace.
+       */
+      case "recent":
       case "graph":
         return { ...view, tone: "default" };
     }
@@ -385,20 +410,6 @@ function densitySetting(): WorkspaceDensity {
   return vscode.workspace.getConfiguration().get<string>("vispNotes.density") === "compact"
     ? "compact"
     : "comfortable";
-}
-
-/** Top-level folders and how many notes each holds, including nested ones. */
-function folderRows(snapshot: IndexSnapshot): readonly WorkspaceFolderRow[] {
-  const counts = new Map<string, number>();
-  for (const note of snapshot.notes) {
-    const segments = note.path.split("/").slice(0, -1);
-    if (segments.length === 0) continue;
-    const top = segments[0] ?? "";
-    counts.set(top, (counts.get(top) ?? 0) + 1);
-  }
-  return [...counts.entries()]
-    .sort(([left], [right]) => left.localeCompare(right, undefined, { sensitivity: "base" }))
-    .map(([path, count]) => ({ path, label: path, count }));
 }
 
 function tagRows(snapshot: IndexSnapshot): readonly { name: string; count: number }[] {

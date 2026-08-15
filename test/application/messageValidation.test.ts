@@ -123,3 +123,16 @@ test("the panel may run its own two commands and nothing else", () => {
   );
   assert.equal(isWorkspaceMessage({ type: "workspace/runCommand" }), false);
 });
+
+/*
+ * The same silent failure, one row up. A view id this list does not name is dropped without a
+ * word, so clicking that row in the panel does nothing at all — and nothing anywhere says why.
+ * Every view the panel draws has to be here, which is what this pins.
+ */
+test("every view the panel offers can actually be opened", () => {
+  for (const id of ["due", "tasks", "recent", "graph", "broken", "orphans"]) {
+    assert.equal(isWorkspaceMessage({ type: "workspace/openView", id }), true, id);
+  }
+  assert.equal(isWorkspaceMessage({ type: "workspace/openView", id: "everything" }), false);
+  assert.equal(isWorkspaceMessage({ type: "workspace/openView" }), false);
+});

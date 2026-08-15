@@ -13,6 +13,7 @@ import {
   setNotice,
 } from "./shared/dom.js";
 import { acquireMessageSender } from "./shared/vscodeApi.js";
+import { RovingList, isBareKey } from "./shared/rovingList.js";
 import {
   dueUrgency,
   formatDueDate,
@@ -50,13 +51,34 @@ let direction: TaskSortDirection = "asc";
  */
 let pendingFocus: { readonly uri: string; readonly start: number; readonly index: number } | undefined;
 
+/**
+ * The task list, as one tab stop. A row holds two controls — the checkbox and the way into the
+ * note — and used to spend two tab stops each, so the fortieth task was eighty presses down a
+ * list that is rebuilt every time the index moves.
+ */
+const taskNavigation = new RovingList(groupsRoot, {
+  rows: ".task-row, .reminder-row",
+  controls: "input, button",
+});
+
 search.addEventListener("input", render);
 // Escape clears the filter here too — notes, graph and the workspace panel all already do.
 search.addEventListener("keydown", (event) => {
-  if (event.key !== "Escape" || search.value === "") return;
-  event.preventDefault();
-  search.value = "";
-  render();
+  if (event.key === "Escape" && search.value !== "") {
+    event.preventDefault();
+    search.value = "";
+    render();
+    return;
+  }
+  if (!isBareKey(event)) return;
+  // Narrowing to the task you meant and then having no way to reach it is where this ended.
+  if (event.key === "Enter") {
+    event.preventDefault();
+    taskNavigation.firstRow()?.querySelector<HTMLElement>('button[data-action="open"]')?.click();
+  } else if (event.key === "ArrowDown") {
+    event.preventDefault();
+    taskNavigation.focusFirst();
+  }
 });
 groupBy.addEventListener("change", render);
 sortBy.addEventListener("change", render);
@@ -117,6 +139,17 @@ function setStatus(next: TaskStatusFilter): void {
 }
 
 function render(): void {
+  paint();
+  /*
+   * Both of these put focus back after the rows were replaced, and the order matters: the
+   * roving list only lands on whichever row it was last on, while `restorePendingFocus` knows
+   * which task was just toggled. The more specific answer goes last so that it wins.
+   */
+  taskNavigation.refresh();
+  restorePendingFocus();
+}
+
+function paint(): void {
   groupsRoot.replaceChildren();
   if (snapshot === undefined) {
     summary.textContent = "Waiting for index…";
@@ -170,7 +203,6 @@ function render(): void {
   if (grouping === "due" && !groups.some((group) => group.name === "Later")) {
     groupsRoot.append(nothingElseScheduled());
   }
-  restorePendingFocus();
 }
 
 /** Puts focus back on the task that was toggled, or on whatever now stands in its place. */

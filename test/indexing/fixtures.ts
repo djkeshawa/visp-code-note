@@ -7,6 +7,8 @@ interface NoteOptions {
   readonly content?: string;
   readonly title?: string;
   readonly aliases?: readonly string[];
+  /** When the file was last written. Fixed unless a test is about which note is newer. */
+  readonly modifiedAt?: number;
 }
 
 export function makeNote(options: NoteOptions): NoteRecord {
@@ -20,7 +22,7 @@ export function makeNote(options: NoteOptions): NoteRecord {
     path: options.path,
     fileName,
     title: options.title ?? parsed.title ?? noteStem(options.path),
-    modifiedAt: 1,
+    modifiedAt: options.modifiedAt ?? 1,
     content,
   };
 }

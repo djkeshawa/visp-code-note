@@ -359,6 +359,7 @@ export const WORKSPACE_MARKUP: readonly MarkupRequirement[] = [
 export const TREE_VIEWS: readonly { readonly label: string; readonly icon: string }[] = [
   { label: "Due Today", icon: "calendar" },
   { label: "All Tasks", icon: "checklist" },
+  { label: "Recent Notes", icon: "history" },
   { label: "Knowledge Graph", icon: "type-hierarchy" },
   { label: "Broken Links", icon: "warning" },
   { label: "Orphan Notes", icon: "circle-slash" },
