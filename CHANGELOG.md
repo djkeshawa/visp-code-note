@@ -1,5 +1,179 @@
 # Changelog
 
+## 0.12.0 - 2026-08-15
+
+### Changed — renaming a note in the Explorer now keeps the links to it working
+
+**Every `[[link]]` to a note follows it when the note is renamed or dragged somewhere else.**
+Until now that only happened through the extension's own Rename Note command. Renaming the file
+in VS Code's Explorer — the most ordinary thing a person can do to a file — left every link to
+it pointing at nothing, with no warning, and the migration engine that would have fixed them sat
+298 lines away reachable from one place. Moving or deleting a folder was the same gap seen from
+the other side: a `**/*.md` watcher cannot match a folder path, so the notes inside one stayed in
+the panel and the graph as ghosts until somebody found Rebuild Index.
+
+**This edits files you did not open, so the terms are worth stating plainly.** The migration runs
+as a rename participant, which means VS Code applies its edit in the same undo step as the rename
+itself — one Ctrl+Z takes back both. It never asks first: a participant runs under
+`files.participants.timeout` with the Explorer frozen behind it, so a prompt there is a hung
+rename rather than a question. `vispNotes.updateLinksOnFileMove.enabled` turns it off for anyone
+who would rather it did not.
+
+**The words on the page are left as they were written.** A link is rewritten as
+`[[New Title|Target]]` rather than `[[New Title]]`, so a sentence reading "see [[Target]] for
+details" still reads that way afterwards and only what it points at moves. Links written as paths,
+or carrying a heading or block reference, are machinery rather than prose and are rewritten
+outright.
+
+It is all or nothing. If any part of the plan cannot be trusted — a note it named has moved again
+since, a link is no longer the text the plan was made against, a file will not open — nothing at
+all is contributed and a warning says so, because a half-migrated vault is worse than an
+unmigrated one: the reader cannot tell which links moved. The rename itself always succeeds
+regardless.
+
+Four defects found while proving this out, each of which wrote wrong text into a note: two
+Explorer gestures in a row wrote a permanently dead link, because nothing checked that the notes
+a plan had resolved against still existed; a note renamed to a stemless name such as `.md` turned
+every `[[Target]]` pointing at it into `[[]]`; a note renamed that way turned its own self-links
+into `[[]]` too, which the first fix missed because an empty target resolves to the note the link
+sits in; and two notes whose paths differed only in case had their links rewritten to name the
+wrong file.
+
+### Changed — typing no longer gets slower as the vault grows
+
+**A keystroke costs the same in a vault of four thousand notes as in a vault of five.** Every
+debounced edit used to re-resolve every link in the workspace and rebuild every backlink, none of
+which had changed. Measured on the projection alone: 38ms at 500 notes, 74ms at 1,000, 174ms at
+2,000, 385ms at 4,000 — against a 120ms watcher debounce, so continuous typing kept the extension
+host saturated and the tasks view, panel, diagnostics and graph all queued behind it.
+
+A note's links, backlinks and tasks depend only on its own record and on what names the workspace
+can resolve. Records are immutable, so a per-note projection can be kept against record identity
+and reused, and the only thing that must invalidate the lot is a change to the resolvable
+name-space — a note added, removed, renamed, retitled or re-aliased. A body edit changes none of
+that. The search index has worked this way for some time; this applies the same rule one level up.
+A body edit at 2,000 notes now costs 4.9ms against 62ms with the cache bypassed.
+
+Separately, the host was rebuilding index-derived state on the one path that must not: the message
+sent to the editor on every keystroke built a fresh wiki resolver over every note and recomputed
+the note's context, 11ms of pure waste per character at 2,000 notes, which the editor then
+discarded by comparing it against the last one. Both are now memoised, along with the five other
+places that built a resolver from scratch — including the document-link provider VS Code calls on
+every render of every open Markdown file. That path went from 6.99ms to 0.018ms at 2,000 notes,
+and no longer scales with the vault at all.
+
+`vispNotes.index.bypassProjectionCache` turns the cache off, so a link that looks wrong can be
+settled in one message rather than one release.
+
+### Added — bold, italic, code and strikethrough have keys
+
+`Ctrl+B`, `Ctrl+I`, `Ctrl+E` and `Ctrl+Shift+X` (`Cmd+` on macOS), and four entries in the slash
+menu. They toggle rather than only insert, which is the half that matters: live preview hides the
+asterisks on every line the caret is not on, so removing bold by hand means clicking back onto the
+line to find the marks first. The bindings are scoped to the note editor and shadow VS Code's own
+commands only while a note is open.
+
+### Added — typing `#` offers the tags the workspace already uses
+
+Tags carry colour, graph nodes, task grouping and their own panel section, and until now typing one
+got no help at all — so `#project` and `#projects` quietly became two tags with two hues and two
+nodes, and nothing ever said so. Each suggestion is drawn in that tag's own colour, and a query
+matching nothing is offered as "Create #foo", which is the part that makes the split visible before
+it happens. Suggestions decline inside code and inside wiki links.
+
+### Added — a search can say where to look, not only what to find
+
+`path:`, `tag:`, `is:` and `modified:` narrow a query, in the search picker and in the workspace
+panel's filter alike. An unknown facet is treated as ordinary text rather than dropped, and a colon
+in ordinary prose — `ratio 3:1` — is left alone.
+
+**Quoting a phrase now means what it says.** `"design review"` used to be split on whitespace like
+everything else, so each half had to substring-match including the quote character, and the one
+search convention every reader knows returned nothing at all while looking like it had worked.
+
+The picker also waits 100ms before scanning rather than scanning on every character — under three
+characters the narrowing index cannot help, so every note's full text was read per keystroke — and
+it now says when there are more results than it is showing. "Not found" and "result 340" used to
+look identical.
+
+### Added — Recent Notes, and a folder tree that goes deeper than one level
+
+`modifiedAt` was read from every note on every commit and shown to nobody; "the note I wrote last
+Tuesday" was unanswerable. There is now a Recent view, and a search that scores a hundred results
+equally breaks the tie by recency rather than alphabetically.
+
+A vault organised `projects/2026/alpha/` used to collapse into one `projects` row holding 1,800
+notes flat, cut off at 200 with an instruction to go and type instead. Folders now open one level
+at a time, which draws fewer rows than before rather than more. Rows whose titles collide — four
+`index.md` files under four projects — carry the folder that tells them apart.
+
+### Added — the lists can be worked without a mouse
+
+Filtering sixty rows down to three and then being unable to act on them was a dead end. Enter opens
+the first row, ArrowDown moves into the list, and the list is one tab stop rather than sixty, in the
+workspace panel, the note lists and the tasks view. Focus survives the re-render that follows every
+action, which is the part that fails quietly.
+
+### Added — the graph can be explored rather than only looked at
+
+**Focus here** makes a node the centre without leaving the view. The projection for it already
+existed; there was simply no message that could ask for it, so drilling into a neighbourhood meant
+opening the note in an editor and losing the view you were reading. **Matches only** removes what a
+search did not find, together with each match's immediate neighbours, instead of dimming the other
+four thousand nine hundred and ninety-seven nodes.
+
+### Added — the editor says where you are and how much you have written
+
+The outline marks the section the caret is in, and a footer counts words — prose words, so
+frontmatter, code fences and `@due(…)` markers do not inflate the number, and the selection's own
+count when there is one. The editor was the only view without the footer the others have, and the
+surface holding the whole document was the one that would not say how long it was.
+
+### Fixed — a note too large to index no longer pretends it does not exist
+
+A note past `vispNotes.maxNoteSizeKB` was dropped with no message, and then every link to it was
+reported broken and clicking one offered to **create** it — a file already sitting on disk, which
+is an invitation to overwrite your own note. The count and the reason now appear in the index
+status and the panel footer, links to such a note are reported as a distinct thing rather than as
+broken, and raising the ceiling takes effect without hunting for Rebuild Index.
+
+### Fixed — the extension gave VS Code's shortcuts back
+
+`Ctrl+Shift+B` was bound to Show Backlinks with no `when` clause at all, so it took Run Build Task
+from every user of this extension in every file type, whether or not a note was open. `Ctrl+Shift+G`
+opened the local graph and was read by the editor's own search as Find Previous, so inside a note
+that had been searched it did two things at once. Search, meanwhile — the most-used action in a
+connected-notes app — had no binding at all, and now has `Shift+Alt+N`.
+
+### Fixed — the panel and the graph say true things while they are working
+
+The graph painted nothing at all while the host built it, then told a reader with no Markdown notes
+to re-enable a filter they had never turned off. A new user opening an empty folder was told to
+"Open a folder holding Markdown files" — an instruction to do the thing they had just done, with no
+button attached; the panel now knows whether a folder is open and offers to create the first note.
+
+### Fixed — text stays inside its column, and small labels can be read
+
+A long wiki-link label or tag name scrolled a whole panel sideways, and a note with many tags pushed
+the editor's overflow menu past the clipped edge where no mouse could reach it. Every label at 11px
+and under moved from `--visp-muted` to `--visp-muted-strong`, taking the smallest text on the light
+side panel from 3.30:1 to 6.13:1 against its background. Group and Sort no longer disappear from a
+narrow Tasks view — they were removed from the tab order along with the screen, so a docked panel was
+locked into whatever had last been chosen.
+
+### Fixed — a table stops sliding sideways while you type in it
+
+Column widths are held while the caret is inside a table, rather than being re-measured against a
+cell that is still being written.
+
+### Fixed — Rename Note stops reading the whole vault before it asks anything
+
+The command rebuilt the entire index before the title prompt appeared, and again afterwards. The
+first rebuild bought nothing the later one did not: 144ms of projection at 2,000 notes before a
+single question, on top of re-reading every file, which on a network drive is seconds of nothing at
+all and reads as a broken command. It refreshes the one note instead — 0.8ms — and the remaining
+wait is narrated where the reader is looking.
+
 ## 0.11.1 - 2026-08-06
 
 ### Changed — each workspace view keeps its own colour

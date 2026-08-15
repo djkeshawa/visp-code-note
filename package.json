@@ -3,7 +3,7 @@
   "displayName": "Visp Notes",
   "icon": "media/icon.png",
   "description": "A Markdown-first connected notes, tasks, backlinks, and graph workspace for VS Code.",
-  "version": "0.11.1",
+  "version": "0.12.0",
   "publisher": "visp-code-note",
   "license": "MIT",
   "repository": {
