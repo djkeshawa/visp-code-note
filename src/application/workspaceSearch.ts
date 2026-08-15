@@ -14,6 +14,11 @@ import {
   noteSearchCandidates,
   taskSearchCandidates,
 } from "./workspaceSearchIndex";
+import {
+  hasSearchFilters,
+  noteMatchesFilters,
+  taskMatchesFilters,
+} from "./workspaceSearchFilters";
 import { sourceSearchSnippet, truncateSearchValue } from "./workspaceSearchPreview";
 
 export type { SearchField as WorkspaceSearchField } from "./workspaceSearchMatcher";
@@ -59,6 +64,10 @@ type PendingResult =
  * itself: note content never rides to a webview, so the panel asks the host instead.
  * Bounded because a one-letter query matches most of a vault, and an unbounded answer
  * would serialise thousands of URIs for a list that draws a couple hundred rows.
+ *
+ * The panel posts whatever was typed, so `path:meetings budget` is answered here too. A
+ * query naming only tasks names no notes, and the panel lists notes — an empty answer is
+ * the truthful one.
  */
 export function matchingNoteUris(
   notes: readonly NoteRecord[],
@@ -66,12 +75,18 @@ export function matchingNoteUris(
   limit: number,
 ): readonly string[] {
   const request = createSearchRequest(query);
-  if (request.terms.length === 0 || limit <= 0) {
+  const filtered = hasSearchFilters(request.filters);
+  if ((request.terms.length === 0 && !filtered) || limit <= 0) {
     return [];
   }
-  const candidateUris = narrowSearchableNotes(notes, request.terms);
+  const candidateUris = request.terms.length === 0
+    ? undefined
+    : narrowSearchableNotes(notes, request.terms);
   const uris: string[] = [];
   for (const note of notes) {
+    if (filtered && !noteMatchesFilters(request.filters, note)) {
+      continue;
+    }
     if (candidateUris !== undefined && !candidateUris.has(note.uri)) {
       continue;
     }
@@ -117,9 +132,17 @@ export function buildWorkspaceSearchPage(
   const candidateUris = request.terms.length === 0
     ? undefined
     : narrowSearchableNotes(snapshot.notes, request.terms);
+  /*
+   * Almost every query carries no facet at all, and this asks once instead of running five
+   * empty predicates over every note and every task on each keystroke.
+   */
+  const filtered = hasSearchFilters(request.filters);
 
   const pending: PendingResult[] = [];
   for (const note of snapshot.notes) {
+    if (filtered && !noteMatchesFilters(request.filters, note)) {
+      continue;
+    }
     if (candidateUris !== undefined && !candidateUris.has(note.uri)) {
       continue;
     }
@@ -135,15 +158,26 @@ export function buildWorkspaceSearchPage(
     }
   }
   /*
-   * A task's recency is its note's, and a task record does not carry it. The map is built up
-   * front only when there are tasks to rank at all, and it is the same map the returned slice
-   * needs afterwards to render task previews.
+   * A task record carries neither its note's date nor its note's tags, and three things below
+   * want one or the other: the recency tie-break in `comparePending`, the `tag:` and
+   * `modified:` facets, which judge a task by the note it was written in, and the previews the
+   * returned slice renders. The map answers all three, so it is built once, up front, whenever
+   * there are tasks to rank at all.
+   *
+   * It used to be narrower on each side of this merge — built only for the queries carrying a
+   * facet that needed it, and separately only when tasks existed. Only the second narrowing
+   * survives: every pending task needs `modifiedAt` now, so a facet-shaped gate would leave the
+   * tie-break sorting every task as if it were written at the epoch, on exactly the queries
+   * that carry no facet, which is nearly all of them.
    */
   let notesByUri: Map<string, NoteRecord> | undefined;
   if (snapshot.tasks.length > 0) {
     notesByUri = new Map(snapshot.notes.map((note) => [note.uri, note]));
   }
   for (const task of snapshot.tasks) {
+    if (filtered && !taskMatchesFilters(request.filters, task, notesByUri?.get(task.noteUri))) {
+      continue;
+    }
     const match = selectSearchMatch(taskSearchCandidates(task), request);
     if (match !== undefined) {
       pending.push({

@@ -14,6 +14,15 @@ test("blames the filters only when there was a graph to filter", () => {
   assert.equal(state?.hint, "Re-enable a type above, or turn orphan notes back on.");
 });
 
+test("a matches-only search that found nothing blames the search, not the chips", () => {
+  const state = graphEmptyState(12, 0, false, true);
+
+  assert.match(state?.message ?? "", /search/i);
+  assert.match(state?.hint ?? "", /Matches only/);
+  // The filter wording would have sent the reader to chips that are all still switched on.
+  assert.notEqual(state?.message, graphEmptyState(12, 0, false)?.message);
+});
+
 test("an empty index names itself instead of sending the reader to the filters", () => {
   const state = graphEmptyState(0, 0, false);
 

@@ -9,6 +9,7 @@ export interface GraphPageElements {
   readonly search: HTMLInputElement;
   readonly searchStatus: HTMLElement;
   readonly orphanToggle: HTMLButtonElement;
+  readonly matchesOnlyToggle: HTMLButtonElement;
   readonly connections: HTMLElement;
   readonly zoomIn: HTMLButtonElement;
   readonly zoomOut: HTMLButtonElement;
@@ -35,6 +36,7 @@ export function getGraphPageElements(): GraphPageElements {
     search: requireElement("#graph-search", HTMLInputElement),
     searchStatus: requireElement("#graph-search-status", HTMLElement),
     orphanToggle: requireElement("#show-orphans", HTMLButtonElement),
+    matchesOnlyToggle: requireElement("#matches-only", HTMLButtonElement),
     connections,
     zoomIn: requireElement("#graph-zoom-in", HTMLButtonElement),
     zoomOut: requireElement("#graph-zoom-out", HTMLButtonElement),
@@ -61,6 +63,7 @@ export function getGraphPageElements(): GraphPageElements {
       connectionList: connections,
       closeButton: requireElement("#graph-details-close", HTMLButtonElement),
       openButton: requireElement("#open-selected", HTMLButtonElement),
+      focusButton: requireElement("#focus-selected", HTMLButtonElement),
     },
   };
 }

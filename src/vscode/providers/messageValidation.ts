@@ -103,7 +103,13 @@ export function isNotesMessage(value: unknown): value is NotesToHostMessage {
 export function isGraphMessage(value: unknown): value is GraphToHostMessage {
   if (!isRecord(value) || typeof value.type !== "string") return false;
   if (value.type === "graph/ready") return true;
-  if (value.type === "graph/open") return isSource(value.uri);
+  /*
+   * Both carry a URI the host will act on, from a webview drawing attacker-controlled note
+   * content in a workspace that may not be trusted. Shape is all this can check, so both are
+   * checked the same way and the panel does the rest: neither URI is used until it has been
+   * matched against a note the index actually holds.
+   */
+  if (value.type === "graph/open" || value.type === "graph/focus") return isSource(value.uri);
   if (value.type === "graph/runCommand") {
     return GRAPH_MENU_COMMANDS.some((command) => command === value.command);
   }

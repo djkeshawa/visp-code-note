@@ -231,6 +231,12 @@ export type GraphMenuCommand = "openWorkspaceGraph" | "rebuildIndex";
 
 export type GraphToHostMessage =
   | { readonly type: "graph/open"; readonly uri: string }
+  /**
+   * Make this note the centre and redraw around it. Without it the only way into a
+   * neighbourhood was to open the note in an editor and run Open Local Graph against it,
+   * which costs the reader the view they were reading in order to look at what is next to it.
+   */
+  | { readonly type: "graph/focus"; readonly uri: string }
   | { readonly type: "graph/depth"; readonly depth: 1 | 2 }
   | { readonly type: "graph/runCommand"; readonly command: GraphMenuCommand }
   | { readonly type: "graph/ready" };

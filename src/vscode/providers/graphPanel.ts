@@ -86,6 +86,18 @@ export class GraphPanel implements vscode.Disposable {
           await this.onOpen(message.uri);
         }
         break;
+      /*
+       * The same gate as `graph/open`, for the same reason: a URI arrives from a webview, and
+       * only one the index already holds names anything. An unknown one would otherwise make
+       * `buildLocalGraph` draw an empty canvas and leave the panel titled Local Graph over it.
+       */
+      case "graph/focus":
+        if (this.getSnapshot().notes.some((note) => note.uri === message.uri)) {
+          this.focusUri = message.uri;
+          if (this.panel) this.panel.title = this.title;
+          await this.publish();
+        }
+        break;
       case "graph/runCommand":
         await vscode.commands.executeCommand(GRAPH_MENU_COMMANDS[message.command]);
         break;

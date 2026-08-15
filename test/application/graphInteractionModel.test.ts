@@ -6,6 +6,7 @@ import {
   cycleNodeId,
   filterGraph,
   findMatchingNodeIds,
+  graphAroundMatches,
   keyboardNodeId,
   resolveSelection,
 } from "../../src/webview/graph/interactionModel";
@@ -55,6 +56,31 @@ test("finds case-insensitive labels and cycles matches in both directions", () =
   assert.equal(cycleNodeId(matches, undefined, 1), "note:b");
   assert.equal(cycleNodeId(matches, "note:b", -1), "task:a:1");
   assert.equal(cycleNodeId(matches, "task:a:1", 1), "note:b");
+});
+
+test("a matches-only search keeps the matches and what they are linked to", () => {
+  const restricted = graphAroundMatches(graph, findMatchingNodeIds(graph, "ideas"));
+
+  // Ideas links to nothing, so it arrives alone rather than dragging the graph with it.
+  assert.deepEqual(restricted.nodes.map((node) => node.id), ["note:c"]);
+  assert.deepEqual(restricted.edges, []);
+});
+
+test("the neighbours of a match do not bring their own neighbours with them", () => {
+  // Architecture matches; note:a is its neighbour; the tag and the task hang off note:a and
+  // must stay off the canvas, or one hop turns into two and the graph fills back up.
+  const restricted = graphAroundMatches(graph, ["note:b"]);
+
+  assert.deepEqual(restricted.nodes.map((node) => node.id), ["note:a", "note:b"]);
+  assert.deepEqual(restricted.edges.map((edge) => edge.id), ["a-b", "b-a"]);
+  assert.equal(restricted.focusId, "note:a");
+});
+
+test("a search that matches nothing leaves an empty canvas, not the whole graph", () => {
+  const restricted = graphAroundMatches(graph, []);
+
+  assert.deepEqual(restricted.nodes, []);
+  assert.equal(restricted.focusId, undefined);
 });
 
 test("maps Home and End onto the roving node boundaries", () => {

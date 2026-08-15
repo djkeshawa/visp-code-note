@@ -29,6 +29,33 @@ export function filterGraph(
   };
 }
 
+/**
+ * The search matches and what they immediately touch, and nothing else.
+ *
+ * A search that takes 4,997 nodes off the canvas is a way of getting somewhere; one that
+ * dims them is a highlighter over the same wall of dots. The neighbours come along because
+ * matches on their own are a list, not a graph — what a note is next to is the reason to
+ * look at a graph at all.
+ */
+export function graphAroundMatches(
+  graph: GraphDataWire,
+  matchIds: readonly string[],
+): GraphDataWire {
+  // The matched set is fixed before the walk: a neighbour must not go on to pull in its own
+  // neighbours, which is how one hop quietly becomes two and the canvas fills up again.
+  const matched = new Set(matchIds);
+  const kept = new Set(matched);
+  for (const edge of graph.edges) {
+    if (matched.has(edge.source)) kept.add(edge.target);
+    if (matched.has(edge.target)) kept.add(edge.source);
+  }
+  return {
+    nodes: graph.nodes.filter((node) => kept.has(node.id)),
+    edges: graph.edges.filter((edge) => kept.has(edge.source) && kept.has(edge.target)),
+    focusId: graph.focusId !== undefined && kept.has(graph.focusId) ? graph.focusId : undefined,
+  };
+}
+
 export function resolveSelection(
   graph: GraphDataWire,
   currentId: string | undefined,

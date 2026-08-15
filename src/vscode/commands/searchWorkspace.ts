@@ -40,7 +40,11 @@ export async function searchWorkspace(
 ): Promise<void> {
   const picker = vscode.window.createQuickPick<SearchQuickPickItem>();
   picker.title = PICKER_TITLE;
-  picker.placeholder = "Search titles, paths, aliases, tags, note text, and tasks";
+  /*
+   * The placeholder is where the query language is discovered — there is nowhere else to
+   * put it, and a facet nobody knows about is a facet nobody types.
+   */
+  picker.placeholder = "Search notes and tasks — narrow with path: tag: is: modified:";
   picker.matchOnDescription = true;
   picker.matchOnDetail = true;
   if (initialQuery !== undefined && initialQuery.length > 0) {

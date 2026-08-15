@@ -259,6 +259,10 @@ export const GRAPH_BODY = `
               <span class="graph-chip-dot dot-orphan"></span>Orphans
               <span class="graph-chip-count" data-count="orphan">0</span>
             </button>
+            <button id="matches-only" class="graph-chip" type="button" aria-pressed="false"
+              title="Draw only what the search finds, and what it is linked to">
+              <span class="codicon codicon-filter" aria-hidden="true"></span>Matches only
+            </button>
           </div>
           <div class="graph-viewport-controls" role="toolbar" aria-label="Graph viewport">
             <button id="graph-zoom-out" type="button" title="Zoom out" aria-label="Zoom out" disabled>
@@ -295,7 +299,10 @@ export const GRAPH_BODY = `
             </dl>
             <div id="selected-connections" class="connection-list"></div>
             <span id="selected-connection-count" class="sr-only">0</span>
-            <button id="open-selected" class="primary-button full-width" type="button" disabled>Open note</button>
+            <div class="graph-details-actions">
+              <button id="open-selected" class="primary-button" type="button" disabled>Open note</button>
+              <button id="focus-selected" class="secondary-button" type="button" disabled>Focus here</button>
+            </div>
           </aside>
         </main>
       </div>`;

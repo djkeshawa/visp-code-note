@@ -2,6 +2,7 @@ import assert = require("node:assert/strict");
 import { test } from "node:test";
 import {
   isEditorMessage,
+  isGraphMessage,
   isTasksMessage,
   isWorkspaceMessage,
 } from "../../src/vscode/providers/messageValidation";
@@ -113,6 +114,25 @@ test("accepts a filter query and rejects one that could smuggle structure", () =
  * word, so the button in the panel would simply do nothing — which is how the empty state's
  * "Create your first note" would fail if this list and the protocol ever drifted apart.
  */
+/*
+ * `graph/focus` makes the host redraw around a URI a webview chose, in an extension that
+ * supports untrusted workspaces. Shape is all this can check — whether a note by that name
+ * is in the index is the panel's job — so it is checked exactly as `graph/open` is, and
+ * these say so from both ends rather than letting one quietly accept more than the other.
+ */
+test("a focus request is checked the same way as an open request", () => {
+  for (const type of ["graph/open", "graph/focus"]) {
+    assert.equal(isGraphMessage({ type, uri: "file:///notes/atlas.md" }), true, type);
+    assert.equal(isGraphMessage({ type }), false, type);
+    assert.equal(isGraphMessage({ type, uri: 7 }), false, type);
+    assert.equal(isGraphMessage({ type, uri: null }), false, type);
+    assert.equal(isGraphMessage({ type, uri: ["file:///a.md"] }), false, type);
+    assert.equal(isGraphMessage({ type, uri: { toString: "file:///a.md" } }), false, type);
+    assert.equal(isGraphMessage({ type, uri: "x".repeat(10_000_001) }), false, type);
+  }
+  assert.equal(isGraphMessage({ type: "graph/refocus", uri: "file:///a.md" }), false);
+});
+
 test("the panel may run its own two commands and nothing else", () => {
   assert.equal(isWorkspaceMessage({ type: "workspace/runCommand", command: "search" }), true);
   assert.equal(isWorkspaceMessage({ type: "workspace/runCommand", command: "newNote" }), true);

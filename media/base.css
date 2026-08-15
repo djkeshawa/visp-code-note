@@ -484,6 +484,24 @@ label > .codicon {
   opacity: 0.55;
 }
 
+/* The other action, where a pair of them sit side by side and only one is the usual one. */
+.secondary-button {
+  min-height: 28px;
+  padding: 4px 10px;
+  border-radius: var(--visp-radius);
+  background: var(--vscode-button-secondaryBackground, var(--visp-chip));
+  color: var(--vscode-button-secondaryForeground, var(--visp-text));
+}
+
+.secondary-button:not(:disabled):hover {
+  background: var(--vscode-button-secondaryHoverBackground, var(--visp-chip));
+}
+
+.secondary-button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
 .search-field {
   height: 26px;
   min-width: 96px;
