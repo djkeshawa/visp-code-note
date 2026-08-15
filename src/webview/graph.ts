@@ -51,6 +51,8 @@ let matchingIdSet: ReadonlySet<string> = new Set();
 let scopeKey: string | undefined;
 let isLocalScope = false;
 let fitPending = true;
+/** Whether the drawing on the canvas is the restricted one, which only a repaint can undo. */
+let restrictedToMatches = false;
 
 const viewport = new GraphViewportController(svg, (percent) => {
   zoomStatus.textContent = `${percent}%`;
@@ -158,6 +160,7 @@ function refreshVisibleGraph(): void {
   matchingIds = findMatchingNodeIds(filtered, query);
   matchingIdSet = new Set(matchingIds);
   const restricting = isMatchesOnly();
+  restrictedToMatches = restricting;
   visibleGraph = restricting ? graphAroundMatches(filtered, matchingIds) : filtered;
   visibleNodesById = new Map(visibleGraph.nodes.map((node) => [node.id, node]));
   selectedId = resolveSelection(visibleGraph, selectedId);
@@ -214,7 +217,13 @@ function updateSummary(): void {
  * the drawing. Only the second needs a full refresh, so only the second gets one.
  */
 function applySearch(): void {
-  if (isMatchesOnly()) {
+  /*
+   * Also when the restriction has just stopped applying, which is what deleting the last
+   * character of a query does while the toggle is still pressed. Asking only whether it
+   * applies *now* left the canvas holding the nodes the previous keystroke had spared, with
+   * an empty search box above it and the status line counting them as the whole graph.
+   */
+  if (isMatchesOnly() || restrictedToMatches) {
     // What is left has moved, and mostly shrunk, so the view goes back around it. Without
     // this the nodes that survived the last keystroke are usually off the edge of the canvas.
     fitPending = true;
