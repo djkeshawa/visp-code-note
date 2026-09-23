@@ -137,6 +137,10 @@ function render(): void {
     return;
   }
   title.textContent = titleOf(current.listing);
+  // The list wears the hue its row carries in the sidebar; a tag list wears the tag's own.
+  document.body.dataset.list = current.listing.kind;
+  if (current.listing.kind === "tag") document.body.style.setProperty("--tag-hue", tagHueColor(current.listing.tag));
+  else document.body.style.removeProperty("--tag-hue");
   const defaultSort = sortBy.querySelector('option[value="default"]');
   if (defaultSort !== null) defaultSort.textContent = current.listing.kind === "recent" ? "Last changed" : "Default order";
 
@@ -273,7 +277,7 @@ function tagChips(tags: readonly string[]): HTMLElement {
   for (const tag of tags) {
     const chip = htmlElement("span", "note-row-tag");
     const dot = htmlElement("span", "note-row-tag-dot");
-    dot.style.setProperty("--tag-hue", tagHueColor(tag));
+    chip.style.setProperty("--tag-hue", tagHueColor(tag));
     chip.append(dot, document.createTextNode(`#${tag}`));
     wrapper.append(chip);
   }

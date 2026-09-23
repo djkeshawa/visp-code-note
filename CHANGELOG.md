@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **The graph shows which way links point.** Links are drawn as gentle arcs, and when a note is selected or hovered, a current runs along each of its links from the note that wrote the link to the note it names. The selected note wears a slowly breathing ring so it is easy to find again after panning.
+- **Every list has its own colour.** Tasks, Due Today, Recent, Broken Links, Orphans and tag lists open under a large title in the same colour their row has in the sidebar, and the sidebar marks each view with a disc in that colour.
+- **Round, Reminders-style checkboxes** everywhere a task can be ticked — the Tasks list, the sidebar's Due Today, the note inspector and the note itself — filling with the list's colour when done. Overdue dates stand out as a red capsule.
+- Sidebar and list rows are rounded and inset, section headings are quiet sentence-case labels, and tag chips are tinted with their own hue.
+- A note's first heading is set as a page title, and heading rules are gone.
+
 ## 0.15.0 - 2026-09-23
 
 - Fixed the graph flashing and losing its zoom on every keystroke and every note save while "Matches + neighbours" was on. Previous results now stay on screen until new ones arrive, and an index update that finds the same matches leaves the graph untouched.

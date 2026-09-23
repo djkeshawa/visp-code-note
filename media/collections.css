@@ -274,3 +274,193 @@
     display: none;
   }
 }
+
+/*
+ * Lists in the manner of macOS Reminders.
+ *
+ * Each list is a place with a colour, and the colour is the one its row wears in the sidebar:
+ * gold for tasks, orange for what is due, green for recent notes, the error colour for broken
+ * links, purple for orphans, and a tag list in its tag's own hue. The title is set large in
+ * that colour, so arriving from the sidebar feels like opening the thing that was clicked.
+ *
+ * Tasks get round checkboxes that fill with the list colour, rows separated by rules inset
+ * under the text rather than run edge to edge, and due dates that turn into capsules only
+ * when they are asking for attention.
+ */
+body {
+  --list-hue: var(--visp-brand);
+}
+
+body[data-list="tasks"] {
+  --list-hue: var(--visp-hue-declare);
+}
+
+body[data-list="due"] {
+  --list-hue: var(--visp-hue-literal);
+}
+
+body[data-list="recent"] {
+  --list-hue: var(--visp-hue-string);
+}
+
+body[data-list="broken"] {
+  --list-hue: var(--visp-danger);
+}
+
+body[data-list="orphans"] {
+  --list-hue: var(--visp-hue-reference);
+}
+
+body[data-list="tag"] {
+  --list-hue: var(--tag-hue, var(--visp-brand));
+}
+
+.collection-shell .view-toolbar {
+  padding-top: 28px;
+}
+
+.collection-shell .toolbar-title {
+  color: var(--list-hue);
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.collection-shell .toolbar-subtitle {
+  margin-top: 6px;
+  font-size: 12.5px;
+}
+
+.collection-controls {
+  border-bottom-color: transparent;
+  box-shadow: 0 1px 0 var(--visp-hairline);
+}
+
+.collection-controls .search-field {
+  border-color: transparent;
+  border-radius: 8px;
+  background: var(--visp-chip);
+}
+
+.collection-select select {
+  border-color: transparent;
+  border-radius: 8px;
+  background: var(--visp-chip);
+}
+
+/* Group headings: the word is the heading, and the count stands beside it in the list's colour. */
+.collection-shell .task-group {
+  margin-bottom: 30px;
+}
+
+.collection-shell .task-group-title {
+  margin-bottom: 6px;
+  padding-left: 4px;
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.collection-shell .task-group-count {
+  min-width: 0;
+  padding: 0;
+  background: none;
+  color: var(--list-hue);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.collection-shell .task-group-title.is-overdue .task-group-count {
+  color: var(--visp-danger);
+}
+
+.collection-shell .task-group-rule {
+  visibility: hidden;
+}
+
+.collection-shell .task-row,
+.collection-shell .reminder-row {
+  border-bottom: 0;
+  border-radius: 8px;
+  background-image: linear-gradient(var(--visp-hairline), var(--visp-hairline));
+  background-position: right bottom;
+  background-repeat: no-repeat;
+  background-size: calc(100% - 41px) 1px;
+}
+
+.collection-shell .task-row:last-child,
+.collection-shell .reminder-row:last-child {
+  background-image: none;
+}
+
+.collection-shell .task-row:hover,
+.collection-shell .task-row:focus-within,
+.collection-shell .reminder-row:hover,
+.collection-shell .reminder-row:focus-within {
+  background-image: none;
+}
+
+.collection-shell .task-text {
+  font-size: 13.5px;
+}
+
+.task-row input[type="checkbox"] {
+  --check-hue: var(--list-hue);
+}
+
+/* A due date only becomes a capsule once it has passed. */
+.collection-shell .task-meta-due {
+  width: auto;
+  min-width: 52px;
+}
+
+.collection-shell .task-meta-due.is-overdue {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.collection-shell .task-meta-due.is-overdue {
+  background: color-mix(in srgb, var(--visp-danger) 16%, transparent);
+}
+
+.collection-shell .task-reminders {
+  border: 0;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--list-hue) 7%, var(--visp-surface));
+}
+
+/* Note rows: Notes.app's list — a bold title, then when and where on a quieter second line. */
+.collection-shell .note-row {
+  border-bottom: 0;
+  border-radius: 10px;
+  background-image: linear-gradient(var(--visp-hairline), var(--visp-hairline));
+  background-position: right bottom;
+  background-repeat: no-repeat;
+  background-size: calc(100% - 37px) 1px;
+}
+
+.collection-shell .note-row:hover,
+.collection-shell .note-row:focus-visible {
+  background-image: none;
+}
+
+.collection-shell .note-row > .codicon:first-child {
+  color: var(--list-hue);
+}
+
+.collection-shell .note-row-title {
+  font-size: 13.5px;
+}
+
+.collection-shell .note-row-tag {
+  height: 19px;
+  background: color-mix(in srgb, var(--tag-hue, var(--visp-brand)) 13%, transparent);
+  color: var(--visp-text);
+}
+
+.collection-shell .note-row-tag-dot {
+  display: none;
+}
+

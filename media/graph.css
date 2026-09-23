@@ -183,6 +183,7 @@
 
 .graph-edge {
   /* dim = muted at 25% alpha in the prototype; a link is context, not content. */
+  fill: none;
   stroke: var(--visp-edge);
   stroke-linecap: round;
   stroke-width: 1;
@@ -659,5 +660,129 @@
 
   .graph-filters {
     padding-inline: 12px;
+  }
+}
+
+/*
+ * The constellation.
+ *
+ * The graph is the one place this extension gets to be expressive, so it is where the design
+ * spends its boldness. Three things, each saying something true about the notes:
+ *
+ * - Links bow (see `edgePath`) and, once a node is in focus, a current runs along each of
+ *   its links from the note that wrote the link to the note it names. Direction was always
+ *   in the data and never on the canvas; now "who cites whom" is visible at a glance.
+ * - The node being looked at wears a lens, a ring that breathes slowly, so the eye can find
+ *   it again after panning away.
+ * - The field has a centre: a soft pool of the brand colour under the middle of the canvas,
+ *   over the graph-paper dots, so the drawing sits on something rather than floating.
+ */
+.graph-shell .graph-canvas {
+  background-image:
+    radial-gradient(ellipse 60% 55% at 50% 45%, color-mix(in srgb, var(--visp-brand) 7%, transparent), transparent 70%),
+    radial-gradient(var(--visp-hairline) 0.7px, transparent 0.7px);
+  background-size: 100% 100%, 22px 22px;
+}
+
+.edge-task {
+  stroke: color-mix(in srgb, var(--visp-warning) 14%, var(--visp-edge));
+}
+
+.edge-tag {
+  stroke-dasharray: 1 3;
+}
+
+.graph-edge.is-connected {
+  stroke-dasharray: 3 5;
+  animation: visp-edge-current 900ms linear infinite;
+}
+
+.graph-edge.edge-task.is-connected {
+  stroke: var(--visp-warning);
+}
+
+@keyframes visp-edge-current {
+  to {
+    stroke-dashoffset: -8;
+  }
+}
+
+.node-halo {
+  fill: none;
+  stroke: var(--visp-brand);
+  stroke-width: 1;
+  opacity: 0;
+  pointer-events: none;
+  vector-effect: non-scaling-stroke;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.node-tag .node-halo {
+  stroke: var(--tag-hue, var(--visp-hue-string));
+}
+
+.node-task .node-halo {
+  stroke: var(--visp-warning);
+}
+
+.graph-node.is-selected .node-halo {
+  opacity: 0.55;
+  animation: visp-lens 2.8s ease-in-out infinite;
+}
+
+@keyframes visp-lens {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+
+  50% {
+    transform: scale(1.18);
+    opacity: 0.2;
+  }
+}
+
+.graph-node.is-selected .node-label {
+  fill: var(--visp-strong);
+}
+
+/* The details card reads as a sheet lifted off the canvas: a kind eyebrow, then a real title. */
+.graph-details {
+  padding: 16px;
+  border: 0;
+  border-radius: 12px;
+}
+
+.graph-details h2 {
+  font-size: 15px;
+  letter-spacing: -0.01em;
+}
+
+.node-stats dd {
+  font-variant-numeric: tabular-nums;
+}
+
+.graph-details {
+  overflow-x: hidden;
+}
+
+.connection-row {
+  min-width: 0;
+  border-top: 0;
+  border-radius: 6px;
+  padding: 6px;
+}
+
+.graph-viewport-controls {
+  border: 0;
+  border-radius: 10px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .graph-edge.is-connected,
+  .graph-node.is-selected .node-halo {
+    animation: none;
   }
 }

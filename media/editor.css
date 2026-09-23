@@ -1296,16 +1296,11 @@
 }
 
 .is-live-mode .live-task-checkbox {
-  width: 15px;
-  height: 15px;
-  margin: 0;
-  accent-color: var(--visp-accent);
-  transform: translateY(2px);
-}
+  --check-hue: var(--visp-hue-declare);
+  --check-size: 16px;
 
-.is-live-mode .live-task-checkbox:focus-visible {
-  outline: 2px solid var(--visp-focus);
-  outline-offset: 2px;
+  position: relative;
+  top: 3px;
 }
 
 .is-live-mode .live-task-due {
@@ -1485,11 +1480,10 @@
 }
 
 .inspector-task input {
-  width: 14px;
-  height: 14px;
-  flex: 0 0 auto;
-  margin: 2px 0 0;
-  accent-color: var(--visp-accent);
+  --check-hue: var(--visp-hue-declare);
+  --check-size: 15px;
+
+  margin-top: 2px;
 }
 
 .inspector-task-body {
@@ -1693,4 +1687,49 @@ body.vscode-high-contrast-light .live-wiki-link.is-unresolved {
   padding: 5px 8px;
   color: var(--visp-muted-strong);
   font-size: 11px;
+}
+
+/*
+ * A note set like a page in a Mac app.
+ *
+ * The first heading is the page's title, so it is set as one: heavier and tighter than a
+ * section head, with the optical-size axis of the bundled face doing what SF Display does at
+ * this size. Rules under headings go — the size and weight already say "new section" — and
+ * the inspector's sections become quiet sentence-case labels, matching the sidebar.
+ */
+.is-live-mode .live-heading-1 {
+  font-size: 2.05em;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.is-live-mode .live-heading-2 {
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.is-live-mode .live-heading-1,
+.is-live-mode .live-heading-2 {
+  border-bottom-color: transparent;
+}
+
+.inspector-section.section-rule::after {
+  visibility: hidden;
+}
+
+.inspector-section .eyebrow {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  text-transform: none;
+}
+
+.inspector-section .section-count {
+  font-size: 11px;
+}
+
+.inspector-task {
+  margin: 0 6px;
+  padding-inline: 8px;
+  border-radius: 6px;
 }

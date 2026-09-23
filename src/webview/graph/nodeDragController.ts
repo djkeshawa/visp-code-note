@@ -14,7 +14,7 @@ interface NodeDragCallbacks {
 }
 
 interface ConnectedEdge {
-  readonly element: SVGLineElement;
+  readonly element: SVGPathElement;
   readonly endpoint: "source" | "target";
 }
 
@@ -137,7 +137,7 @@ function positionNode(drag: DragState, point: GraphPoint): void {
 
 function connectedEdges(svg: SVGSVGElement, nodeId: string): readonly ConnectedEdge[] {
   const result: ConnectedEdge[] = [];
-  for (const element of Array.from(svg.querySelectorAll<SVGLineElement>(".graph-edge"))) {
+  for (const element of Array.from(svg.querySelectorAll<SVGPathElement>(".graph-edge"))) {
     if (element.dataset.sourceId === nodeId) result.push({ element, endpoint: "source" });
     if (element.dataset.targetId === nodeId) result.push({ element, endpoint: "target" });
   }

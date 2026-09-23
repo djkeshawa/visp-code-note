@@ -1,4 +1,5 @@
 import type { GraphPoint } from "./layout.js";
+import { edgePath } from "./renderer.js";
 
 interface PositionedNode {
   readonly id: string;
@@ -11,7 +12,7 @@ interface PositionedNode {
 }
 
 interface PositionedEdge {
-  readonly element: SVGLineElement;
+  readonly element: SVGPathElement;
   readonly sourceId: string;
   readonly targetId: string;
   appliedX1: number;
@@ -52,7 +53,7 @@ export class GraphPositionUpdater {
               labelOnLeft: false,
             }];
       });
-    this.edges = Array.from(this.svg.querySelectorAll<SVGLineElement>(".graph-edge"))
+    this.edges = Array.from(this.svg.querySelectorAll<SVGPathElement>(".graph-edge"))
       .flatMap((element) => {
         const sourceId = element.dataset.sourceId;
         const targetId = element.dataset.targetId;
@@ -100,10 +101,7 @@ export class GraphPositionUpdater {
       edge.appliedY1 = source.y;
       edge.appliedX2 = target.x;
       edge.appliedY2 = target.y;
-      edge.element.setAttribute("x1", coordinate(source.x));
-      edge.element.setAttribute("y1", coordinate(source.y));
-      edge.element.setAttribute("x2", coordinate(target.x));
-      edge.element.setAttribute("y2", coordinate(target.y));
+      edge.element.setAttribute("d", edgePath(source, target));
     }
   }
 }

@@ -38,14 +38,11 @@ export function renderGraphSvg(
       continue;
     }
     edgeLayer.append(
-      svgElement("line", {
+      svgElement("path", {
         class: `graph-edge edge-${edge.kind}`,
         "data-source-id": edge.source,
         "data-target-id": edge.target,
-        x1: String(source.x),
-        y1: String(source.y),
-        x2: String(target.x),
-        y2: String(target.y),
+        d: edgePath(source, target),
       }),
     );
   }
@@ -120,6 +117,12 @@ function createNode(
     cy: "0",
     r: String(nodeHitRadius(radius)),
   }));
+  /*
+   * The lens: a ring a little way out from the dot, drawn only when the node is the one
+   * being looked at. It is its own element so it can breathe without the dot itself
+   * changing size under the pointer.
+   */
+  group.append(svgElement("circle", { class: "node-halo", cx: "0", cy: "0", r: String(radius + 7) }));
   group.append(createShape(node, radius));
 
   /*
@@ -138,6 +141,25 @@ function createNode(
   label.textContent = node.label;
   group.append(label);
   return group;
+}
+
+/**
+ * A link is drawn as a shallow arc rather than a straight rule, always bowing the same way
+ * round from its source. Straight lines between crowded nodes read as a wiring diagram; a
+ * consistent bow reads as a web, lets two links between the same neighbours stay apart, and
+ * gives the path a start and an end for the directional current in `graph.css` to run along.
+ */
+export function edgePath(source: GraphPoint, target: GraphPoint): string {
+  const dx = target.x - source.x;
+  const dy = target.y - source.y;
+  const bow = 0.14;
+  const cx = (source.x + target.x) / 2 - dy * bow;
+  const cy = (source.y + target.y) / 2 + dx * bow;
+  return `M${round(source.x)} ${round(source.y)}Q${round(cx)} ${round(cy)} ${round(target.x)} ${round(target.y)}`;
+}
+
+function round(value: number): number {
+  return Math.round(value * 100) / 100;
 }
 
 /** The gap between a node and its name, in the design's own units. */

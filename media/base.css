@@ -777,6 +777,77 @@ select:focus-visible,
   background-color: var(--vscode-scrollbarSlider-hoverBackground, #888a);
 }
 
+/*
+ * The task checkbox, everywhere a task can be ticked: a ring that fills with the colour of the
+ * list it is in, in the manner of Reminders. Each context sets `--check-hue` (and optionally
+ * `--check-size`); the note editor, the inspector, the Tasks list and the sidebar all share it.
+ */
+.task-row input[type="checkbox"],
+.workspace-task input[type="checkbox"],
+.inspector-task input[type="checkbox"],
+.live-task-checkbox {
+  appearance: none;
+  width: var(--check-size, 18px);
+  height: var(--check-size, 18px);
+  flex: 0 0 auto;
+  margin: 0;
+  border: 1.5px solid color-mix(in srgb, var(--visp-muted) 80%, transparent);
+  border-radius: 50%;
+  background: transparent center / 62% 62% no-repeat;
+  transition: background-color 160ms var(--visp-ease), border-color 160ms var(--visp-ease), transform 160ms var(--visp-ease);
+}
+
+.task-row input[type="checkbox"]:not(:disabled):hover,
+.workspace-task input[type="checkbox"]:not(:disabled):hover,
+.inspector-task input[type="checkbox"]:not(:disabled):hover,
+.live-task-checkbox:not(:disabled):hover {
+  border-color: var(--check-hue, var(--visp-brand));
+}
+
+.task-row input[type="checkbox"]:not(:disabled):active,
+.workspace-task input[type="checkbox"]:not(:disabled):active,
+.inspector-task input[type="checkbox"]:not(:disabled):active,
+.live-task-checkbox:not(:disabled):active {
+  transform: scale(0.88);
+}
+
+.task-row input[type="checkbox"]:checked,
+.workspace-task input[type="checkbox"]:checked,
+.inspector-task input[type="checkbox"]:checked,
+.live-task-checkbox:checked {
+  border-color: var(--check-hue, var(--visp-brand));
+  background-color: var(--check-hue, var(--visp-brand));
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.2 5 8.6l4.6-5.2' fill='none' stroke='%231a1a1a' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+body.vscode-light .task-row input[type="checkbox"]:checked,
+body.vscode-light .workspace-task input[type="checkbox"]:checked,
+body.vscode-light .inspector-task input[type="checkbox"]:checked,
+body.vscode-light .live-task-checkbox:checked,
+body.vscode-high-contrast-light .task-row input[type="checkbox"]:checked,
+body.vscode-high-contrast-light .workspace-task input[type="checkbox"]:checked,
+body.vscode-high-contrast-light .inspector-task input[type="checkbox"]:checked,
+body.vscode-high-contrast-light .live-task-checkbox:checked {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.2 5 8.6l4.6-5.2' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+.task-row input[type="checkbox"]:focus-visible,
+.workspace-task input[type="checkbox"]:focus-visible,
+.inspector-task input[type="checkbox"]:focus-visible,
+.live-task-checkbox:focus-visible {
+  outline: 0;
+  box-shadow: var(--visp-focus-ring);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .task-row input[type="checkbox"],
+  .workspace-task input[type="checkbox"],
+  .inspector-task input[type="checkbox"],
+  .live-task-checkbox {
+    transition: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .icon-button,
   .segment,

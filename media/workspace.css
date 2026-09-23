@@ -246,13 +246,6 @@
   background: var(--visp-surface-hover);
 }
 
-.workspace-task input {
-  width: 14px;
-  height: 14px;
-  flex: 0 0 auto;
-  margin: 0;
-  accent-color: var(--visp-accent);
-}
 
 /* A button, so the note behind a task is reachable without a pointer. It has to be undressed
  * back to text: the row's shape is the row's, not the control's. */
@@ -498,4 +491,139 @@
 /* The row the menu belongs to keeps its highlight while the menu is over the list. */
 .workspace-row.is-menu-target {
   background: var(--visp-surface-hover);
+}
+
+/*
+ * The sidebar, in the manner of Finder and Reminders.
+ *
+ * Rows float as rounded shapes inset from the panel edge, so the selection is a pill rather
+ * than a band. Each view is marked by a disc in its own colour — the same colour its list is
+ * titled in when it opens — so the sidebar and the lists it leads to read as one set of
+ * places. Section headings lose their rules and become quiet labels, as they are in Finder.
+ */
+.workspace-search .search-field {
+  height: 30px;
+  border-color: transparent;
+  border-radius: 8px;
+  background: var(--visp-chip);
+}
+
+.workspace-section {
+  padding: 16px 16px 5px;
+}
+
+.workspace-section.section-rule::after {
+  visibility: hidden;
+}
+
+.workspace-section .eyebrow {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  text-transform: none;
+}
+
+.workspace-row,
+.workspace-task {
+  width: calc(100% - 12px);
+  margin: 0 6px;
+  border-radius: 6px;
+}
+
+.workspace-row {
+  padding-left: calc(8px + min(var(--row-depth), 6) * 14px);
+  padding-right: 8px;
+}
+
+.workspace-task {
+  padding: 0 8px 0 36px;
+}
+
+.workspace-row.is-active {
+  background: color-mix(in srgb, var(--visp-focus) 26%, transparent);
+  color: var(--visp-strong);
+}
+
+.workspace-row .row-icon.is-tasks,
+.workspace-row .row-icon.is-due,
+.workspace-row .row-icon.is-graph,
+.workspace-row .row-icon.is-broken,
+.workspace-row .row-icon.is-orphans,
+.workspace-row .row-icon.is-recent {
+  --disc: var(--visp-brand);
+
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--disc);
+  color: var(--visp-panel);
+  font-size: 12px;
+  opacity: 1;
+}
+
+.workspace-row .row-icon.is-tasks {
+  --disc: var(--visp-hue-declare);
+}
+
+.workspace-row .row-icon.is-due {
+  --disc: var(--visp-hue-literal);
+}
+
+.workspace-row .row-icon.is-graph {
+  --disc: var(--visp-hue-structure);
+}
+
+.workspace-row .row-icon.is-broken {
+  --disc: var(--visp-danger);
+}
+
+.workspace-row .row-icon.is-orphans {
+  --disc: var(--visp-hue-reference);
+}
+
+.workspace-row .row-icon.is-recent {
+  --disc: var(--visp-hue-string);
+}
+
+.workspace-row-count {
+  color: var(--visp-muted-strong);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Due-today tasks share the Tasks list's round checkbox, filled in the due colour. */
+.workspace-task input[type="checkbox"] {
+  --check-hue: var(--visp-hue-literal);
+  --check-size: 15px;
+}
+
+/* Tags wear their own hue as a wash, not just a dot. */
+.workspace-tag {
+  height: 23px;
+  background: color-mix(in srgb, var(--tag-hue, var(--visp-brand)) 13%, transparent);
+  color: var(--visp-text);
+}
+
+.workspace-tag:hover {
+  background: color-mix(in srgb, var(--tag-hue, var(--visp-brand)) 24%, transparent);
+}
+
+
+/* The expand arrow hangs in the gutter, so every view's disc starts at the same x. */
+.workspace-views .workspace-row {
+  position: relative;
+  padding-left: 22px;
+}
+
+.workspace-views .workspace-row .row-twisty {
+  position: absolute;
+  left: 4px;
+  margin: 0;
+}
+
+.workspace-views .workspace-task {
+  padding-left: 51px;
 }

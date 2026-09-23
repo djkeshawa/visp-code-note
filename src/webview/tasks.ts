@@ -118,6 +118,8 @@ function handleHostMessage(event: MessageEvent<unknown>): void {
   if (message.type === "tasks/state" && isTasksSnapshot(message.snapshot)) {
     snapshot = message.snapshot;
     title.textContent = snapshot.filter === "today" ? "Due Today" : "Tasks";
+    // The list wears the hue its row carries in the sidebar, so the two read as one place.
+    document.body.dataset.list = snapshot.filter === "today" ? "due" : "tasks";
     // Due Today is already a status filter, so the segments would only contradict it.
     const locked = snapshot.filter === "today";
     for (const segment of statusSegments) segment.disabled = locked;

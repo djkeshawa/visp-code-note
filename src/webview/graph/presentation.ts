@@ -21,7 +21,7 @@ interface CachedNode {
 }
 
 interface CachedEdge {
-  readonly element: SVGLineElement;
+  readonly element: SVGPathElement;
   readonly sourceId: string | undefined;
   readonly targetId: string | undefined;
   mask: number;
@@ -50,7 +50,7 @@ export class GraphEmphasis {
       // Freshly rendered, so what it currently shows is not known: the next apply writes all.
       if (nodeId !== undefined) this.nodes.push({ element, nodeId, mask: UNKNOWN_EMPHASIS });
     }
-    this.edges = Array.from(this.svg.querySelectorAll<SVGLineElement>(".graph-edge")).map(
+    this.edges = Array.from(this.svg.querySelectorAll<SVGPathElement>(".graph-edge")).map(
       (element) => ({
         element,
         sourceId: element.dataset.sourceId,

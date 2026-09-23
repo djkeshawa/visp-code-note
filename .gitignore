@@ -14,3 +14,4 @@ media/codicons/
 /visp-notes-vscode-design-spec.md
 /visp-notes-vscode-prototype.html
 *.local.html
+*.local.mjs
