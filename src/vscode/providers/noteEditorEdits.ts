@@ -1,4 +1,3 @@
-import { posix } from "node:path";
 import * as vscode from "vscode";
 import { DraftBuffer } from "../../application/draftBuffer";
 import { DraftRecoveryStore } from "../../application/draftRecoveryStore";
@@ -6,6 +5,7 @@ import type { RecoverableDraft } from "../../application/draftRecoveryStore";
 import { createTextPatch } from "../../application/textPatch";
 import { saveOutcome } from "../../application/saveOutcome";
 import { toRange } from "../documentEdits";
+import { describeRefusedSave, diagnoseRefusedSave } from "../saveConflict";
 
 export interface NoteEditorEditRequest {
   readonly start: number;
@@ -33,7 +33,11 @@ export type RecoverableNoteDraft = RecoverableDraft;
 export class NoteEditorEdits {
   private readonly sessions = new Map<vscode.WebviewPanel, EditSession>();
 
-  public constructor(private readonly recoveries = new DraftRecoveryStore()) {}
+  public constructor(
+    private readonly recoveries = new DraftRecoveryStore(),
+    /** Told when a note's file changed on disk under it, so the reader can be asked what to keep. */
+    private readonly onChangedOnDisk?: (document: vscode.TextDocument, panel: vscode.WebviewPanel) => void,
+  ) {}
 
   public apply(
     document: vscode.TextDocument,
@@ -297,14 +301,14 @@ export class NoteEditorEdits {
         session.buffer.requestSave();
         /*
          * Reaching here means VS Code tried to write a note that had changes and did not
-         * manage it, which it reports as a bare `false` with no reason attached. The banner
-         * has room for one sentence, so it spends it on the causes a reader can actually act
-         * on rather than repeating that something went wrong.
+         * manage it, which it reports as a bare `false` with no reason attached. The usual
+         * cause is a file that changed on disk after the note was opened; VS Code will not
+         * overwrite a newer file, and through the API it does not offer its Compare /
+         * Overwrite prompt either — so the reader is offered that choice here.
          */
-        throw new Error(
-          `VS Code could not write ${posix.basename(session.document.uri.path)}. ` +
-          "The file may be read-only, or an extension that formats on save may have refused it.",
-        );
+        const reason = await diagnoseRefusedSave(session.document.uri);
+        if (reason === "changed-on-disk") this.onChangedOnDisk?.(session.document, session.panel);
+        throw new Error(describeRefusedSave(session.document.uri, reason));
       }
     } finally {
       session.applying = false;

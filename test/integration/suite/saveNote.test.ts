@@ -1,5 +1,7 @@
 import * as vscode from "vscode";
-import { assert, integrationTest, readFileText, resetEditors, waitFor, writeFileText } from "../harness";
+import { writeFileSync } from "node:fs";
+import { assert, delay, integrationTest, readFileText, resetEditors, waitFor, writeFileText } from "../harness";
+import { describeRefusedSave, diagnoseRefusedSave } from "../../../src/vscode/saveConflict";
 import { saveOutcome } from "../../../src/application/saveOutcome";
 
 /**
@@ -119,5 +121,32 @@ integrationTest("the note editor opens a Markdown file without error", async () 
       tab.input.uri.toString() === uri.toString())));
 
   assert.equal(await readFileText(uri), "# Editor\n\n- [ ] a task\n", "opening changed nothing");
+  await resetEditors();
+});
+
+/*
+ * The failure a reader actually meets: the file changed on disk while the note had unsaved
+ * edits. VS Code refuses the save, and through the API it says only `false` — the message has
+ * to name the real cause, and the way out the prompt offers has to leave the note saved.
+ */
+integrationTest("a note changed on disk under unsaved edits is diagnosed, and Overwrite saves it", async () => {
+  const document = await openNote("save-conflict.md", "# Conflict\n");
+  await edit(document, "\nMine.\n");
+  await delay(300);
+  writeFileSync(document.uri.fsPath, "# Changed elsewhere\n");
+  await delay(1500);
+
+  assert.equal(await document.save(), false, "VS Code refuses to overwrite the newer file");
+  assert.equal(document.isDirty, true);
+  assert.equal(await diagnoseRefusedSave(document.uri), "changed-on-disk");
+  assert.match(describeRefusedSave(document.uri, "changed-on-disk"), /changed on disk/);
+
+  // What the prompt's Overwrite does.
+  const mine = document.getText();
+  await vscode.workspace.fs.writeFile(document.uri, new TextEncoder().encode(mine));
+  await vscode.commands.executeCommand("workbench.action.files.revert", document.uri);
+  await waitFor("the note to settle clean", () => !document.isDirty);
+  assert.equal(document.getText(), mine, "the reader's version is kept");
+  assert.equal(await readFileText(document.uri), mine, "and it is what is on disk");
   await resetEditors();
 });

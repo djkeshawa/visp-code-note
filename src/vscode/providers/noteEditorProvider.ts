@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { SaveConflictPrompt } from "../saveConflict";
 import { parseExternalLink } from "../../application/externalLink";
 import { DraftRecoveryStore } from "../../application/draftRecoveryStore";
 import { parseEditorContentWidth } from "../../application/editorContentWidth";
@@ -51,7 +52,13 @@ export class NoteEditorProvider implements vscode.CustomTextEditorProvider, vsco
     private readonly output?: vscode.LogOutputChannel,
     private readonly personalDictionary = new PersonalDictionaryStore(),
   ) {
-    this.edits = new NoteEditorEdits(recoveryStore);
+    const conflicts = new SaveConflictPrompt(showDiffPreview);
+    this.edits = new NoteEditorEdits(recoveryStore, (document, panel) => conflicts.offer(document, async () => {
+      // Resolving went through a revert, so the session takes the document as it now is and
+      // finishes the save it was asked for — which, with nothing left to write, settles it.
+      this.edits.observe(document);
+      await this.edits.save(document, panel, (sequence) => this.publishDocumentState(document, panel, sequence));
+    }));
     this.panels = new NoteEditorPanelRegistry(
       onDidActivateNote,
       (panel) => this.edits.release(panel),

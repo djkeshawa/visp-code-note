@@ -7,6 +7,8 @@
 - **Round, Reminders-style checkboxes** everywhere a task can be ticked — the Tasks list, the sidebar's Due Today, the note inspector and the note itself — filling with the list's colour when done. Overdue dates stand out as a red capsule.
 - Sidebar and list rows are rounded and inset, section headings are quiet sentence-case labels, and tag chips are tinted with their own hue.
 - A note's first heading is set as a page title, and heading rules are gone.
+- Sidebar view icons are drawn in their colour on a light wash of it, so the symbol stays readable.
+- **Fixed:** saving a note whose file changed on disk after it was opened said "The file may be read-only, or an extension that formats on save may have refused it" and offered no way forward. It now names the real cause and offers VS Code's usual choices — **Overwrite**, **Use Disk Version**, or **Compare** — and the note ends up saved either way.
 
 ## 0.15.0 - 2026-09-23
 

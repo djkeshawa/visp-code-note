@@ -558,8 +558,9 @@
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: var(--disc);
-  color: var(--visp-panel);
+  /* A light wash of the view's colour, with the symbol drawn in the full colour on top. */
+  background: color-mix(in srgb, var(--disc) 24%, transparent);
+  color: var(--disc);
   font-size: 12px;
   opacity: 1;
 }
