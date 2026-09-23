@@ -117,9 +117,9 @@ integrationTest("every view is built from the parts the design gives it", () => 
 integrationTest("every view loads the stylesheets that carry the design", () => {
   const pages: readonly [string, string, readonly string[]][] = [
     ["The note editor", renderPage(createEditorHtml), ["base.css", "editor.css", "editor-drafts.css"]],
-    ["The task list", renderPage(createTasksHtml), ["base.css", "tasks.css"]],
-    ["The note list", renderPage(createNotesHtml), ["base.css", "notes.css"]],
-    ["The graph", renderPage(createGraphHtml), ["base.css", "graph.css"]],
+    ["The task list", renderPage(createTasksHtml), ["base.css", "tasks.css", "collections.css"]],
+    ["The note list", renderPage(createNotesHtml), ["base.css", "notes.css", "collections.css"]],
+    ["The graph", renderPage(createGraphHtml), ["base.css", "graph.css", "graph-search.css"]],
     ["The workspace panel", renderPage(createWorkspaceHtml), ["base.css", "workspace.css"]],
   ];
   for (const [name, html, stylesheets] of pages) {

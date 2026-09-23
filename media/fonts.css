@@ -1,4 +1,33 @@
 /*
+ * Bundled faces: Inter for the interface and prose, IBM Plex Sans kept for anyone who names it.
+ *
+ * Inter is the open-licensed face closest to Apple's San Francisco — SF itself may not be
+ * redistributed — so on macOS the stacks in `base.css` reach the real system face first and
+ * every other platform gets Inter rather than whatever sans-serif happens to be installed.
+ * It ships as the two variable files (upright and italic) because the stylesheets ask for
+ * 400, 450, 500, 600 and 700; one variable file serves them all for less than the static
+ * cuts would weigh, and its optical-size axis tightens display sizes the way SF Display does.
+ *
+ * Licensed under the SIL Open Font License 1.1 — see THIRD_PARTY_NOTICES.md.
+ */
+
+@font-face {
+  font-family: "InterVariable";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("fonts/InterVariable.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "InterVariable";
+  font-style: italic;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("fonts/InterVariable-Italic.woff2") format("woff2");
+}
+
+/*
  * IBM Plex Sans, bundled.
  *
  * The prose face ships with the extension rather than being named in a font stack, so a note

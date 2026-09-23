@@ -12,11 +12,14 @@ import { clientPointToSvg } from "./svgCoordinates.js";
 export class GraphViewportController {
   private viewport: GraphViewport = DEFAULT_GRAPH_VIEWPORT;
   private drag: DragState | undefined;
+  private readonly labelObserver: ResizeObserver;
 
   public constructor(
     private readonly svg: SVGSVGElement,
     private readonly onChange: (zoomPercent: number) => void,
   ) {
+    this.labelObserver = new ResizeObserver(() => this.updateLabelScale());
+    this.labelObserver.observe(svg);
     this.apply(this.viewport);
     svg.addEventListener("wheel", this.handleWheel, { passive: false });
     svg.addEventListener("pointerdown", this.handlePointerDown);
@@ -43,6 +46,7 @@ export class GraphViewportController {
   }
 
   public dispose(): void {
+    this.labelObserver.disconnect();
     this.svg.removeEventListener("wheel", this.handleWheel);
     this.svg.removeEventListener("pointerdown", this.handlePointerDown);
     this.svg.removeEventListener("pointermove", this.handlePointerMove);
@@ -89,12 +93,23 @@ export class GraphViewportController {
     this.svg.classList.remove("is-panning");
   };
 
+  /** SVG text otherwise shrinks with the drawing, even when a search needs its label readable. */
+  private updateLabelScale(): void {
+    const matrix = this.svg.getScreenCTM();
+    if (matrix === null) return;
+    const scale = Math.hypot(matrix.a, matrix.b);
+    if (Number.isFinite(scale) && scale > 0) {
+      this.svg.style.setProperty("--graph-label-scale", String(1 / scale));
+    }
+  }
+
   private apply(viewport: GraphViewport): void {
     this.viewport = viewport;
     this.svg.setAttribute(
       "viewBox",
       `${viewport.x} ${viewport.y} ${viewport.width} ${viewport.height}`,
     );
+    this.updateLabelScale();
     this.onChange(viewportZoomPercent(viewport));
   }
 

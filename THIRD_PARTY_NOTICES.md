@@ -19,14 +19,16 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ## SIL Open Font License 1.1
 
-The bundled prose typeface is IBM Plex Sans (`media/fonts/`):
+The bundled typefaces (`media/fonts/`) are:
 
+- Inter, copyright © 2016 The Inter Project Authors (https://github.com/rsms/inter).
 - IBM Plex Sans, copyright © 2017 IBM Corp., with Reserved Font Name "Plex".
 
 It is licensed under the SIL Open Font License, Version 1.1, reproduced in full below and
 also available with a FAQ at https://scripts.sil.org/OFL
 
 ```
+Copyright (c) 2016 The Inter Project Authors (https://github.com/rsms/inter)
 Copyright © 2017 IBM Corp. with Reserved Font Name "Plex"
 
 This Font Software is licensed under the SIL Open Font License, Version 1.1.

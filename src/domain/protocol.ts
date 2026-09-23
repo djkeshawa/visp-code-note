@@ -218,19 +218,42 @@ export type NotesToHostMessage =
   | { readonly type: "notes/open"; readonly uri: string; readonly start?: number }
   | { readonly type: "notes/ready" };
 
-export type HostToGraphMessage = {
+export interface GraphSearchResult {
+  readonly nodeId: string;
+  readonly preview: string;
+  readonly matchedField: "title" | "path" | "alias" | "tag" | "body" | "task" | "label";
+  readonly path?: string;
+  readonly uri?: string;
+  readonly start?: number;
+}
 
+export type HostToGraphMessage = {
   readonly type: "graph/state";
   readonly graph: GraphData;
   readonly depth: 1 | 2;
   readonly local: boolean;
+  readonly revision: number;
+} | {
+  readonly type: "graph/searchResults";
+  readonly requestId: number;
+  readonly revision: number;
+  readonly nodeIds: readonly string[];
+  readonly results: readonly GraphSearchResult[];
+} | {
+  readonly type: "graph/error";
+  readonly message: string;
+  readonly requestId?: number;
+  readonly revision?: number;
 };
 
 /** The graph's overflow menu, delegated to contributed commands like the note editor's. */
 export type GraphMenuCommand = "openWorkspaceGraph" | "rebuildIndex";
 
 export type GraphToHostMessage =
-  | { readonly type: "graph/open"; readonly uri: string }
+  | { readonly type: "graph/search"; readonly query: string; readonly requestId: number;
+      readonly revision: number; readonly mode: "all" | "labels";
+      readonly kinds: readonly GraphData["nodes"][number]["kind"][]; readonly includeOrphans: boolean }
+  | { readonly type: "graph/open"; readonly uri: string; readonly start?: number }
   /**
    * Make this note the centre and redraw around it. Without it the only way into a
    * neighbourhood was to open the note in an editor and run Open Local Graph against it,

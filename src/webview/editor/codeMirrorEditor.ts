@@ -291,15 +291,7 @@ export class CodeMirrorEditor {
 
   public replaceSource(source: string): void {
     if (source === this.source) return;
-    const nextSeparator = detectLineSeparator(source);
-    if (nextSeparator !== this.lineSeparator) {
-      const selection = this.view.state.selection.main;
-      this.lineSeparator = nextSeparator;
-      this.rawSource = source;
-      this.view.setState(this.createState(source, selection.head));
-      return;
-    }
-    const anchor = Math.min(this.view.state.selection.main.head, this.view.state.doc.length);
+    this.lineSeparator = detectLineSeparator(source);
     /*
      * Only the span that differs. A whole-document replacement reached the same text but took
      * the reader's undo history with it — see `hostSourceChange`.
@@ -310,14 +302,17 @@ export class CodeMirrorEditor {
     );
     if (changes === undefined) {
       this.rawSource = source;
+      // Only the raw line endings changed; keep the view and history, but update reported offsets.
+      this.reportSelectionSoon();
       return;
     }
     this.view.dispatch({
       changes,
-      selection: { anchor: Math.min(anchor, editorLength(source)) },
+      // CodeMirror maps every selection through the change, preserving direction and cursors.
       annotations: [hostTransaction.of(true), Transaction.addToHistory.of(false)],
     });
     this.rawSource = source;
+    this.reportSelectionSoon();
   }
 
   public refreshPreview(): void {

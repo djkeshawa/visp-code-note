@@ -289,6 +289,9 @@ function restoreTaskFocus(): void {
   const target = pendingTaskFocus;
   if (target === undefined) return;
   pendingTaskFocus = undefined;
+  if (!document.hasFocus()) return;
+  const active = document.activeElement;
+  if (active !== null && active !== document.body && !viewsRoot.contains(active)) return;
 
   const checkboxes = Array.from(
     viewsRoot.querySelectorAll<HTMLInputElement>("input[data-task-uri]"),
@@ -309,6 +312,7 @@ function restoreRowFocus(): void {
   const key = pendingRowFocus;
   if (key === undefined) return;
   pendingRowFocus = undefined;
+  if (!document.hasFocus()) return;
 
   const rows = Array.from(
     shell.querySelectorAll<HTMLButtonElement>(".workspace-row[data-expand-key]"),

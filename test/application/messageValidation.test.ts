@@ -7,6 +7,18 @@ import {
   isWorkspaceMessage,
 } from "../../src/vscode/providers/messageValidation";
 
+test("graph search accepts bounded queries and rejects invalid request context", () => {
+  const request = { type: "graph/search", query: "tag:design focus", requestId: 2,
+    revision: 1, mode: "all", kinds: ["note", "task"], includeOrphans: true };
+  assert.equal(isGraphMessage(request), true);
+  for (const invalid of [{ query: "x".repeat(2049) }, { query: "a\nb" }, { requestId: -1 },
+    { revision: NaN }, { mode: "regex" }, { kinds: ["unknown"] }, { includeOrphans: "yes" }]) {
+    assert.equal(isGraphMessage({ ...request, ...invalid }), false);
+  }
+  assert.equal(isGraphMessage({ type: "graph/open", uri: "file:///a.md", start: 42 }), true);
+  assert.equal(isGraphMessage({ type: "graph/open", uri: "file:///a.md", start: -1 }), false);
+});
+
 test("accepts continuous source edits with version and optional save intent", () => {
   assert.equal(isEditorMessage({
     type: "editor/editSource",

@@ -1,5 +1,7 @@
 import assert = require("node:assert/strict");
-import { test } from "node:test";
+import { afterEach, test } from "node:test";
+import { setWebviewFocused } from "../support/webviewFocus";
+afterEach(() => setWebviewFocused(true));
 // Must come first: it draws the panel's markup and installs the host stub the panel loads into.
 import "../support/freshWorkspacePanel";
 import "../../src/webview/workspace";
@@ -219,3 +221,24 @@ function isRevealTask(message: unknown): boolean {
   return typeof message === "object" && message !== null &&
     (message as { type?: unknown }).type === "workspace/revealTask";
 }
+
+
+test("a due-task response cannot reclaim focus after leaving the workspace panel", async () => {
+  await vault({ dueToday: DUE });
+  const checkbox = element<HTMLInputElement>("#workspace-views input[data-task-uri]");
+  checkbox.focus();
+  checkbox.click();
+  setWebviewFocused(false);
+  publish(panelState(VAULT, { dueToday: DUE }));
+  assert.equal(focused(), undefined, "the sidebar stole focus from the note");
+});
+
+test("a due-task response does not move focus away from the workspace filter", async () => {
+  await vault({ dueToday: DUE });
+  const checkbox = element<HTMLInputElement>("#workspace-views input[data-task-uri]");
+  checkbox.focus();
+  checkbox.click();
+  filter().focus();
+  publish(panelState(VAULT, { dueToday: DUE }));
+  assert.equal(focused(), filter());
+});

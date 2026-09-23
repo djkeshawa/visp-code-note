@@ -3,16 +3,21 @@
  * must come before `src/webview/tasks`.
  */
 import { window } from "./domEnvironment";
+import "./webviewFocus";
 import { TASKS_BODY } from "../../src/ui/pageBodies";
 import type { TasksState } from "../../src/domain/protocol";
 
 export const posted: unknown[] = [];
+export let savedState: unknown;
+export function restoreState(value: unknown): void {
+  savedState = value;
+}
 
 window.document.body.innerHTML = TASKS_BODY;
 (globalThis as unknown as Record<string, unknown>).acquireVsCodeApi = () => ({
   postMessage: (message: unknown) => posted.push(message),
-  getState: () => undefined,
-  setState: () => undefined,
+  getState: () => savedState,
+  setState: (value: unknown) => { savedState = value; },
 });
 
 export function publish(snapshot: TasksState): void {

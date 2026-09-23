@@ -18,7 +18,7 @@ test("a matches-only search that found nothing blames the search, not the chips"
   const state = graphEmptyState(12, 0, false, true);
 
   assert.match(state?.message ?? "", /search/i);
-  assert.match(state?.hint ?? "", /Matches only/);
+  assert.match(state?.hint ?? "", /Matches \+ neighbours/);
   // The filter wording would have sent the reader to chips that are all still switched on.
   assert.notEqual(state?.message, graphEmptyState(12, 0, false)?.message);
 });

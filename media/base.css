@@ -101,30 +101,35 @@
   /* Above the text colour rather than below it, for a title against its own metadata. */
   --visp-strong: var(--visp-text);
 
-  --visp-shadow: 0 10px 30px color-mix(in srgb, #000 35%, transparent);
+  /* A macOS popover: a half-pixel edge, then a soft, wide fall-off rather than a hard drop. */
+  --visp-shadow:
+    0 0 0 0.5px color-mix(in srgb, #000 40%, transparent),
+    0 12px 32px -4px color-mix(in srgb, #000 38%, transparent),
+    0 2px 6px color-mix(in srgb, #000 18%, transparent);
   --visp-radius: 6px;
-  --visp-font: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
-  --visp-mono: var(--vscode-editor-font-family, "SFMono-Regular", Consolas, monospace);
+  /* The focus halo AppKit draws around a focused field: the accent, spread and translucent. */
+  --visp-focus-ring: 0 0 0 3px color-mix(in srgb, var(--visp-focus) 38%, transparent);
+  --visp-ease: cubic-bezier(0.25, 0.1, 0.25, 1);
+  /*
+   * The macOS system face everywhere: San Francisco where the platform has it, the bundled
+   * Inter (see `fonts.css`) everywhere else. VS Code's own font comes last, as the fallback
+   * should the bundled file fail to load.
+   */
+  --visp-system-face:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "InterVariable", "Inter",
+    var(--vscode-font-family, "Segoe UI Variable Text"), system-ui, sans-serif;
+  --visp-font: var(--visp-system-face);
+  --visp-mono: var(--vscode-editor-font-family, ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace);
 
   /*
-   * The face rendered prose is set in, which is deliberately not the interface font.
+   * The face rendered prose is set in: the same San Francisco / Inter pairing as the chrome,
+   * so a note reads like a page in a Mac app. Bundling Inter is the point — a font *stack*
+   * alone renders differently on every machine, and two people reading the same note should
+   * see the same note. IBM Plex Sans is still bundled for anyone who prefers it.
    *
-   * Chrome should look like VS Code, so toolbars and lists keep `--visp-font`. A note is read
-   * for minutes at a time rather than glanced at, so it gets IBM Plex Sans, which the
-   * extension bundles — see `fonts.css`. Bundling is the point: a font *stack* renders
-   * differently on every machine, because whichever family happens to be installed wins, and
-   * two people reading the same note should see the same note. Plex is humanist with sturdy
-   * stems and a large x-height, which is what survives the grayscale antialiasing below.
-   *
-   * The families after it matter only if the bundled files fail to load, and are the
-   * optically-sized text faces each platform ships for reading.
-   *
-   * Overridden per-user by `vispNotes.editor.proseFont`.
+   * Overridden per-user by `vispNotes.editor.fontFamily`.
    */
-  --visp-prose-face:
-    "IBM Plex Sans", "Segoe UI Variable Text", -apple-system, BlinkMacSystemFont,
-    "Source Sans 3", "Noto Sans", "Cantarell", "Ubuntu", "Helvetica Neue", system-ui,
-    sans-serif;
+  --visp-prose-face: var(--visp-system-face);
 }
 
 body {
@@ -156,7 +161,10 @@ body.vscode-high-contrast-light {
   --visp-edge: color-mix(in srgb, var(--visp-text) 18%, transparent);
   --visp-unresolved-ring: color-mix(in srgb, var(--visp-muted) 45%, var(--visp-bg));
   /* The dark theme's 35% cast reads as a smudge on white; the design halves it and more. */
-  --visp-shadow: 0 10px 30px color-mix(in srgb, #000 12%, transparent);
+  --visp-shadow:
+    0 0 0 0.5px color-mix(in srgb, #000 14%, transparent),
+    0 12px 32px -4px color-mix(in srgb, #000 14%, transparent),
+    0 2px 6px color-mix(in srgb, #000 8%, transparent);
 }
 
 body.vscode-light {
@@ -203,11 +211,11 @@ body {
 }
 
 body {
-  -webkit-font-smoothing: antialiased;
   background: var(--visp-bg);
   color: var(--visp-text);
   font-family: var(--visp-font);
   font-size: var(--vscode-font-size, 13px);
+  font-optical-sizing: auto;
 
   /*
    * Grayscale antialiasing rather than the platform default.
@@ -530,6 +538,13 @@ label > .codicon {
   outline: 0;
   background: transparent;
   font-size: 11.5px;
+  cursor: text;
+}
+
+.search-field:focus-within {
+  border-color: var(--visp-focus);
+  outline: 1px solid var(--visp-focus);
+  outline-offset: 1px;
 }
 
 .search-field input::placeholder {
@@ -547,7 +562,7 @@ label > .codicon {
 }
 
 .view-footer {
-  height: 24px;
+  min-height: 24px;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -555,6 +570,9 @@ label > .codicon {
   border-top: 1px solid var(--visp-border);
   color: var(--visp-muted-strong);
   font-size: 11px;
+  flex-wrap: wrap;
+  padding-block: 4px;
+  row-gap: 4px;
 }
 
 /*
@@ -675,4 +693,102 @@ label > .codicon {
 .segment:disabled {
   cursor: default;
   opacity: 0.4;
+}
+
+/*
+ * macOS finish.
+ *
+ * Nothing here moves a box: sizes and spacing stay exactly as the rules above state them, and
+ * the design spec pins. What changes is how the controls respond — hover and press ease in
+ * rather than snapping, a focused field gets AppKit's soft halo instead of a hard outline, the
+ * lifted segment casts a hairline shadow the way NSSegmentedControl's does, and scrollbars are
+ * slim rounded thumbs that stay out of the way until the pointer comes near.
+ */
+.icon-button,
+.segment,
+.pill,
+.primary-button,
+.secondary-button,
+.search-field,
+select,
+.note-row,
+.task-row,
+.reminder-row,
+.toolbar-select {
+  transition:
+    background-color 120ms var(--visp-ease),
+    color 120ms var(--visp-ease),
+    border-color 120ms var(--visp-ease),
+    box-shadow 160ms var(--visp-ease),
+    opacity 120ms var(--visp-ease);
+}
+
+.icon-button:not(:disabled):active,
+.primary-button:not(:disabled):active,
+.secondary-button:not(:disabled):active {
+  filter: brightness(0.92);
+}
+
+.segment.is-active {
+  box-shadow:
+    0 0 0 0.5px color-mix(in srgb, var(--visp-text) 12%, transparent),
+    0 1px 2px color-mix(in srgb, #000 18%, transparent);
+}
+
+.primary-button {
+  box-shadow: 0 1px 1px color-mix(in srgb, #000 14%, transparent);
+  font-weight: 500;
+}
+
+.search-field:focus-within {
+  outline: 0;
+  box-shadow: var(--visp-focus-ring);
+}
+
+button:focus-visible,
+select:focus-visible,
+[tabindex]:focus-visible {
+  outline-offset: 1px;
+  box-shadow: var(--visp-focus-ring);
+}
+
+::selection {
+  background: color-mix(in srgb, var(--visp-focus) 32%, transparent);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: var(--vscode-scrollbarSlider-background, #8886) padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  border-width: 2px;
+  background-color: var(--vscode-scrollbarSlider-hoverBackground, #888a);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .icon-button,
+  .segment,
+  .pill,
+  .primary-button,
+  .secondary-button,
+  .search-field,
+  select,
+  .note-row,
+  .task-row,
+  .reminder-row,
+  .toolbar-select {
+    transition: none;
+  }
 }

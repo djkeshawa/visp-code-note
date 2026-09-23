@@ -1,0 +1,248 @@
+/* Keep search outside the drawing so controls never cover the nodes being explored. */
+.graph-body {
+  display: flex;
+  overflow: hidden;
+}
+
+.graph-body > .graph-canvas {
+  flex: 1;
+}
+
+.graph-search-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 16px;
+}
+
+.graph-search-toolbar .graph-search {
+  flex: 1 1 240px;
+  height: 32px;
+  border-radius: 8px;
+  font-size: 12.5px;
+}
+
+.graph-search-toolbar .graph-search input {
+  font-size: 12.5px;
+}
+
+.graph-search-mode select {
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--visp-border);
+  border-radius: 8px;
+  background: var(--vscode-dropdown-background, var(--visp-bg));
+  color: var(--visp-text);
+  font-size: 12px;
+}
+
+.graph-search-help {
+  position: relative;
+  color: var(--visp-muted-strong);
+  font-size: 12px;
+}
+
+.graph-search-help summary {
+  padding: 8px 4px;
+  cursor: pointer;
+}
+
+.graph-search-help summary:focus-visible {
+  outline: 1px solid var(--visp-focus);
+  outline-offset: 2px;
+}
+
+.graph-search-help > div {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 20;
+  width: min(360px, calc(100vw - 32px));
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--visp-surface);
+  box-shadow: var(--visp-shadow);
+  line-height: 1.6;
+}
+
+.graph-search-help code {
+  color: var(--visp-text);
+  font-family: var(--visp-mono);
+  font-size: 11px;
+}
+
+.graph-search-panel {
+  display: flex;
+  flex-direction: column;
+  width: 320px;
+  flex: 0 0 320px;
+  min-height: 0;
+  border-left: 1px solid var(--visp-hairline);
+  background: var(--visp-bg);
+}
+
+.graph-results-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 12px 0 16px;
+}
+
+.graph-results-header h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.graph-result-navigation {
+  display: flex;
+  gap: 4px;
+}
+
+.graph-result-navigation .icon-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.graph-search-status,
+.graph-result-limit {
+  margin: 0;
+  padding: 6px 16px 12px;
+  color: var(--visp-muted-strong);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.graph-search-results {
+  min-height: 0;
+  overflow: auto;
+  flex: 1;
+  padding: 0 8px 12px;
+  transition: opacity 160ms var(--visp-ease);
+}
+
+/* Results being replaced stay readable, only quieter, so nothing jumps while a search runs. */
+.graph-search-results[aria-busy="true"] {
+  opacity: 0.6;
+}
+
+/*
+ * Rows are rounded cards in a source list, as in Finder's sidebar and Mail's message list:
+ * spacing separates them rather than rules, and the selection is a filled rounded shape.
+ */
+.graph-result {
+  display: flex;
+  align-items: flex-start;
+  gap: 2px;
+  margin-bottom: 2px;
+  border-radius: 8px;
+  transition: background-color 120ms var(--visp-ease);
+}
+
+.graph-result:hover,
+.graph-result:focus-within {
+  background: var(--visp-surface-hover);
+}
+
+.graph-result.is-selected {
+  background: var(--visp-brand-soft);
+  box-shadow: inset 3px 0 0 var(--visp-brand);
+}
+
+.graph-result-select {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 5px;
+  min-width: 0;
+  padding: 10px 8px 10px 10px;
+  border-radius: 8px;
+  background: transparent;
+  text-align: left;
+}
+
+.graph-result-title {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  color: var(--visp-text);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.graph-result-field,
+.graph-result-path {
+  color: var(--visp-muted-strong);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.graph-result-preview {
+  color: var(--visp-prose);
+  font-size: 12px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.graph-result-open {
+  margin: 8px 2px 0 0;
+}
+
+.graph-footer {
+  gap: 6px 16px;
+  flex-wrap: wrap;
+}
+
+.graph-menu {
+  top: 48px;
+}
+
+@media (max-width: 760px) {
+  .graph-body {
+    flex-direction: column;
+  }
+
+  .graph-search-panel {
+    order: -1;
+    width: 100%;
+    flex: 0 1 40%;
+    max-height: 240px;
+    border-left: 0;
+    border-bottom: 1px solid var(--visp-hairline);
+  }
+
+  .graph-search-toolbar {
+    padding-inline: 12px;
+  }
+
+  .graph-search-toolbar .graph-search {
+    flex-basis: 100%;
+  }
+
+  .graph-search-help {
+    position: static;
+  }
+
+  .graph-search-help > div {
+    top: auto;
+    right: 12px;
+    max-height: 45vh;
+    overflow: auto;
+  }
+
+  .graph-footer .footer-hint {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .graph-search-results,
+  .graph-result {
+    transition: none;
+  }
+}

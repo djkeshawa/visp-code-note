@@ -44,7 +44,7 @@ for (const asset of ["codicon.css", "codicon.ttf"]) {
 console.log(`  media/codicons/codicon.css, media/codicons/codicon.ttf`);
 
 /*
- * The prose typeface is checked in under `media/fonts/` rather than copied out of a package
+ * The bundled typefaces (Inter and IBM Plex Sans) are checked in under `media/fonts/` rather than copied out of a package
  * at build time, so nothing here needs to touch it.
  *
  * It used to come from `@ibm/plex-sans`, which drags in `@ibm/telemetry-js` and its
@@ -56,4 +56,4 @@ console.log(`  media/codicons/codicon.css, media/codicons/codicon.ttf`);
  */
 const fontCount = (await readdir(fontDirectory)).filter((name) => name.endsWith(".woff2")).length;
 if (fontCount === 0) throw new Error("media/fonts/ holds no woff2 files — the prose face is missing.");
-console.log(`  media/fonts/ — ${fontCount} checked-in IBM Plex Sans cuts`);
+console.log(`  media/fonts/ — ${fontCount} checked-in font files (Inter, IBM Plex Sans)`);

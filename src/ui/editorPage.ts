@@ -13,7 +13,7 @@ import type { WebviewTemplateOptions } from "./webviewPage";
 export function createEditorHtml(options: WebviewTemplateOptions): string {
   return createWebviewPage(options, {
     title: "Visp Notes Editor",
-    // fonts.css declares the bundled prose face; the editor is the only view that sets prose.
+    // fonts.css declares the bundled faces: Inter for chrome and prose, and IBM Plex Sans.
     styles: ["base.css", "fonts.css", "editor.css", "editor-drafts.css"],
     script: "scripts/editor.js",
     body: EDITOR_BODY,

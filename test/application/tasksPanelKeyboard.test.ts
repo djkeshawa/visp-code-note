@@ -1,5 +1,7 @@
 import assert = require("node:assert/strict");
-import { test } from "node:test";
+import { afterEach, test } from "node:test";
+import { setWebviewFocused } from "../support/webviewFocus";
+afterEach(() => setWebviewFocused(true));
 // Must come first: it draws the view's markup and installs the host stub it loads into.
 import "../support/tasksPanelDom";
 import "../../src/webview/tasks";
@@ -14,6 +16,7 @@ import {
   type,
 } from "../support/tasksPanelDom";
 import type { TasksState } from "../../src/domain/protocol";
+import { window } from "../support/domEnvironment";
 
 /*
  * A task row spends two controls — the checkbox and the way into the note — so the fortieth
@@ -100,4 +103,101 @@ test("the index republishing does not drop focus out of the list", () => {
 
   assert.notEqual(focused(), undefined, "focus fell to the body when the list was rebuilt");
   assert.equal(focused()?.textContent, "File the receipts");
+});
+
+function withReminder(): TasksState {
+  return {
+    ...snapshot(),
+    reminders: [{
+      text: "Ring the plumber",
+      noteUri: "file:///vault/inbox.md",
+      noteTitle: "Inbox",
+      start: 0,
+      at: Date.now(),
+      dueAt: Date.now(),
+    }],
+    reminderCount: 1,
+  };
+}
+
+test("Enter from a filtered task search skips unrelated pinned reminders", () => {
+  open();
+  publish(withReminder());
+  type("receipts");
+  press(search(), "Enter");
+
+  assert.deepEqual(posted, [
+    { type: "tasks/open", noteUri: "file:///vault/inbox.md", start: 80 },
+  ]);
+});
+
+test("Enter with no matching tasks does not open a pinned reminder", () => {
+  open();
+  publish(withReminder());
+  type("no matching task");
+  press(search(), "Enter");
+
+  assert.deepEqual(posted, []);
+});
+
+test("ArrowDown from a filtered task search focuses a matching task", () => {
+  open();
+  publish(withReminder());
+  type("receipts");
+  press(search(), "ArrowDown");
+
+  assert.equal(focused()?.getAttribute("aria-label"), "Complete File the receipts");
+});
+
+test("a toggle response does not steal focus after the reader moves to search", () => {
+  open();
+  const checkbox = rows()[0]?.querySelector<HTMLInputElement>('input[data-action="toggle"]');
+  assert.ok(checkbox);
+  checkbox.focus();
+  checkbox.click();
+  search().focus();
+  publish(snapshot());
+
+  assert.equal(focused(), search());
+});
+
+test("completing a task keeps keyboard focus on the next remaining task", () => {
+  open();
+  const checkbox = rows()[0]?.querySelector<HTMLInputElement>('input[data-action="toggle"]');
+  assert.ok(checkbox);
+  checkbox.focus();
+  checkbox.click();
+  publish({ ...snapshot(), tasks: snapshot().tasks.map((item) =>
+    item.range.start === 40 ? { ...item, completed: true } : item) });
+
+  assert.equal(focused()?.getAttribute("aria-label"), "Complete File the receipts");
+});
+
+test("a filtered list does not claim that hidden future tasks are unscheduled", () => {
+  open();
+  publish({ ...snapshot(), tasks: [...snapshot().tasks, {
+    ...task("Future work", 120), due: "2099-01-01",
+  }] });
+  type("receipts");
+
+  assert.equal(window.document.querySelector(".empty-state-message"), null);
+});
+
+test("an empty workspace explains how to add a task", () => {
+  open();
+  publish({ ...snapshot(), tasks: [] });
+
+  assert.match(window.document.querySelector(".empty-state-message")?.textContent ?? "", /No tasks yet/);
+  assert.match(window.document.querySelector(".empty-state-hint")?.textContent ?? "", /checkbox/i);
+});
+
+
+test("a task update after leaving the pane cannot reclaim its checkbox", () => {
+  open();
+  const checkbox = rows()[0]!.querySelector<HTMLInputElement>('input[data-action="toggle"]')!;
+  checkbox.focus();
+  checkbox.click();
+  setWebviewFocused(false);
+  publish(snapshot());
+  assert.equal(focused(), undefined, "the task pane stole focus from another editor");
 });

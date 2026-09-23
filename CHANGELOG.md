@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.15.0 - 2026-09-23
+
+- Fixed the graph flashing and losing its zoom on every keystroke and every note save while "Matches + neighbours" was on. Previous results now stay on screen until new ones arrive, and an index update that finds the same matches leaves the graph untouched.
+- A graph search sent against an outdated graph now gets a reply, so the panel can no longer stay stuck on "Searching…".
+- Interface and note text now use a Mac-style face: San Francisco on macOS, and the bundled Inter everywhere else. IBM Plex Sans remains available through `vispNotes.editor.fontFamily`.
+- Smoother, macOS-style controls: eased hover and press states, soft focus halos, lifted segmented-control selection, rounded search result rows, softer popover shadows, and slim scrollbars.
+
+## 0.14.1 - 2026-09-07
+
+- Fixed background graph search and list updates stealing focus while typing in a note. Graph node, connection, task, and sidebar focus restoration now respects the active editor.
+- Prevented delayed graph focus restoration from pulling the cursor out of a search field or another editor.
+- Preserved caret positions, selection ranges, and selection direction when external edits update a note.
+- Preserved undo history when saving or external changes convert a note's line endings.
+
+## 0.14.0 - 2026-09-07
+
+- Added graph full-text search across note contents, aliases, paths, tags, and tasks, using the same quoted phrases and filters as workspace search.
+- Added ranked result previews, direct navigation to matching text, next/previous match buttons, a labels-only mode, and remembered graph search/filter preferences.
+- Moved graph filters above the canvas, kept all controls available in narrow panes, and added a visible way back to workspace scope.
+- Kept graph labels readable at different zoom levels and prevented late search replies from replacing newer results.
+
+## 0.13.0 - 2026-09-06
+
+- Refined Notes and Tasks layouts with separate filter controls, clearer title and path hierarchy, and layouts that fit narrow editor splits.
+- Added note tag filtering, natural title/path sorting, and a compact row toggle. Note search now matches tags and words across visible fields.
+- Remembered note search, tag, sort, and density, plus task search, status, grouping, and sort settings across webview reloads.
+- Added clear-filter actions and helpful note empty states. Switching note lists clears unrelated filters; index updates retain them.
+- Fixed Due Today overwriting the preferred task status and malformed optional note metadata causing rendering failures.
+
 ## 0.12.0 - 2026-08-15
 
 ### Changed — renaming a note in the Explorer now keeps the links to it working

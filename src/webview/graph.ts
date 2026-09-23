@@ -5,14 +5,13 @@ import type {
   GraphNodeWire,
   GraphToHostWire,
 } from "./contracts.js";
-import { emptyState, isRecord } from "./shared/dom.js";
-import { acquireMessageSender } from "./shared/vscodeApi.js";
+import { emptyState, isRecord, requireElement, setNotice } from "./shared/dom.js";
+import { acquireWebviewApi } from "./shared/vscodeApi.js";
+import { restoreFocusNextFrame } from "./shared/deferredFocus.js";
 import { renderGraphDetails } from "./graph/details.js";
 import { type GraphEmptyState, graphEmptyState } from "./graph/emptyStates.js";
 import {
-  cycleNodeId,
   filterGraph,
-  findMatchingNodeIds,
   graphAroundMatches,
   keyboardNodeId,
   resolveSelection,
@@ -28,11 +27,12 @@ import { GraphMotionController } from "./graph/motionController.js";
 import type { RenderedGraph } from "./graph/renderer.js";
 import { findSpatialNodeId } from "./graph/spatialNavigation.js";
 import { isGraphData, isGraphDepth } from "./graph/validation.js";
+import { GraphSearchController } from "./graph/searchController.js";
 import { GraphViewportController } from "./graph/viewportController.js";
 
-const api = acquireMessageSender<GraphToHostWire>();
+const api = acquireWebviewApi<GraphToHostWire, unknown>();
 const {
-  svg, emptyState: canvasMessage, summary, depthControl, search, searchStatus, orphanToggle,
+  svg, emptyState: canvasMessage, summary, depthControl, search, orphanToggle,
   matchesOnlyToggle, connections, zoomIn, zoomOut, fitGraph, centerSelected, zoomStatus,
   resetLayout, kindToggles, depthButtons, chipCounts, menu, menuButton, menuItems, details,
 } = getGraphPageElements();
@@ -46,10 +46,10 @@ let visibleNodesById: ReadonlyMap<string, GraphNodeWire> = new Map();
 let renderedGraph: RenderedGraph = { positions: new Map() };
 let selectedId: string | undefined;
 let hoveredId: string | undefined;
-let matchingIds: readonly string[] = [];
 let matchingIdSet: ReadonlySet<string> = new Set();
 let scopeKey: string | undefined;
 let isLocalScope = false;
+let revision = 0;
 let fitPending = true;
 /** Whether the drawing on the canvas is the restricted one, which only a repaint can undo. */
 let restrictedToMatches = false;
@@ -61,8 +61,27 @@ const emphasis = new GraphEmphasis(svg);
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 const motion = new GraphMotionController(svg, updateRenderedGraph, () => !reducedMotion.matches);
 
-search.addEventListener("input", applySearch);
-search.addEventListener("keydown", handleSearchKeydown);
+const searchMode = requireElement("#graph-search-mode", HTMLSelectElement);
+const workspaceButton = requireElement("#graph-workspace", HTMLButtonElement);
+const scopeHint = requireElement("#graph-scope-hint", HTMLElement);
+const errorNotice = requireElement("#graph-error", HTMLElement);
+const resetFilters = requireElement("#graph-reset-filters", HTMLButtonElement);
+restorePreferences();
+const searchController = new GraphSearchController({
+  send: (message) => api.postMessage(message),
+  changed: applySearch,
+  select: (id) => selectNode(id, { center: true }),
+  save: savePreferences,
+});
+resetFilters.addEventListener("click", () => {
+  for (const toggle of [...kindToggles, orphanToggle]) {
+    toggle.classList.add("is-active");
+    toggle.setAttribute("aria-pressed", "true");
+  }
+  refreshSearchContext();
+  refreshVisibleGraph();
+});
+workspaceButton.addEventListener("click", () => api.postMessage({ type: "graph/runCommand", command: "openWorkspaceGraph" }));
 orphanToggle.addEventListener("click", () => toggleChip(orphanToggle));
 matchesOnlyToggle.addEventListener("click", toggleMatchesOnly);
 kindToggles.forEach((toggle) => toggle.addEventListener("click", () => toggleChip(toggle)));
@@ -94,12 +113,18 @@ api.postMessage({ type: "graph/ready" });
 
 function handleHostMessage(event: MessageEvent<unknown>): void {
   const message = event.data;
+  if (searchController.accept(message)) return;
+  if (isRecord(message) && message.type === "graph/error") {
+    if (message.requestId === undefined && typeof message.message === "string") setNotice(errorNotice, message.message);
+    return;
+  }
   if (
     !isRecord(message) ||
     message.type !== "graph/state" ||
     !isGraphData(message.graph) ||
     !isGraphDepth(message.depth) ||
-    typeof message.local !== "boolean"
+    typeof message.local !== "boolean" ||
+    typeof message.revision !== "number" || !Number.isSafeInteger(message.revision) || message.revision < 1
   ) {
     return;
   }
@@ -112,8 +137,11 @@ function handleHostMessage(event: MessageEvent<unknown>): void {
   }
   scopeKey = nextScopeKey;
   graph = message.graph;
+  revision = message.revision;
+  setNotice(errorNotice);
   updateDepthControl(message.depth, message.local);
   updateChipCounts();
+  refreshSearchContext();
   refreshVisibleGraph();
 }
 
@@ -130,10 +158,12 @@ function updateChipCounts(): void {
   }
 }
 
-function toggleChip(chip: HTMLButtonElement): void {
+function toggleChip(chip: HTMLButtonElement, searchChanged = true): void {
   const active = !chip.classList.contains("is-active");
   chip.classList.toggle("is-active", active);
   chip.setAttribute("aria-pressed", String(active));
+  if (searchChanged) refreshSearchContext();
+  else savePreferences();
   refreshVisibleGraph();
 }
 
@@ -156,8 +186,7 @@ function refreshVisibleGraph(): void {
    * each keystroke would search only what the previous keystroke had already left standing,
    * and a deleted character could never bring a node back.
    */
-  const query = search.value.trim();
-  matchingIds = findMatchingNodeIds(filtered, query);
+  const matchingIds = searchController.matches;
   matchingIdSet = new Set(matchingIds);
   const restricting = isMatchesOnly();
   restrictedToMatches = restricting;
@@ -177,14 +206,14 @@ function refreshVisibleGraph(): void {
     fitPending = false;
   }
   updateSummary();
-  updateSearchStatus();
+  searchController.setSelection(selectedId);
   updateEmphasis();
   renderGraphDetails(details, visibleGraph, selectedId);
   updateViewportControls();
   if (restoreNodeFocus) {
-    window.requestAnimationFrame(() => focusGraphNode(svg, selectedId));
+    restoreFocusNextFrame(() => focusGraphNode(svg, selectedId));
   } else if (focusedConnectionId !== undefined) {
-    window.requestAnimationFrame(() => {
+    restoreFocusNextFrame(() => {
       if (!focusConnectionRow(connections, focusedConnectionId)) focusGraphNode(svg, selectedId);
     });
   }
@@ -234,29 +263,20 @@ function applySearch(): void {
 }
 
 function updateSearch(): void {
-  matchingIds = findMatchingNodeIds(visibleGraph, search.value.trim());
-  matchingIdSet = new Set(matchingIds);
-  updateSearchStatus();
+  matchingIdSet = new Set(searchController.matches);
+  searchController.setSelection(selectedId);
   updateEmphasis();
-}
-
-function updateSearchStatus(): void {
-  searchStatus.textContent = searchStatusText(
-    search.value.trim(),
-    matchingIds.length,
-    visibleGraph.nodes.length,
-  );
 }
 
 function isMatchesOnly(): boolean {
   // With nothing typed there is nothing to keep, so the toggle waits rather than emptying
   // the canvas the moment it is pressed.
-  return isChipActive(matchesOnlyToggle) && search.value.trim().length > 0;
+  return isChipActive(matchesOnlyToggle) && searchController.active && !searchController.pending && !searchController.failed;
 }
 
 function toggleMatchesOnly(): void {
   fitPending = true;
-  toggleChip(matchesOnlyToggle);
+  toggleChip(matchesOnlyToggle, false);
 }
 
 function updateEmphasis(): void {
@@ -265,20 +285,8 @@ function updateEmphasis(): void {
     selectedId,
     hoveredId,
     matchingIdSet,
-    search.value.trim().length > 0,
+    searchController.active && !searchController.pending && !searchController.failed,
   );
-}
-
-function handleSearchKeydown(event: KeyboardEvent): void {
-  if (event.key === "Escape" && search.value.length > 0) {
-    event.preventDefault();
-    search.value = "";
-    applySearch();
-    return;
-  }
-  if (event.key !== "Enter" || matchingIds.length === 0) return;
-  event.preventDefault();
-  selectNode(cycleNodeId(matchingIds, selectedId, event.shiftKey ? -1 : 1), { center: true });
 }
 
 function handleNodeSelection(event: MouseEvent): void {
@@ -348,12 +356,13 @@ function selectNode(
 ): void {
   if (findNode(nodeId) === undefined) return;
   selectedId = nodeId;
+  searchController.setSelection(selectedId);
   // Selection moves the emphasis, not the drawing, so the matches are the ones already found.
   updateEmphasis();
   renderGraphDetails(details, visibleGraph, selectedId);
   updateViewportControls();
   if (options.center) centerSelectedNode();
-  if (options.focus) window.requestAnimationFrame(() => focusGraphNode(svg, selectedId));
+  if (options.focus) restoreFocusNextFrame(() => focusGraphNode(svg, selectedId));
 }
 
 function clearSelection(): void {
@@ -365,11 +374,12 @@ function clearSelection(): void {
    */
   const hadFocusInCard = details.card.contains(document.activeElement);
   selectedId = visibleGraph.focusId;
+  searchController.setSelection(selectedId);
   updateEmphasis();
   renderGraphDetails(details, visibleGraph, selectedId);
   updateViewportControls();
   if (hadFocusInCard) {
-    window.requestAnimationFrame(() => {
+    restoreFocusNextFrame(() => {
       if (selectedId !== undefined) {
         focusGraphNode(svg, selectedId);
         return;
@@ -416,6 +426,7 @@ function updateRenderedGraph(next: RenderedGraph): void {
 }
 
 function disposeControllers(): void {
+  searchController.dispose();
   motion.dispose();
   viewport.dispose();
 }
@@ -478,6 +489,8 @@ function closeMenuOnEscape(event: KeyboardEvent): void {
  */
 function updateDepthControl(depth: 1 | 2, local: boolean): void {
   isLocalScope = local;
+  workspaceButton.hidden = !local;
+  scopeHint.textContent = local ? "Search covers this local graph · Open Workspace graph to search every note" : "Search covers this workspace graph";
   depthControl.classList.toggle("is-unavailable", !local);
   depthControl.title = local
     ? "How many links out from this note to include"
@@ -508,12 +521,29 @@ function findNode(id: string | undefined): GraphNodeWire | undefined {
   return id === undefined ? undefined : visibleNodesById.get(id);
 }
 
-function searchStatusText(query: string, matches: number, visibleNodes: number): string {
-  if (query.length === 0) return `${visibleNodes} visible node${visibleNodes === 1 ? "" : "s"}`;
-  if (matches === 0) return "No matching nodes";
-  const found = `${matches} match${matches === 1 ? "" : "es"}`;
-  // How much is left on the canvas is the whole point of the toggle, so it is said aloud.
-  return isMatchesOnly()
-    ? `${found} · ${visibleNodes} node${visibleNodes === 1 ? "" : "s"} shown · Enter to cycle`
-    : `${found} · Enter to cycle`;
+function refreshSearchContext(): void {
+  resetFilters.hidden = kindToggles.every(isChipActive) && isChipActive(orphanToggle);
+  const kinds = kindToggles.filter(isChipActive).map((toggle) => toggle.dataset.kind as GraphNodeKindWire);
+  searchController.setContext(revision, graph, kinds, isChipActive(orphanToggle));
+}
+
+function savePreferences(): void {
+  api.setState({ query: search.value, mode: searchMode.value,
+    kinds: kindToggles.filter(isChipActive).map((toggle) => toggle.dataset.kind),
+    orphans: isChipActive(orphanToggle), matchesOnly: isChipActive(matchesOnlyToggle) });
+}
+
+function restorePreferences(): void {
+  const saved = api.getState();
+  if (!isRecord(saved)) return;
+  search.value = typeof saved.query === "string" ? saved.query.slice(0, 2048).replace(/[\r\n]/g, " ") : "";
+  searchMode.value = saved.mode === "labels" ? "labels" : "all";
+  const kinds = saved.kinds;
+  for (const toggle of [...kindToggles, orphanToggle, matchesOnlyToggle]) {
+    const active = toggle === orphanToggle ? saved.orphans !== false
+      : toggle === matchesOnlyToggle ? saved.matchesOnly === true
+        : !Array.isArray(kinds) || kinds.includes(toggle.dataset.kind);
+    toggle.classList.toggle("is-active", active);
+    toggle.setAttribute("aria-pressed", String(active));
+  }
 }

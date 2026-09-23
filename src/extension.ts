@@ -53,7 +53,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const graph = new GraphPanel(
     context.extensionUri,
     () => index.snapshot,
-    (uri) => openNote(vscode.Uri.parse(uri), true),
+    (uri, start) => start === undefined
+      ? openNote(vscode.Uri.parse(uri), true)
+      : noteEditor.revealAt(uri, start),
   );
   const reminders = new ReminderScheduler(
     index,

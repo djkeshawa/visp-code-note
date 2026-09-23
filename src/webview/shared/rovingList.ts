@@ -111,6 +111,9 @@ export class RovingList {
    * this list was holding it and the row it was on has just been destroyed.
    */
   public refresh(): void {
+    // A retained webview can remember a row after focus moved into a different editor.
+    // Background index updates may rebuild that row, but must never activate the panel.
+    if (!this.container.ownerDocument.hasFocus()) this.held = false;
     const rows = this.rows();
     if (rows.length === 0) {
       this.index = 0;

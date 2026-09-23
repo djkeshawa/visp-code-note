@@ -109,7 +109,16 @@ export function isGraphMessage(value: unknown): value is GraphToHostMessage {
    * checked the same way and the panel does the rest: neither URI is used until it has been
    * matched against a note the index actually holds.
    */
-  if (value.type === "graph/open" || value.type === "graph/focus") return isSource(value.uri);
+  if (value.type === "graph/focus") return isSource(value.uri);
+  if (value.type === "graph/open") return isSource(value.uri) && (value.start === undefined || isOffset(value.start));
+  if (value.type === "graph/search") {
+    return isShortString(value.query) && !/[\r\n]/.test(value.query)
+      && isOffset(value.requestId) && isOffset(value.revision)
+      && (value.mode === "all" || value.mode === "labels")
+      && typeof value.includeOrphans === "boolean"
+      && Array.isArray(value.kinds) && value.kinds.length <= 4
+      && value.kinds.every((kind: unknown) => kind === "note" || kind === "task" || kind === "tag" || kind === "unresolved");
+  }
   if (value.type === "graph/runCommand") {
     return GRAPH_MENU_COMMANDS.some((command) => command === value.command);
   }

@@ -3,7 +3,10 @@
 }
 
 .graph-shell .view-toolbar {
-  height: 44px;
+  min-height: 52px;
+  flex-wrap: wrap;
+  padding-block: 10px;
+  overflow: visible;
 }
 
 .graph-search {
@@ -85,7 +88,8 @@
   min-height: 0;
   overflow: hidden;
   background-color: var(--visp-bg);
-  background-image: radial-gradient(circle at 46% 48%, var(--visp-brand-soft), transparent 55%);
+  background-image: radial-gradient(var(--visp-hairline) 0.7px, transparent 0.7px);
+  background-size: 22px 22px;
   cursor: grab;
 }
 
@@ -112,14 +116,12 @@
 
 /* Filters, top left: what is on the canvas, how much of it, and a way to put it away. */
 .graph-filters {
-  position: absolute;
-  top: 12px;
-  left: 12px;
-  z-index: 2;
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
-  max-width: 70%;
+  align-items: center;
+  gap: 6px;
+  padding: 0 16px 12px;
+  border-bottom: 1px solid var(--visp-hairline);
 }
 
 .graph-chip {
@@ -340,14 +342,14 @@
   cursor: grab;
   fill: var(--visp-muted);
   font-family: var(--visp-font);
-  font-size: 11px;
+  font-size: calc(11px * var(--graph-label-scale, 1));
   font-weight: 450;
   opacity: 0;
   paint-order: stroke;
   pointer-events: none;
   stroke: var(--visp-bg);
   stroke-linejoin: round;
-  stroke-width: 3.5px;
+  stroke-width: calc(3.5px * var(--graph-label-scale, 1));
   transition: opacity 140ms ease;
 }
 
@@ -644,23 +646,18 @@
 }
 
 /*
- * Below this the card would cover most of the drawing, so it gives up its corner and spans
- * the bottom instead, and the filters give up the ones that are rarely turned off.
+ * On narrow screens the details span the bottom, leaving the drawing and zoom controls visible.
  */
 @media (max-width: 640px) {
   .graph-details {
     right: 10px;
     left: 10px;
     width: auto;
-    max-height: 45%;
+    bottom: 56px;
+    max-height: min(45%, calc(100% - 68px));
   }
 
   .graph-filters {
-    max-width: calc(100% - 24px);
-  }
-
-  .graph-chip[data-orphans],
-  .graph-chip[data-kind="task"] {
-    display: none;
+    padding-inline: 12px;
   }
 }

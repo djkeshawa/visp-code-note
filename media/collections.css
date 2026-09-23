@@ -1,0 +1,276 @@
+/* Notes and tasks share a reading measure and a separate, wrapping control strip.
+ * Theme colors and VS Code's interface face keep these collections part of the editor. */
+.collection-shell {
+  --collection-gutter: max(20px, calc((100% - 980px) / 2));
+}
+
+.collection-shell .view-toolbar {
+  padding: 24px var(--collection-gutter) 18px;
+  overflow: visible;
+  border-bottom: 0;
+}
+
+.collection-shell .title-stack {
+  display: block;
+  flex: 1;
+}
+
+.collection-shell .toolbar-title {
+  font-size: 23px;
+  letter-spacing: -0.025em;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.collection-shell .toolbar-subtitle {
+  display: block;
+  max-width: 78ch;
+  margin: 7px 0 0;
+  color: var(--visp-muted-strong);
+  font-size: 12px;
+  line-height: 1.55;
+  text-align: left;
+  white-space: normal;
+}
+
+.collection-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 var(--collection-gutter) 16px;
+  border-bottom: 1px solid var(--visp-hairline);
+}
+
+.collection-controls .search-field {
+  flex: 1 1 220px;
+  height: 32px;
+  min-width: 140px;
+}
+
+.collection-controls .icon-button {
+  width: 32px;
+  height: 32px;
+}
+
+.collection-shell .icon-button[aria-pressed="true"] {
+  background: var(--visp-brand-soft);
+  color: var(--visp-brand);
+  box-shadow: inset 0 0 0 1px var(--visp-brand);
+}
+
+.collection-select {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  color: var(--visp-muted-strong);
+  font-size: 12px;
+}
+
+.collection-select select {
+  min-width: 0;
+  max-width: 200px;
+  height: 32px;
+  padding: 0 7px;
+  border: 1px solid var(--visp-border);
+  border-radius: var(--visp-radius);
+  background: var(--vscode-dropdown-background, var(--visp-bg));
+  color: var(--vscode-dropdown-foreground, var(--visp-text));
+  font-size: 12px;
+}
+
+.collection-select select:disabled {
+  opacity: 0.55;
+}
+
+.collection-clear {
+  min-height: 30px;
+  font-size: 12px;
+}
+
+.collection-shell .note-rows,
+.collection-shell .task-groups {
+  padding: 16px var(--collection-gutter) 48px;
+}
+
+.collection-shell .note-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 68px;
+  padding: 12px 10px;
+  border-bottom: 1px solid var(--visp-hairline);
+}
+
+.note-row-content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.note-row-heading,
+.note-row-location {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.collection-shell .note-row-title {
+  flex: 0 1 auto;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.collection-shell .note-row-tags {
+  max-width: 45%;
+}
+
+.collection-shell .is-compact .note-row-title {
+  white-space: nowrap;
+}
+
+.collection-shell .view-toolbar > .icon-button {
+  align-self: flex-start;
+}
+
+.collection-shell .note-row-path {
+  flex: 0 1 auto;
+  text-align: left;
+  font-family: var(--visp-font);
+  font-size: 11.5px;
+}
+
+.collection-shell .note-row > .codicon:first-child {
+  align-self: flex-start;
+  margin-top: 2px;
+  color: var(--tag-hue, var(--visp-brand));
+}
+
+.collection-shell .note-row > .codicon-chevron-right {
+  font-size: 12px;
+  color: var(--visp-muted);
+}
+
+.collection-shell .note-row-when {
+  width: auto;
+  flex-shrink: 0;
+}
+
+.collection-shell .note-rows.is-compact .note-row {
+  min-height: 42px;
+  padding-block: 8px;
+}
+
+.note-rows.is-compact .note-row-content {
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
+}
+
+.note-rows.is-compact .note-row-heading {
+  flex: 1;
+}
+
+.note-rows.is-compact .note-row-location {
+  max-width: 38%;
+}
+
+.collection-shell .task-row,
+.collection-shell .reminder-row {
+  min-height: 44px;
+}
+
+.collection-shell .task-group-title {
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+
+.collection-shell .task-group-count {
+  min-width: 20px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: var(--visp-chip);
+  text-align: center;
+}
+
+.collection-shell .task-reminders {
+  padding: 12px;
+  border: 1px solid var(--visp-hairline);
+  border-radius: var(--visp-radius);
+  background: var(--visp-surface);
+}
+
+.collection-shell .empty-state {
+  padding-block: 48px;
+}
+
+.collection-shell .empty-state-message {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.collection-shell .empty-state-hint {
+  max-width: 48ch;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.collection-shell .view-footer {
+  padding-inline: var(--collection-gutter);
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+
+@media (max-width: 760px) {
+  .collection-shell {
+    --collection-gutter: 14px;
+  }
+
+  .collection-shell .view-toolbar {
+    padding-top: 18px;
+  }
+
+  .collection-controls .search-field {
+    flex-basis: 100%;
+  }
+
+  .collection-shell .note-row-tags {
+    display: none;
+  }
+
+  .collection-shell .task-row,
+  .collection-shell .reminder-row {
+    min-height: 58px;
+  }
+}
+
+@media (max-width: 420px) {
+  .collection-shell .note-row {
+    gap: 8px;
+    padding-inline: 4px;
+  }
+
+  .collection-shell .note-row-heading {
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+
+  .collection-shell .note-row-detail {
+    max-width: 100%;
+  }
+
+  .note-rows.is-compact .note-row-location {
+    display: none;
+  }
+
+  .collection-shell .footer-hint {
+    display: none;
+  }
+}

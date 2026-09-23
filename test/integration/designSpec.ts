@@ -39,7 +39,7 @@ export const STYLE_RULES: readonly StyleRule[] = [
     file: "base.css",
     selector: ".view-toolbar",
     declaration: "min-height: 44px",
-    because: "The tasks and graph views share one 44px header row.",
+    because: "The graph and editor toolbars retain a compact 44px baseline; collection headers add their own spacing.",
   },
   {
     file: "base.css",
@@ -96,12 +96,10 @@ export const STYLE_RULES: readonly StyleRule[] = [
     because: "Readable prose is measured at 720px in the prototype.",
   },
   {
-    file: "tasks.css",
-    selector: ".task-row",
-    declaration: "height: 34px",
-    because:
-      "A task is one 34px row. It was a 63px bordered card, which is why a week of work did " +
-      "not fit on a screen.",
+    file: "collections.css",
+    selector: ".collection-shell .task-row",
+    declaration: "min-height: 44px",
+    because: "Tasks have a comfortable click target and can grow to hold metadata in a narrow editor split.",
   },
   {
     file: "tasks.css",
@@ -250,8 +248,8 @@ export const STYLE_RULES: readonly StyleRule[] = [
   {
     file: "graph.css",
     selector: ".graph-canvas",
-    declaration: "background-image: radial-gradient(circle at 46% 48%, var(--visp-brand-soft), transparent 55%)",
-    because: "The canvas carries the prototype's centre-weighted glow, not a vignette.",
+    declaration: "background-image: radial-gradient(var(--visp-hairline) 0.7px, transparent 0.7px)",
+    because: "The graph's subtle dot grid provides spatial reference while panning.",
   },
 ];
 
@@ -300,7 +298,7 @@ export const EDITOR_MARKUP: readonly MarkupRequirement[] = [
 
 /** The note list: orphans and broken links, in the window rather than over it. */
 export const NOTES_MARKUP: readonly MarkupRequirement[] = [
-  { hook: 'class="visp-shell notes-shell"', what: "the shell every view is built in" },
+  { hook: 'class="visp-shell notes-shell collection-shell"', what: "the note collection shell" },
   { hook: 'class="view-toolbar notes-toolbar"', what: "the 44px header row the views share" },
   { hook: 'id="note-view-title"', what: "which list is showing" },
   { hook: 'id="note-search"', what: "the filter field, in the toolbar as the task list has it" },

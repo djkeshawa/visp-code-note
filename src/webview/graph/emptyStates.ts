@@ -30,7 +30,7 @@ export function graphEmptyState(
     return {
       icon: "search",
       message: "Nothing on the canvas matches that search.",
-      hint: "Try fewer letters, or turn Matches only off to see the graph again.",
+      hint: "Try fewer words, or turn Matches + neighbours off to see the graph again.",
     };
   }
   if (totalNodes > 0) {

@@ -12,6 +12,7 @@
  * harnesses beside this file exist rather than a parameter: an import cannot be given one.
  */
 import { window } from "./domEnvironment";
+import "./webviewFocus";
 import { WORKSPACE_BODY } from "../../src/ui/pageBodies";
 import type { WorkspacePanelState } from "../../src/domain/protocol";
 

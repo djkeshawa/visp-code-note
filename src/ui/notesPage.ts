@@ -12,7 +12,7 @@ import type { WebviewTemplateOptions } from "./webviewPage";
 export function createNotesHtml(options: WebviewTemplateOptions): string {
   return createWebviewPage(options, {
     title: "Visp Notes",
-    styles: ["base.css", "notes.css"],
+    styles: ["base.css", "fonts.css", "notes.css", "collections.css"],
     script: "scripts/notes.js",
     body: NOTES_BODY,
   });

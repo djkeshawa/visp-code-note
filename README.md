@@ -6,19 +6,41 @@ Visp Notes turns ordinary workspace Markdown files into a connected note system 
 
 ## Features
 
-- Continuous Markdown editing with one natural CodeMirror document, Live/Markdown modes, undo history, search, bracket matching, list continuation, and explicit sync/conflict status
-- `[[wiki links]]`, aliases, heading links, block references, context-aware completion, exact-anchor navigation, and missing-anchor diagnostics
-- Live presentation of callouts (`> [!note]`), inline code, thematic breaks, and frontmatter as a property block
-- A one-row note header with its location, tags, backlink count, save state, and an overflow menu
-- A note inspector beside the note: its outline, backlinks with source context, its tasks, and its links out
-- Standard Markdown checkbox tasks, Toggle Task, tickable tasks in the Activity Bar, and dashboards grouped by due date, note, or tag
-- Due times and reminders: `@due(2026-07-22 14:30) @remind(30m)` raises a notification with Open Note, Snooze and Mark Done
-- A `/` block menu in the note editor, and a folder picker when creating a note
-- Interactive one- and two-hop local graphs plus a live force-directed workspace graph, with spring motion, connection-scaled nodes, hover neighborhoods, pan, cursor-centered zoom, fit/center controls, non-destructive search, and connection details
-- Safe note rename choices with a native before/after diff preview
-- Broken-link diagnostics
-- A Due Today view holding overdue work as well as today's, and note lists for orphans, broken links and any tag
-- Note folders, smart views, tags, full-text search, and index status in the Activity Bar
+### Editor
+
+- One continuous CodeMirror document with **Live** and **Markdown** modes. Switching keeps the caret, selection, scroll position and undo history.
+- Live rendering of headings, lists, tables, fenced code, callouts (`> [!note]`), thematic breaks and frontmatter. The raw Markdown returns on the line you are editing.
+- A `/` block menu, formatting shortcuts (bold, italic, inline code, strikethrough), list continuation, bracket matching and in-note search.
+- Spell checking with a bundled English dictionary. Code, wiki links, tags and frontmatter are never checked. Click an underlined word for corrections or to add it to your dictionary.
+- A one-row note header with location, tags, backlink count and save state, and a note inspector showing the outline, backlinks, tasks and outgoing links.
+- A Mac-style interface: San Francisco on macOS, and the bundled Inter everywhere else.
+
+### Links
+
+- `[[wiki links]]` with aliases, heading links and block references, fuzzy completion and exact-anchor navigation.
+- Diagnostics for broken links and missing anchors, plus **Create Missing Note** for a link that points nowhere.
+- Safe renames: **Rename Note and Update Links** previews a native before/after diff. Renaming or moving a note in the Explorer keeps links to it working.
+
+### Tasks
+
+- Standard Markdown checkbox tasks with optional `@due(…)`, `@remind(…)` and `@priority(…)` metadata.
+- A Tasks panel grouped by due date, note or tag, with search, status and sort controls that are remembered between sessions.
+- A Due Today view that includes overdue work.
+- Reminder notifications with Open Note, Snooze and Mark Done.
+
+### Knowledge graph
+
+- A live, force-directed workspace graph, and one- or two-hop local graphs around a note.
+- Full-text graph search with result previews, next/previous match navigation, and a **Matches + neighbours** mode.
+- Node-type and orphan filters, drag-to-reshape, pan, zoom centred on the pointer, and Fit and Center controls.
+
+### Workspace panel
+
+- An Activity Bar panel with the knowledge graph, Tasks, Due Today, Broken Links, Orphans, Recent notes, note folders and tags, plus index status.
+- Note lists with search, tag filters, natural title/path sorting, and comfortable or compact rows.
+- One search across every note and task (`Shift+Alt+N`), with `path:`, `tag:`, `is:` and `modified:` filters.
+
+## A closer look
 
 Headings, quotes, callouts, tables, and fenced code read as themselves while the caret is
 elsewhere, and the raw Markdown comes back on whichever line you are editing — the text never
@@ -71,7 +93,7 @@ Add an explicit block ID after a paragraph or heading to make it addressable:
 The index is rebuilt from Markdown. ^parser-block
 ```
 
-In the graph, nodes settle through a live force simulation using quadtree (Barnes–Hut) repulsion, which keeps layout quality steady as a workspace grows to thousands of notes. Drag any visible dot or label to reshape the graph: linked nodes respond through springs, nearby nodes repel each other, and released nodes settle with momentum. Select a node to keep its neighborhood visible, or use **Reset** to restart the automatic layout. Larger dots indicate more visible connections. Drag empty canvas space to pan, use the wheel or trackpad to zoom around the pointer, and use **Fit** or **Center** to recover the view. Search highlights matches without removing their surrounding context; press Enter or Shift+Enter to cycle through results.
+### Callouts
 
 Callouts are ordinary blockquotes whose first line declares a type. In Live mode the marker collapses to an icon and the block takes on the matching accent; the Markdown underneath is untouched:
 
@@ -84,6 +106,8 @@ Callouts are ordinary blockquotes whose first line declares a type. In Live mode
 ```
 
 Types map onto six tones — note, tip, important, warning, danger, success — and aliases such as `info`, `caution`, `bug`, or `done` resolve to the closest one. An unrecognised type renders as a note rather than as plain text.
+
+### Tasks and reminders
 
 Tasks stay valid Markdown. Optional metadata is read without changing the line:
 
@@ -109,6 +133,8 @@ A due may also be a full ISO 8601 timestamp. One that names a zone —
 while the task lists and groups under the *written* date. Near a midnight boundary those can
 differ; write zone-less dues if you want the two to always agree.
 
+### Block menu and tags
+
 Typing `/` at the start of a line in the Visp Notes editor opens a block menu — headings,
 lists, tasks, tables, callouts, code blocks, dividers, `@due(…)`, `@remind(…)`, today's date,
 a wiki link, a tag. It only opens where a block can start, so a slash inside prose, a URL or a
@@ -130,40 +156,80 @@ tags: [engineering, architecture]
 ---
 ```
 
+## Knowledge graph
+
+Nodes settle through a live force simulation using quadtree (Barnes–Hut) repulsion, which keeps the layout steady as a workspace grows to thousands of notes. Larger dots have more visible connections.
+
+- **Move around.** Drag empty canvas to pan, and use the wheel or trackpad to zoom around the pointer. **Fit** and **Center** recover the view.
+- **Reshape.** Drag any dot or label. Linked nodes follow through springs and released nodes settle with momentum. **Reset** restarts the automatic layout.
+- **Select.** Clicking a node keeps its neighbourhood visible and lists its connections beside the graph.
+
+**Search** covers note contents, titles, aliases, paths, tags and task text in the current graph. Switch to **Node labels** for a narrower search, or combine words with `"exact phrases"`, `path:research`, `tag:design`, `is:task`, `is:open`, `is:done` and `modified:7d`.
+
+- The results panel shows short previews. Select a result to centre its node, or use its open button to jump to the matching text.
+- `Enter` / `Shift+Enter` and the next/previous buttons cycle through every match. The first 100 results have previews, and every match stays highlighted and reachable.
+- **Matches + neighbours** keeps only matching nodes and their direct connections on the canvas. Your zoom is kept while results refresh.
+- Search respects the node-type filters and the local graph's scope. **Workspace graph** widens the scope to every indexed note.
+- Search and filter choices survive webview reloads.
+
 ## Commands
 
-- `Visp Notes: New Note`
-- `Visp Notes: New Task`
-- `Visp Notes: Toggle Task`
-- `Visp Notes: Insert Link`
-- `Visp Notes: Show Backlinks` (opens the note with its inspector showing)
-- `Visp Notes: Open Local Graph`
-- `Visp Notes: Open Workspace Graph`
-- `Visp Notes: Toggle Live / Markdown`
-- `Visp Notes: Rename Note and Update Links`
-- `Visp Notes: Delete Note` (also on a note's right-click menu in the workspace panel)
-- `Visp Notes: Find Broken Links`
-- `Visp Notes: Rebuild Index`
-- `Visp Notes: Search Notes and Tasks`
-- `Visp Notes: Add Tag`
-- `Visp Notes: Remove Tag`
-- `Visp Notes: Use Visp Notes as the Default Markdown Editor`
-- `Visp Notes: Restore the Built-in Markdown Text Editor`
+All commands are in the Command Palette under **Visp Notes**.
+
+| Area | Commands |
+| --- | --- |
+| Notes | New Note, Open Note, Create Missing Note, Rename Note and Update Links, Delete Note |
+| Links | Insert Link, Show Backlinks, Find Broken Links |
+| Tasks | New Task, Toggle Task, Open Tasks, Open Tasks Due Today |
+| Graph | Open Local Graph, Open Workspace Graph |
+| Editor | Toggle Live / Markdown, Bold, Italic, Inline Code, Strikethrough, Add Tag, Remove Tag |
+| Workspace | Search Notes and Tasks, Rebuild Index |
+| Default editor | Use Visp Notes as the Default Markdown Editor, Restore the Built-in Markdown Text Editor |
+
+## Keyboard shortcuts
+
+| Action | Windows / Linux | macOS | Where |
+| --- | --- | --- | --- |
+| Search notes and tasks | `Shift+Alt+N` | `Cmd+Alt+N` | Anywhere |
+| Insert link | `Shift+Alt+L` | `Cmd+Alt+L` | Markdown or Visp Notes editor |
+| Show backlinks | `Ctrl+Shift+B` | `Cmd+Shift+B` | A Markdown note |
+| Open local graph | `Ctrl+Shift+G` | `Cmd+Shift+G` | A Markdown file in the text editor |
+| Bold / Italic | `Ctrl+B` / `Ctrl+I` | `Cmd+B` / `Cmd+I` | Visp Notes editor |
+| Inline code | `Ctrl+E` | `Cmd+E` | Visp Notes editor |
+| Strikethrough | `Ctrl+Shift+X` | `Cmd+Shift+X` | Visp Notes editor |
+
+In graph search, `Enter` and `Shift+Enter` move to the next and previous match.
 
 ## Settings
 
-- `vispNotes.notesFolder` — workspace-relative folder new notes default to.
-- `vispNotes.newNote.askFolder` — ask which folder a new note belongs in. The configured folder is preselected, so Enter accepts it.
-- `vispNotes.reminders.enabled` — notify when a task falls due.
-- `vispNotes.reminders.defaultTime` — time of day a date-only `@due(…)` fires at.
-- `vispNotes.reminders.leadMinutes` — default lead for a task with no `@remind(…)`.
-- `vispNotes.reminders.catchUpWindowHours` — how far back to look for reminders missed while VS Code was closed.
-- `vispNotes.exclude` — glob patterns kept out of the index.
-- `vispNotes.editor.fontFamily` — font for rendered note prose. Leave empty to follow VS Code's interface font. Fenced and inline code always follow `editor.fontFamily`.
-- `vispNotes.editor.contentWidth` — `readable`, `wide`, or `full` measure for note content. Also changeable from the editor's context strip, which writes this setting so every open note agrees.
-- `vispNotes.graph.defaultDepth` — default local-graph link depth.
-- `vispNotes.openRenderedAfterCreate` — open newly created notes in the Visp Notes editor.
-- `vispNotes.updateLinksOnFileMove.enabled` — `always` or `never`: rewrite wiki links when a note is renamed or moved from the Explorer. See below.
+**Notes and index**
+
+- `vispNotes.notesFolder` (default `notes`): workspace-relative folder new notes default to. Every Markdown file in the workspace is still indexed.
+- `vispNotes.newNote.askFolder` (default on): ask which folder a new note belongs in. The configured folder is preselected, so Enter accepts it.
+- `vispNotes.openRenderedAfterCreate` (default on): open newly created notes in the Visp Notes editor.
+- `vispNotes.exclude`: glob patterns kept out of the index. The default excludes `node_modules`, `.git`, `dist` and `out`.
+- `vispNotes.maxNoteSizeKB` (default `5120`): notes larger than this are not indexed. `0` means no limit.
+- `vispNotes.updateLinksOnFileMove.enabled` (`always` or `never`): rewrite wiki links when a note is renamed or moved from the Explorer. See [Data safety](#data-safety).
+- `vispNotes.index.bypassProjectionCache` (default off): rebuild the whole index on every change. Slower; only useful for diagnosing a link that looks wrong.
+
+**Editor**
+
+- `vispNotes.editor.fontFamily`: font for rendered note prose. Leave empty for the bundled Mac-style face (San Francisco on macOS, Inter elsewhere). `IBM Plex Sans` is also bundled. Code always follows `editor.fontFamily`.
+- `vispNotes.editor.contentWidth` (`readable`, `wide` or `full`): measure for note content. Also changeable from the editor's context strip.
+- `vispNotes.editor.showInspector` (default on): show the inspector beside a note. Also toggled from the note header.
+- `vispNotes.spelling.enabled` (default on): underline misspelled words and offer corrections.
+
+**Panels and graph**
+
+- `vispNotes.density` (`comfortable` or `compact`): row height in the workspace panel.
+- `vispNotes.graph.defaultDepth` (`1` or `2`): default link depth for local graphs.
+
+**Reminders**
+
+- `vispNotes.reminders.enabled` (default on): notify when a task falls due.
+- `vispNotes.reminders.defaultTime` (default `09:00`): time of day a date-only `@due(…)` fires.
+- `vispNotes.reminders.leadMinutes` (default `0`): how many minutes early to remind about a task with no `@remind(…)`.
+- `vispNotes.reminders.catchUpWindowHours` (default `24`): how far back to look for reminders missed while VS Code was closed.
 
 ## Data safety
 
@@ -193,7 +259,14 @@ npm run compile
 `test:integration` downloads a VS Code build on first run into `.vscode-test/`. On a
 headless machine run it under `xvfb-run`, as CI does — the extension host is a real window.
 
-`npm run compile` also copies the Codicon font into `media/codicons`, which the webviews load so their icons match the rest of VS Code. Both `media/scripts` and `media/codicons` are build output and are not committed.
+`npm run compile` also copies the Codicon font into `media/codicons`, which the webviews load so their icons match the rest of VS Code. Both `media/scripts` and `media/codicons` are build output and are not committed. The bundled fonts (`media/fonts/`, Inter and IBM Plex Sans) and the spelling dictionaries (`media/dictionaries/`) are checked in rather than installed from npm. Their licences are in `THIRD_PARTY_NOTICES.md`.
+
+To try a local build in your own VS Code:
+
+```sh
+npx @vscode/vsce package
+code --install-extension visp-notes-<version>.vsix --force
+```
 
 CI runs lint, type-check, tests, build, and `vsce package` on every push and pull request.
 
@@ -201,4 +274,4 @@ Press `F5` in VS Code to launch an Extension Development Host. See `docs/archite
 
 ## Current scope
 
-Version 0.2 is local-first and workspace-scoped. Collaboration, cloud sync, recurring tasks, semantic search, AI features, spatial canvases, and an external extension API are intentionally outside this release.
+Visp Notes is local-first and workspace-scoped: it reads and writes Markdown files in the open workspace and makes no network requests. Collaboration, cloud sync, recurring tasks, semantic search, AI features, spatial canvases, and an external extension API are intentionally outside this release.

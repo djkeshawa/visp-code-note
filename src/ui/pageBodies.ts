@@ -117,13 +117,14 @@ export const EDITOR_BODY = `
       </div>`;
 
 export const TASKS_BODY = `
-      <div class="visp-shell tasks-shell">
+      <div class="visp-shell tasks-shell collection-shell">
         <header class="view-toolbar tasks-toolbar">
           <div class="title-stack">
             <h1 id="task-view-title" class="toolbar-title">Tasks</h1>
+            <p id="task-summary" class="toolbar-subtitle">Waiting for index…</p>
           </div>
-          <p id="task-summary" class="toolbar-subtitle">Waiting for index…</p>
-          <div class="toolbar-spacer"></div>
+        </header>
+        <div class="collection-controls" aria-label="Task filters and sorting">
           <label class="search-field tasks-search">
             <span class="sr-only">Filter tasks</span>
             <span class="codicon codicon-search" aria-hidden="true"></span>
@@ -163,29 +164,48 @@ export const TASKS_BODY = `
               <span class="sr-only">Toggle sort direction</span>
             </button>
           </div>
-        </header>
+          <button id="task-clear" class="secondary-button collection-clear" type="button" hidden>Clear search</button>
+        </div>
         <div id="tasks-error" class="notice notice-error" role="alert" hidden></div>
         <main id="task-groups" class="task-groups view-body"></main>
         <footer class="view-footer">
           <span id="task-count" role="status" aria-live="polite">Waiting for index…</span>
-          <span class="footer-hint">Space toggles · Enter opens the note</span>
+          <span class="footer-hint">Space toggles checkbox · Enter opens note title</span>
         </footer>
       </div>`;
 
 export const NOTES_BODY = `
-      <div class="visp-shell notes-shell">
+      <div class="visp-shell notes-shell collection-shell">
         <header class="view-toolbar notes-toolbar">
           <div class="title-stack">
             <h1 id="note-view-title" class="toolbar-title">Notes</h1>
+            <p id="note-summary" class="toolbar-subtitle">Waiting for index…</p>
           </div>
-          <p id="note-summary" class="toolbar-subtitle">Waiting for index…</p>
-          <div class="toolbar-spacer"></div>
+          <button id="note-density" class="icon-button" type="button" aria-label="Compact rows"
+            title="Compact rows" aria-pressed="false">
+            <span class="codicon codicon-list-flat" aria-hidden="true"></span>
+          </button>
+        </header>
+        <div class="collection-controls" aria-label="Note filters and sorting">
           <label class="search-field notes-search">
             <span class="sr-only">Filter notes</span>
             <span class="codicon codicon-search" aria-hidden="true"></span>
-            <input id="note-search" type="search" placeholder="Filter notes" autocomplete="off">
+            <input id="note-search" type="search" placeholder="Search titles, paths, and tags" autocomplete="off" aria-describedby="note-count">
           </label>
-        </header>
+          <label class="collection-select">
+            <span>Tag</span>
+            <select id="note-tag"><option value="">All tags</option></select>
+          </label>
+          <label class="collection-select">
+            <span>Sort</span>
+            <select id="note-sort">
+              <option value="default">Default order</option>
+              <option value="title">Title (A–Z)</option>
+              <option value="path">Path (A–Z)</option>
+            </select>
+          </label>
+          <button id="note-clear" class="secondary-button collection-clear" type="button" hidden>Clear filters</button>
+        </div>
         <div id="notes-error" class="notice notice-error" role="alert" hidden></div>
         <main id="note-rows" class="note-rows view-body"></main>
         <footer class="view-footer">
@@ -202,13 +222,7 @@ export const GRAPH_BODY = `
           </div>
           <p id="graph-summary" class="toolbar-subtitle">Building the graph…</p>
           <div class="toolbar-spacer"></div>
-          <label class="search-field graph-search">
-            <span class="sr-only">Find a node</span>
-            <span class="codicon codicon-search" aria-hidden="true"></span>
-            <input id="graph-search" type="search" placeholder="Find a node" autocomplete="off"
-              aria-describedby="graph-search-status">
-          </label>
-          <p id="graph-search-status" class="sr-only" aria-live="polite">0 visible nodes</p>
+          <button id="graph-workspace" class="secondary-button" type="button" hidden>Workspace graph</button>
           <div id="depth-control" class="segmented-control" role="group" aria-label="Link depth">
             <button class="segment is-active" type="button" data-depth="1" aria-pressed="true">1 hop</button>
             <button class="segment" type="button" data-depth="2" aria-pressed="false">2 hops</button>
@@ -229,14 +243,27 @@ export const GRAPH_BODY = `
             <span class="menu-label">Rebuild Index</span>
           </button>
         </div>
-        <main class="graph-canvas view-body">
-          <svg id="graph-svg" viewBox="0 0 960 640" role="group"
-            aria-label="Interactive knowledge graph" aria-describedby="graph-keyboard-hint"></svg>
-          <span id="graph-keyboard-hint" class="sr-only">
-            Drag nodes to reshape the graph. Use arrow keys to move between nodes, Enter to open,
-            and Space to select.
-          </span>
-          <div id="graph-empty" class="graph-empty" hidden></div>
+        <div class="graph-search-toolbar">
+          <label class="search-field graph-search">
+            <span class="sr-only">Search graph</span>
+            <span class="codicon codicon-search" aria-hidden="true"></span>
+            <input id="graph-search" type="search" placeholder="Search notes, text, and connections…"
+              maxlength="2048" autocomplete="off" aria-describedby="graph-search-help graph-search-status">
+          </label>
+          <label class="graph-search-mode"><span class="sr-only">Search in</span>
+            <select id="graph-search-mode"><option value="all">All text</option><option value="labels">Node labels</option></select>
+          </label>
+          <button id="graph-search-clear" class="secondary-button" type="button" hidden>Clear search</button>
+          <details class="graph-search-help">
+            <summary title="Search syntax">Search tips</summary>
+            <div id="graph-search-help">
+              <p>Search the current graph. All text includes note contents, titles, aliases, paths, tags, and tasks.</p>
+              <p>Combine words, or use <code>"exact phrase"</code>, <code>path:research</code>,
+                <code>tag:design</code>, <code>is:task</code>, <code>is:open</code>, <code>is:done</code>, or <code>modified:7d</code>.</p>
+              <p>Filters apply to notes and tasks. Select a result to locate it; use its open button to jump to the match.</p>
+            </div>
+          </details>
+        </div>
           <div class="graph-filters" role="group" aria-label="Graph filters">
             <button class="graph-chip is-active" type="button" data-kind="note" aria-pressed="true">
               <span class="graph-chip-dot dot-note"></span>Notes
@@ -260,10 +287,21 @@ export const GRAPH_BODY = `
               <span class="graph-chip-count" data-count="orphan">0</span>
             </button>
             <button id="matches-only" class="graph-chip" type="button" aria-pressed="false"
-              title="Draw only what the search finds, and what it is linked to">
-              <span class="codicon codicon-filter" aria-hidden="true"></span>Matches only
+              title="Show matching nodes and their direct connections">
+              <span class="codicon codicon-filter" aria-hidden="true"></span>Matches + neighbours
             </button>
+            <button id="graph-reset-filters" class="graph-chip" type="button" hidden>Reset filters</button>
           </div>
+        <div id="graph-error" class="notice notice-error" role="alert" hidden></div>
+        <div class="graph-body view-body">
+        <main class="graph-canvas">
+          <svg id="graph-svg" viewBox="0 0 960 640" role="group"
+            aria-label="Interactive knowledge graph" aria-describedby="graph-keyboard-hint"></svg>
+          <span id="graph-keyboard-hint" class="sr-only">
+            Drag nodes to reshape the graph. Use arrow keys to move between nodes, Enter to open,
+            and Space to select.
+          </span>
+          <div id="graph-empty" class="graph-empty" hidden></div>
           <div class="graph-viewport-controls" role="toolbar" aria-label="Graph viewport">
             <button id="graph-zoom-out" type="button" title="Zoom out" aria-label="Zoom out" disabled>
               <span class="codicon codicon-zoom-out" aria-hidden="true"></span>
@@ -305,6 +343,27 @@ export const GRAPH_BODY = `
             </div>
           </aside>
         </main>
+        <aside id="graph-search-panel" class="graph-search-panel" aria-label="Search results" hidden>
+          <div class="graph-results-header">
+            <h2>Search results</h2>
+            <div class="graph-result-navigation" role="group" aria-label="Navigate matches">
+              <button id="graph-match-previous" class="icon-button" type="button" title="Previous match (Shift+Enter)" aria-label="Previous match" disabled>
+                <span class="codicon codicon-chevron-up" aria-hidden="true"></span>
+              </button>
+              <button id="graph-match-next" class="icon-button" type="button" title="Next match (Enter)" aria-label="Next match" disabled>
+                <span class="codicon codicon-chevron-down" aria-hidden="true"></span>
+              </button>
+            </div>
+          </div>
+          <p id="graph-search-status" class="graph-search-status" role="status" aria-live="polite"></p>
+          <div id="graph-search-results" class="graph-search-results"></div>
+          <p id="graph-result-limit" class="graph-result-limit" hidden></p>
+        </aside>
+        </div>
+        <footer class="view-footer graph-footer">
+          <span id="graph-scope-hint">Search covers this workspace graph</span>
+          <span class="footer-hint">Drag to move · Scroll to zoom · Double-click to open</span>
+        </footer>
       </div>`;
 
 export const WORKSPACE_BODY = `

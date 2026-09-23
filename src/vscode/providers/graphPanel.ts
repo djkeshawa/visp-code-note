@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import type { GraphMenuCommand, HostToGraphMessage } from "../../domain/protocol";
-import type { IndexSnapshot } from "../../domain/models";
+import { buildGraphSearch } from "../../application/graphSearch";
+import type { GraphData, IndexSnapshot } from "../../domain/models";
 import { buildLocalGraph, buildWorkspaceGraph } from "../../indexing/projections";
 import { createGraphHtml } from "../../ui";
 import { COMMAND_IDS } from "../ids";
@@ -17,11 +18,13 @@ export class GraphPanel implements vscode.Disposable {
   private focusUri: string | undefined;
   private depth: 1 | 2;
   private panelSubscriptions: vscode.Disposable[] = [];
+  private graph: GraphData = { nodes: [], edges: [] };
+  private revision = 0;
 
   public constructor(
     private readonly extensionUri: vscode.Uri,
     private readonly getSnapshot: () => IndexSnapshot,
-    private readonly onOpen: (uri: string) => Promise<void>,
+    private readonly onOpen: (uri: string, start?: number) => Promise<void>,
   ) {
     // The type argument is a compile-time claim about a value a workspace supplies, so the
     // value itself is checked: anything else falls back to the default rather than reaching
@@ -54,7 +57,7 @@ export class GraphPanel implements vscode.Disposable {
     panel.iconPath = vscode.Uri.joinPath(this.extensionUri, "media", "activity.svg");
     panel.webview.html = createGraphHtml({ webview: panel.webview, extensionUri: this.extensionUri });
     this.panelSubscriptions = [
-      panel.webview.onDidReceiveMessage((message: unknown) => this.handleMessage(message)),
+      panel.webview.onDidReceiveMessage((message: unknown) => this.receiveMessage(message)),
       panel.onDidDispose(() => this.clearPanel(panel)),
     ];
   }
@@ -66,6 +69,19 @@ export class GraphPanel implements vscode.Disposable {
   public dispose(): void {
     this.panel?.dispose();
     this.clearPanel(this.panel);
+  }
+
+  private async receiveMessage(value: unknown): Promise<void> {
+    if (!isGraphMessage(value)) return;
+    try {
+      await this.handleMessage(value);
+    } catch (error) {
+      await this.panel?.webview.postMessage({
+        type: "graph/error",
+        message: error instanceof Error ? error.message : String(error),
+        ...(value.type === "graph/search" ? { requestId: value.requestId, revision: value.revision } : {}),
+      } satisfies HostToGraphMessage);
+    }
   }
 
   private async handleMessage(value: unknown): Promise<void> {
@@ -81,11 +97,29 @@ export class GraphPanel implements vscode.Disposable {
         this.depth = message.depth;
         await this.publish();
         break;
-      case "graph/open":
-        if (this.getSnapshot().notes.some((note) => note.uri === message.uri)) {
-          await this.onOpen(message.uri);
+      case "graph/search": {
+        /*
+         * Answer a stale search rather than dropping it. The newer `graph/state` was posted
+         * first, so normally the webview has already moved on and ignores this reply; if that
+         * state never took, the reply is what turns an endless "Searching…" into a Retry.
+         */
+        if (message.revision !== this.revision) {
+          await this.panel?.webview.postMessage({ type: "graph/error", requestId: message.requestId,
+            revision: message.revision, message: "The graph changed while searching." } satisfies HostToGraphMessage);
+          break;
+        }
+        const page = buildGraphSearch(this.getSnapshot(), this.graph, message.query, message);
+        await this.panel?.webview.postMessage({ type: "graph/searchResults",
+          requestId: message.requestId, revision: this.revision, ...page } satisfies HostToGraphMessage);
+        break;
+      }
+      case "graph/open": {
+        const note = this.getSnapshot().notes.find((note) => note.uri === message.uri);
+        if (note !== undefined && (message.start === undefined || message.start <= note.content.length)) {
+          await this.onOpen(message.uri, message.start);
         }
         break;
+      }
       /*
        * The same gate as `graph/open`, for the same reason: a URI arrives from a webview, and
        * only one the index already holds names anything. An unknown one would otherwise make
@@ -112,9 +146,12 @@ export class GraphPanel implements vscode.Disposable {
     const graph = this.focusUri
       ? buildLocalGraph(snapshot, this.focusUri, this.depth)
       : buildWorkspaceGraph(snapshot);
+    this.graph = graph;
+    this.revision += 1;
     await this.panel.webview.postMessage({
       type: "graph/state",
       graph,
+      revision: this.revision,
       depth: this.depth,
       local: this.focusUri !== undefined,
     } satisfies HostToGraphMessage);

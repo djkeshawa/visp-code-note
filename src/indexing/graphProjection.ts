@@ -207,7 +207,7 @@ function noteNodeId(uri: string): string {
   return `note:${uri}`;
 }
 
-function taskNodeId(uri: string, id: string | undefined, start: number): string {
+export function taskNodeId(uri: string, id: string | undefined, start: number): string {
   return `task:${uri}:${id ?? "anonymous"}:${start}`;
 }
 

@@ -254,17 +254,41 @@ export interface GraphDataWire {
   readonly focusId?: string;
 }
 
+export interface GraphSearchResultWire {
+  readonly nodeId: string;
+  readonly preview: string;
+  readonly matchedField: "title" | "path" | "alias" | "tag" | "body" | "task" | "label";
+  readonly path?: string;
+  readonly uri?: string;
+  readonly start?: number;
+}
+
 export type HostToGraphWire = {
   readonly type: "graph/state";
   readonly graph: GraphDataWire;
   readonly depth: 1 | 2;
   readonly local: boolean;
+  readonly revision: number;
+} | {
+  readonly type: "graph/searchResults";
+  readonly requestId: number;
+  readonly revision: number;
+  readonly nodeIds: readonly string[];
+  readonly results: readonly GraphSearchResultWire[];
+} | {
+  readonly type: "graph/error";
+  readonly message: string;
+  readonly requestId?: number;
+  readonly revision?: number;
 };
 
 export type GraphMenuCommandWire = "openWorkspaceGraph" | "rebuildIndex";
 
 export type GraphToHostWire =
-  | { readonly type: "graph/open"; readonly uri: string }
+  | { readonly type: "graph/search"; readonly query: string; readonly requestId: number;
+      readonly revision: number; readonly mode: "all" | "labels";
+      readonly kinds: readonly GraphNodeKindWire[]; readonly includeOrphans: boolean }
+  | { readonly type: "graph/open"; readonly uri: string; readonly start?: number }
   | { readonly type: "graph/focus"; readonly uri: string }
   | { readonly type: "graph/depth"; readonly depth: 1 | 2 }
   | { readonly type: "graph/runCommand"; readonly command: GraphMenuCommandWire }

@@ -12,7 +12,7 @@ import {
   requireElement,
   setNotice,
 } from "./shared/dom.js";
-import { acquireMessageSender } from "./shared/vscodeApi.js";
+import { acquireWebviewApi } from "./shared/vscodeApi.js";
 import { RovingList, isBareKey } from "./shared/rovingList.js";
 import {
   dueUrgency,
@@ -20,10 +20,11 @@ import {
   groupTasks,
   parseTaskGrouping,
   parseTaskSortKey,
+  parseTaskSortDirection,
 } from "./tasks/grouping.js";
 import type { TaskSortDirection, TaskStatusFilter } from "./tasks/grouping.js";
 
-const api = acquireMessageSender<TasksToHostWire>();
+const api = acquireWebviewApi<TasksToHostWire, unknown>();
 const search = requireElement("#task-search", HTMLInputElement);
 const groupBy = requireElement("#task-group-by", HTMLSelectElement);
 const sortBy = requireElement("#task-sort-by", HTMLSelectElement);
@@ -33,13 +34,18 @@ const summary = requireElement("#task-summary", HTMLElement);
 const groupsRoot = requireElement("#task-groups", HTMLElement);
 const countLabel = requireElement("#task-count", HTMLElement);
 const errorNotice = requireElement("#tasks-error", HTMLElement);
+const clear = requireElement("#task-clear", HTMLButtonElement);
+const saved = api.getState();
+search.value = isRecord(saved) && typeof saved.query === "string" ? saved.query : "";
+groupBy.value = parseTaskGrouping(isRecord(saved) ? saved.groupBy : undefined);
+sortBy.value = parseTaskSortKey(isRecord(saved) ? saved.sortBy : undefined);
 const statusSegments = Array.from(
   document.querySelectorAll<HTMLButtonElement>("button[data-status]"),
 );
 
 let snapshot: TasksSnapshotWire | undefined;
-let status: TaskStatusFilter = "open";
-let direction: TaskSortDirection = "asc";
+let status: TaskStatusFilter = parseStatus(isRecord(saved) ? saved.status : undefined);
+let direction: TaskSortDirection = parseTaskSortDirection(isRecord(saved) ? saved.direction : undefined);
 /*
  * The row a toggle came from, so focus can be put back after the list is rebuilt.
  *
@@ -62,6 +68,13 @@ const taskNavigation = new RovingList(groupsRoot, {
 });
 
 search.addEventListener("input", render);
+clear.addEventListener("click", clearSearch);
+
+function clearSearch(): void {
+  search.value = "";
+  render();
+  search.focus();
+}
 // Escape clears the filter here too — notes, graph and the workspace panel all already do.
 search.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && search.value !== "") {
@@ -74,10 +87,12 @@ search.addEventListener("keydown", (event) => {
   // Narrowing to the task you meant and then having no way to reach it is where this ended.
   if (event.key === "Enter") {
     event.preventDefault();
-    taskNavigation.firstRow()?.querySelector<HTMLElement>('button[data-action="open"]')?.click();
+    groupsRoot.querySelector<HTMLElement>('.task-row button[data-action="open"]')?.click();
   } else if (event.key === "ArrowDown") {
     event.preventDefault();
-    taskNavigation.focusFirst();
+    const firstTask = groupsRoot.querySelector<HTMLInputElement>('.task-row input[data-action="toggle"]');
+    if (firstTask !== null) firstTask.focus();
+    else if (search.value.trim() === "") taskNavigation.focusFirst();
   }
 });
 groupBy.addEventListener("change", render);
@@ -91,7 +106,7 @@ groupsRoot.addEventListener("change", handleTaskToggle);
 window.addEventListener("message", handleHostMessage);
 
 // Paint the loading state before the host replies; otherwise the panel opens blank.
-setStatus("open");
+updateSortDirection();
 render();
 api.postMessage({ type: "tasks/ready" });
 
@@ -106,7 +121,6 @@ function handleHostMessage(event: MessageEvent<unknown>): void {
     // Due Today is already a status filter, so the segments would only contradict it.
     const locked = snapshot.filter === "today";
     for (const segment of statusSegments) segment.disabled = locked;
-    if (locked) setStatus("open");
     setNotice(errorNotice);
     render();
   } else if (message.type === "tasks/error" && typeof message.message === "string") {
@@ -117,6 +131,11 @@ function handleHostMessage(event: MessageEvent<unknown>): void {
 
 function toggleSortDirection(): void {
   direction = direction === "asc" ? "desc" : "asc";
+  updateSortDirection();
+  render();
+}
+
+function updateSortDirection(): void {
   const ascending = direction === "asc";
   sortDirection.title = ascending
     ? "Ascending — switch to descending"
@@ -125,20 +144,21 @@ function toggleSortDirection(): void {
   const arrow = sortDirection.querySelector(".codicon");
   arrow?.classList.toggle("codicon-arrow-up", ascending);
   arrow?.classList.toggle("codicon-arrow-down", !ascending);
-  render();
 }
 
 function setStatus(next: TaskStatusFilter): void {
   status = next;
-  for (const segment of statusSegments) {
-    const active = segment.dataset.status === next;
-    segment.classList.toggle("is-active", active);
-    segment.setAttribute("aria-pressed", String(active));
-  }
   render();
 }
 
 function render(): void {
+  clear.hidden = search.value.trim() === "";
+  for (const segment of statusSegments) {
+    const active = segment.dataset.status === (snapshot?.filter === "today" ? "open" : status);
+    segment.classList.toggle("is-active", active);
+    segment.setAttribute("aria-pressed", String(active));
+  }
+  api.setState({ query: search.value, groupBy: groupBy.value, sortBy: sortBy.value, status, direction });
   paint();
   /*
    * Both of these put focus back after the rows were replaced, and the order matters: the
@@ -160,7 +180,7 @@ function paint(): void {
   const grouping = parseTaskGrouping(groupBy.value);
   const groups = groupTasks(snapshot.tasks, {
     query: search.value,
-    status,
+    status: snapshot.filter === "today" ? "open" : status,
     view: snapshot.filter,
     groupBy: grouping,
     sortBy: parseTaskSortKey(sortBy.value),
@@ -177,7 +197,14 @@ function paint(): void {
     snapshot.tasks.length === 1 ? "" : "s"
   }`;
   if (groups.length === 0) {
-    groupsRoot.append(emptyGroups());
+    const empty = emptyGroups();
+    if (search.value.trim() !== "") {
+      const reset = htmlElement("button", "secondary-button empty-state-action", "Clear search");
+      reset.type = "button";
+      reset.addEventListener("click", clearSearch);
+      empty.append(reset);
+    }
+    groupsRoot.append(empty);
     return;
   }
   for (const group of groups) {
@@ -194,15 +221,6 @@ function paint(): void {
     section.append(heading, ...group.tasks.map(createTaskRow));
     groupsRoot.append(section);
   }
-  /*
-   * The design closes the list with a note rather than letting it run out, but only when it is
-   * true: nothing dated beyond the week the list is read against. "Later" is a due-date bucket,
-   * so grouping by note or tag never produces one — and the note then claimed nothing was
-   * scheduled while sitting directly under rows dated months ahead.
-   */
-  if (grouping === "due" && !groups.some((group) => group.name === "Later")) {
-    groupsRoot.append(nothingElseScheduled());
-  }
 }
 
 /** Puts focus back on the task that was toggled, or on whatever now stands in its place. */
@@ -210,6 +228,9 @@ function restorePendingFocus(): void {
   const target = pendingFocus;
   if (target === undefined) return;
   pendingFocus = undefined;
+  if (!document.hasFocus()) return;
+  const active = document.activeElement;
+  if (active !== null && active !== document.body && !groupsRoot.contains(active)) return;
 
   const exact = groupsRoot.querySelector<HTMLInputElement>(
     `input[data-action="toggle"][data-uri="${CSS.escape(target.uri)}"][data-start="${target.start}"]`,
@@ -288,29 +309,6 @@ function formatReminderMoment(at: number): string {
   }).format(new Date(at));
 }
 
-/** A date a week out, so the hint never tells anyone to schedule something in the past. */
-function exampleDueDate(): string {
-  const when = new Date();
-  when.setDate(when.getDate() + 7);
-  return [
-    String(when.getFullYear()).padStart(4, "0"),
-    String(when.getMonth() + 1).padStart(2, "0"),
-    String(when.getDate()).padStart(2, "0"),
-  ].join("-");
-}
-
-function nothingElseScheduled(): HTMLElement {
-  const state = emptyState("pass", "Nothing else is scheduled.");
-  const hint = htmlElement("p", "empty-state-hint");
-  hint.append(
-    document.createTextNode("Add "),
-    htmlElement("code", "inline-code", `@due(${exampleDueDate()})`),
-    document.createTextNode(" to any checkbox to schedule one."),
-  );
-  state.append(hint);
-  return state;
-}
-
 function summaryText(current: TasksSnapshotWire): string {
   const open = current.tasks.filter((task) => !task.completed).length;
   const today = localDateKey(new Date());
@@ -321,13 +319,24 @@ function summaryText(current: TasksSnapshotWire): string {
 }
 
 function emptyGroups(): HTMLElement {
+  if (snapshot?.tasks.length === 0 && snapshot.filter === "all") {
+    return emptyState("checklist", "No tasks yet.", "Add a Markdown checkbox (- [ ]) to any note to create a task.");
+  }
   if (snapshot?.filter === "today" && search.value.trim() === "") {
-    return nothingElseScheduled();
+    return emptyState("pass", "You're all caught up.", "No open tasks are overdue or due today.");
+  }
+  if (search.value.trim() === "" && status === "open") {
+    return emptyState("pass", "All tasks are complete.", "Switch to Done to review completed tasks.");
+  }
+  if (search.value.trim() === "" && status === "completed") {
+    return emptyState("checklist", "No completed tasks yet.", "Complete a task using its checkbox to see it here.");
   }
   return emptyState(
     "search",
     "No tasks match the current filters.",
-    "Clear the filter text, or switch the status to All.",
+    snapshot?.filter === "today"
+      ? "Clear the search to see all overdue tasks and tasks due today."
+      : "Clear the search, or switch the status to All.",
   );
 }
 
@@ -345,6 +354,8 @@ function createTaskRow(task: TaskWire): HTMLElement {
   );
   if (task.priority !== undefined) {
     priority.title = `${task.priority} priority`;
+    priority.setAttribute("role", "img");
+    priority.setAttribute("aria-label", priority.title);
   }
 
   const checkbox = htmlElement("input");
@@ -378,7 +389,9 @@ function taskMeta(task: TaskWire): HTMLElement {
     tag.append(dot, document.createTextNode(`#${first}`));
     meta.append(tag);
   }
-  meta.append(htmlElement("span", "task-meta-note", task.noteTitle));
+  const source = htmlElement("span", "task-meta-note", task.noteTitle);
+  source.title = task.notePath;
+  meta.append(source);
   const urgency = task.completed ? "none" : dueUrgency(task.due);
   const due = htmlElement(
     "span",

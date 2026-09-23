@@ -13,7 +13,7 @@ import type { WebviewTemplateOptions } from "./webviewPage";
 export function createWorkspaceHtml(options: WebviewTemplateOptions): string {
   return createWebviewPage(options, {
     title: "Visp Notes Workspace",
-    styles: ["base.css", "workspace.css"],
+    styles: ["base.css", "fonts.css", "workspace.css"],
     script: "scripts/workspace.js",
     body: WORKSPACE_BODY,
   });
