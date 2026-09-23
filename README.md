@@ -1,6 +1,12 @@
 # Visp Notes
 
-Visp Notes turns ordinary workspace Markdown files into a connected note system inside VS Code. Markdown remains the source of truth: there is no proprietary note database and no network service.
+**A linked knowledge base for your repository, read by you and your AI agents.**
+
+Keep design notes, decision records, runbooks and plans as plain Markdown next to your code. Visp Notes links them with `[[wiki links]]`, tracks the tasks written inside them, and draws the graph of how they connect. It gives that same graph to Copilot, Claude Code, Cursor and any other MCP client, so an agent working in your repo can find the decision behind the code instead of guessing at it.
+
+- **For you:** live Markdown editing, backlinks, a knowledge graph, and tasks with due dates and reminders, without leaving VS Code.
+- **For your agents:** tools to search notes, read a note with its links and backlinks, walk the graph, trace how two notes connect, and list what's overdue. They're built into Copilot's agent mode, and one command connects Claude Code or Cursor. See [AI agents](#ai-agents).
+- **Just files:** Markdown stays the source of truth. There's no database, no account, and no network service.
 
 ![The Visp Notes editor in Live mode: headings, nested outlines with fold controls, wiki links, and checkbox tasks](screenshots/editor.png)
 
@@ -56,6 +62,35 @@ listed beside it.
 Checkbox tasks from every note in one place, grouped by due date, note, or tag.
 
 ![The Tasks view grouping open tasks by due date, with priorities and source notes](screenshots/tasks.png)
+
+## AI agents
+
+Visp Notes answers the questions an agent can't answer by reading files one at a time: which notes link here, what's connected to this, how do these two ideas relate, what's overdue. Every answer names notes by their workspace path, so the agent can go straight to its own file tools to edit them. The tools only read; they never change your notes.
+
+| Question | Copilot (`#` reference) | MCP tool |
+| --- | --- | --- |
+| The note that's open, with unsaved edits | `#activeNote` | — |
+| A note with its links out, backlinks in context, and tasks | `#vispNote` | `read_note` |
+| Search notes and tasks with `path:`, `tag:`, `is:` and `modified:` filters | `#vispSearch` | `search_notes` |
+| Notes one or two links away, links to missing notes, and notes that share a tag but aren't linked | `#vispGraph` | `note_graph` |
+| The shortest chain of links between two notes | `#vispPath` | `link_path` |
+| Tasks, overdue first, by status, due date, tag or note | `#vispTasks` | `list_tasks` |
+
+Try *"Using #vispGraph, suggest three notes this one should link to"*, or ask Claude Code *"What's overdue in my notes, and which decisions does it depend on?"*
+
+### Copilot and other VS Code chat
+
+Nothing to set up. The tools are available in Copilot's agent mode, and in any chat extension that uses VS Code's language-model tools. Chat doesn't count a note open in the Visp Notes editor as "the current file", so use **Ask Chat About This Note** (the chat button in the note's title bar) to attach it, or reference `#activeNote`.
+
+### Claude Code, Cursor and other MCP clients
+
+Run **Visp Notes: Connect AI Agents (MCP)…** and pick your agent:
+
+- **Claude Code** adds the server to `.mcp.json` in the workspace.
+- **Cursor** adds it to `.cursor/mcp.json`.
+- **Another MCP client** copies the configuration, with the exact command and paths, to the clipboard.
+
+Restart the agent afterwards. The server is a single file that runs with Node.js 18 or newer. It reads the notes straight from disk, with the same parsing and the same `vispNotes.exclude` and `vispNotes.maxNoteSizeKB` settings as the extension, so VS Code doesn't need to be running. The config holds paths on your machine, so keep it out of version control.
 
 ## Getting started
 
@@ -172,24 +207,6 @@ Nodes settle through a live force simulation using quadtree (Barnes–Hut) repul
 - Search respects the node-type filters and the local graph's scope. **Workspace graph** widens the scope to every indexed note.
 - Search and filter choices survive webview reloads.
 
-## Copilot and other AI agents
-
-A note open in the Visp Notes editor is not a text editor, so chat does not pick it up as "the current file" on its own. Two things fix that:
-
-- **Ask Chat About This Note** — the chat button in the note's title bar (or the command of the same name) opens chat with the note attached.
-- **Tools for agent mode** — Visp Notes gives Copilot's agent mode, and any other chat extension that uses VS Code's language-model tools, read-only access to the index, including the graph. Agents call them on their own, or you can name one in a prompt with `#`:
-
-| Reference | What it answers |
-| --- | --- |
-| `#activeNote` | The open note: path, tags, outline, links out, backlinks with context, tasks, and its current text including unsaved edits |
-| `#vispNote` | The same for any note, by title, alias or path |
-| `#vispSearch` | Search across notes and tasks, with the same `path:`, `tag:`, `is:` and `modified:` filters as the search command |
-| `#vispGraph` | The notes linked to and from a note, one or two links out, links to notes that don't exist yet, and notes that share a tag but aren't linked |
-| `#vispPath` | The shortest chain of links between two notes, and which way each link points |
-| `#vispTasks` | Tasks from every note, overdue first, filtered by status, due date, tag or note |
-
-For example: *"Using #vispGraph, suggest three notes this one should link to"*, or *"What's overdue? #vispTasks"*. The tools never write; an agent edits a note with its ordinary file tools, using the paths the tools return.
-
 ## Commands
 
 All commands are in the Command Palette under **Visp Notes**.
@@ -201,7 +218,8 @@ All commands are in the Command Palette under **Visp Notes**.
 | Tasks | New Task, Toggle Task, Open Tasks, Open Tasks Due Today |
 | Graph | Open Local Graph, Open Workspace Graph |
 | Editor | Toggle Live / Markdown, Bold, Italic, Inline Code, Strikethrough, Add Tag, Remove Tag |
-| Workspace | Search Notes and Tasks, Rebuild Index, Ask Chat About This Note |
+| Workspace | Search Notes and Tasks, Rebuild Index |
+| AI agents | Ask Chat About This Note, Connect AI Agents (MCP)… |
 | Default editor | Use Visp Notes as the Default Markdown Editor, Restore the Built-in Markdown Text Editor |
 
 ## Keyboard shortcuts
@@ -292,4 +310,4 @@ Press `F5` in VS Code to launch an Extension Development Host. See `docs/archite
 
 ## Current scope
 
-Visp Notes is local-first and workspace-scoped: it reads and writes Markdown files in the open workspace and makes no network requests. Collaboration, cloud sync, recurring tasks, semantic search, AI features, spatial canvases, and an external extension API are intentionally outside this release.
+Visp Notes is local-first and workspace-scoped: it reads and writes Markdown files in the open workspace and makes no network requests. It has no AI model of its own. It gives the agents you already use read-only access to your notes, and whatever those agents send to their providers is governed by them. Collaboration, cloud sync, recurring tasks, semantic search and spatial canvases are outside this release.

@@ -22,6 +22,7 @@ export const COMMAND_IDS = {
   openNote: "vispNotes.openNote",
   addTag: "vispNotes.addTag",
   askChat: "vispNotes.askChat",
+  connectAgents: "vispNotes.connectAgents",
   removeTag: "vispNotes.removeTag",
   useAsDefaultEditor: "vispNotes.useAsDefaultEditor",
   useTextEditorByDefault: "vispNotes.useTextEditorByDefault",

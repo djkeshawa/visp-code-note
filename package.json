@@ -2,7 +2,7 @@
   "name": "visp-notes",
   "displayName": "Visp Notes",
   "icon": "media/icon.png",
-  "description": "A Markdown-first connected notes, tasks, backlinks, and graph workspace for VS Code.",
+  "description": "A linked Markdown knowledge base for your repo that you and your AI agents both use: wiki links, backlinks, a knowledge graph and tasks, with tools for Copilot, Claude Code and Cursor.",
   "version": "0.15.0",
   "publisher": "visp-code-note",
   "license": "MIT",
@@ -19,8 +19,8 @@
   },
   "categories": [
     "Notebooks",
-    "Visualization",
-    "Other"
+    "AI",
+    "Visualization"
   ],
   "galleryBanner": {
     "color": "#1f1d2b",
@@ -46,10 +46,19 @@
   "keywords": [
     "markdown",
     "notes",
+    "knowledge-base",
     "wiki-links",
     "backlinks",
+    "knowledge-graph",
     "tasks",
-    "knowledge-graph"
+    "adr",
+    "documentation",
+    "second-brain",
+    "zettelkasten",
+    "mcp",
+    "copilot",
+    "ai-agents",
+    "claude"
   ],
   "main": "./out/extension.js",
   "files": [
@@ -206,6 +215,12 @@
         "title": "Ask Chat About This Note",
         "category": "Visp Notes",
         "icon": "$(chat-sparkle)"
+      },
+      {
+        "command": "vispNotes.connectAgents",
+        "title": "Connect AI Agents (MCP)…",
+        "category": "Visp Notes",
+        "icon": "$(plug)"
       }
     ],
     "customEditors": [

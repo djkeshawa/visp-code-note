@@ -1,15 +1,7 @@
 import * as vscode from "vscode";
 import type { IndexSnapshot, NoteRecord } from "../domain/models";
-import {
-  describeLinkPath,
-  describeNeighbourhood,
-  describeNote,
-  describeSearch,
-  describeTasks,
-  resolveNoteReference,
-  unknownNote,
-} from "../application/agentContext";
-import type { TaskQuery } from "../application/agentContext";
+import { AGENT_TOOLS, answerAgentTool } from "../application/agentTools";
+import type { AgentToolContext } from "../application/agentTools";
 import { todayStamp } from "./providers/explorerModel";
 
 const NOTE_EDITOR = "vispNotes.noteEditor";
@@ -29,83 +21,35 @@ export function activeNoteUri(lastNoteEditorUri: () => vscode.Uri | undefined): 
   return lastNoteEditorUri();
 }
 
-interface NoteInput { readonly note: string }
-interface OptionalNoteInput { readonly note?: string; readonly depth?: number }
-interface SearchInput { readonly query: string; readonly limit?: number }
-interface PathInput { readonly from: string; readonly to: string }
-interface TasksInput extends Omit<TaskQuery, "note"> { readonly note?: string }
-
 /**
  * Read-only tools that let Copilot's agent mode — and any other chat participant that uses
- * `vscode.lm` tools — work with notes the way the graph does: find a note, read it with its
- * links in both directions, walk its neighbourhood, trace how two notes connect, and list
- * tasks. None of them write; an agent edits a note with its ordinary file tools, using the
- * paths these answers give it.
+ * `vscode.lm` tools — work with notes the way the graph does. What they answer is shared with
+ * the MCP server (see `application/agentTools.ts`); this only supplies what an editor knows
+ * that a file reader does not: which note is open, and the unsaved text of open notes.
  */
 export function registerAgentTools(
   snapshot: () => IndexSnapshot,
   lastNoteEditorUri: () => vscode.Uri | undefined,
 ): vscode.Disposable[] {
-  const active = (): { note: NoteRecord; content: string } | undefined => {
-    const uri = activeNoteUri(lastNoteEditorUri);
-    if (uri === undefined) return undefined;
-    const note = snapshot().notes.find((entry) => entry.uri === uri.toString());
-    if (note === undefined) return undefined;
-    const open = vscode.workspace.textDocuments.find((document) => document.uri.toString() === note.uri);
-    return { note, content: open?.getText() ?? note.content };
+  const openText = (note: NoteRecord): string | undefined =>
+    vscode.workspace.textDocuments.find((document) => document.uri.toString() === note.uri)?.getText();
+  const context = (): AgentToolContext => {
+    const current = snapshot();
+    const uri = activeNoteUri(lastNoteEditorUri)?.toString();
+    const note = uri === undefined ? undefined : current.notes.find((entry) => entry.uri === uri);
+    return {
+      snapshot: current,
+      today: todayStamp(),
+      openText,
+      ...(note === undefined ? {} : { active: { note, content: openText(note) ?? note.content } }),
+    };
   };
-  const find = (reference: string | undefined): NoteRecord | undefined =>
-    reference === undefined || reference.trim() === ""
-      ? active()?.note
-      : resolveNoteReference(snapshot(), reference);
-
-  return [
-    tool<Record<string, never>>("visp_activeNote", () => "Reading the open note", () => {
-      const current = active();
-      return current === undefined
-        ? "No note is open. Ask the user which note they mean, or use visp_searchNotes."
-        : describeNote(snapshot(), current.note, current.content);
-    }),
-    tool<NoteInput>("visp_readNote", (input) => `Reading ${input.note}`, (input) => {
-      const note = find(input.note);
-      if (note === undefined) return unknownNote(input.note);
-      const open = vscode.workspace.textDocuments.find((document) => document.uri.toString() === note.uri);
-      return describeNote(snapshot(), note, open?.getText() ?? note.content);
-    }),
-    tool<SearchInput>("visp_searchNotes", (input) => `Searching notes for ${input.query}`, (input) =>
-      describeSearch(snapshot(), input.query, input.limit)),
-    tool<OptionalNoteInput>("visp_noteGraph", (input) => `Walking the graph around ${input.note ?? "the open note"}`, (input) => {
-      const note = find(input.note);
-      if (note === undefined) return input.note === undefined ? "No note is open." : unknownNote(input.note);
-      return describeNeighbourhood(snapshot(), note, input.depth === 2 ? 2 : 1);
-    }),
-    tool<PathInput>("visp_linkPath", (input) => `Tracing links from ${input.from} to ${input.to}`, (input) => {
-      const from = find(input.from);
-      const to = find(input.to);
-      if (from === undefined) return unknownNote(input.from);
-      if (to === undefined) return unknownNote(input.to);
-      return describeLinkPath(snapshot(), from, to);
-    }),
-    tool<TasksInput>("visp_listTasks", () => "Listing tasks", (input) => {
-      const note = input.note === undefined ? undefined : find(input.note);
-      if (input.note !== undefined && note === undefined) return unknownNote(input.note);
-      const { note: _reference, ...filters } = input;
-      return describeTasks(snapshot(), { ...filters, ...(note === undefined ? {} : { note }) }, todayStamp());
-    }),
-  ];
-}
-
-function tool<T>(
-  name: string,
-  describe: (input: T) => string,
-  answer: (input: T) => string,
-): vscode.Disposable {
-  return vscode.lm.registerTool<T>(name, {
-    prepareInvocation: (options) => ({ invocationMessage: describe(options.input) }),
+  return AGENT_TOOLS.map((tool) => vscode.lm.registerTool<unknown>(`visp_${tool.name}`, {
+    prepareInvocation: () => ({ invocationMessage: `Visp Notes: ${tool.title.toLowerCase()}` }),
     invoke: (options) => new vscode.LanguageModelToolResult([
-      new vscode.LanguageModelTextPart(answer(options.input)),
+      new vscode.LanguageModelTextPart(answerAgentTool(tool.name, options.input, context())),
     ]),
-  });
+  }));
 }
 
 /**

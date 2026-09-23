@@ -20,6 +20,7 @@ import { WikiLinkProvider } from "./vscode/providers/wikiLinkProvider";
 import { WikiLinkCodeActionProvider } from "./vscode/providers/wikiLinkCodeActionProvider";
 import { TextDiffPreviewProvider } from "./vscode/providers/textDiffPreviewProvider";
 import { registerAgentTools } from "./vscode/agentTools";
+import { installMcpServer } from "./vscode/mcpSetup";
 const MARKDOWN_FILE_SELECTOR: vscode.DocumentSelector = { scheme: "file", language: "markdown" };
 let draftRecoveryStore: DraftRecoveryStore | undefined;
 let reminderStore: ReminderStore | undefined;
@@ -184,6 +185,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   function revealTask(noteUri: string, start: number): Promise<void> {
     return noteEditor.revealAt(noteUri, start);
   }
+
+  // Keeps the MCP server at a path that survives extension updates, for agents already set up.
+  void installMcpServer(context).catch((error: unknown) =>
+    output.warn(`Could not refresh the MCP server: ${String(error)}`));
 
   const activeDocument = vscode.window.activeTextEditor?.document;
   if (activeDocument?.languageId === "markdown") {

@@ -20,6 +20,7 @@ import { useTextEditorByDefault, useVispNotesAsDefaultEditor } from "./editorAss
 import { addTagToNote, removeTagFromNote } from "./tagCommands";
 import { COMMAND_IDS, INLINE_FORMAT_COMMANDS } from "../ids";
 import { activeNoteUri, askChatAboutNote } from "../agentTools";
+import { connectAgents } from "../mcpSetup";
 import type { EditorInlineMark } from "../../domain/protocol";
 
 export function registerCommands(
@@ -59,6 +60,7 @@ export function registerCommands(
   register(COMMAND_IDS.deleteNote, (value) => deleteNote(index, value ?? views.activeNoteUri()));
   register(COMMAND_IDS.findBrokenLinks, () => views.openNotesList({ kind: "broken" }));
   register(COMMAND_IDS.rebuildIndex, () => rebuildIndex(index));
+  register(COMMAND_IDS.connectAgents, () => connectAgents(context));
   register(COMMAND_IDS.askChat, (value) => askChatAboutNote(
     value instanceof vscode.Uri ? value : activeNoteUri(() => views.activeNoteUri()),
   ));
