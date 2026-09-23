@@ -19,6 +19,7 @@ import { WikiCompletionProvider } from "./vscode/providers/wikiCompletionProvide
 import { WikiLinkProvider } from "./vscode/providers/wikiLinkProvider";
 import { WikiLinkCodeActionProvider } from "./vscode/providers/wikiLinkCodeActionProvider";
 import { TextDiffPreviewProvider } from "./vscode/providers/textDiffPreviewProvider";
+import { registerAgentTools } from "./vscode/agentTools";
 const MARKDOWN_FILE_SELECTOR: vscode.DocumentSelector = { scheme: "file", language: "markdown" };
 let draftRecoveryStore: DraftRecoveryStore | undefined;
 let reminderStore: ReminderStore | undefined;
@@ -123,6 +124,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     diffPreview,
     diffPreview.register(),
     noteEditor.register(),
+    // Chat and agents cannot see a note open in a custom editor, nor the index; these let them.
+    ...registerAgentTools(() => index.snapshot, () => noteEditor.activeUri),
     vscode.window.registerWebviewViewProvider("vispNotes.workspace", workspacePanel, {
       webviewOptions: { retainContextWhenHidden: true },
     }),

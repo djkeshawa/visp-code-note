@@ -9,6 +9,7 @@ export async function run(): Promise<void> {
   await import("./deleteNote.test.js");
   await import("./oversizedNotes.test.js");
   await import("./design.test.js");
+  await import("./agentTools.test.js");
   const summary = await runRegisteredTests();
   // eslint-disable-next-line no-console
   console.log(`\nintegration: ${summary.passed} passed, ${summary.failed} failed`);

@@ -19,6 +19,7 @@ import { createMissingNote } from "./createMissingNote";
 import { useTextEditorByDefault, useVispNotesAsDefaultEditor } from "./editorAssociation";
 import { addTagToNote, removeTagFromNote } from "./tagCommands";
 import { COMMAND_IDS, INLINE_FORMAT_COMMANDS } from "../ids";
+import { activeNoteUri, askChatAboutNote } from "../agentTools";
 import type { EditorInlineMark } from "../../domain/protocol";
 
 export function registerCommands(
@@ -58,6 +59,9 @@ export function registerCommands(
   register(COMMAND_IDS.deleteNote, (value) => deleteNote(index, value ?? views.activeNoteUri()));
   register(COMMAND_IDS.findBrokenLinks, () => views.openNotesList({ kind: "broken" }));
   register(COMMAND_IDS.rebuildIndex, () => rebuildIndex(index));
+  register(COMMAND_IDS.askChat, (value) => askChatAboutNote(
+    value instanceof vscode.Uri ? value : activeNoteUri(() => views.activeNoteUri()),
+  ));
   register(COMMAND_IDS.openTasks, (filter) => views.openTasks(filter === "today" ? "today" : "all"));
   register(COMMAND_IDS.openTodayTasks, () => views.openTasks("today"));
   register(COMMAND_IDS.search, (query) =>

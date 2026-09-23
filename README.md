@@ -172,6 +172,24 @@ Nodes settle through a live force simulation using quadtree (Barnes–Hut) repul
 - Search respects the node-type filters and the local graph's scope. **Workspace graph** widens the scope to every indexed note.
 - Search and filter choices survive webview reloads.
 
+## Copilot and other AI agents
+
+A note open in the Visp Notes editor is not a text editor, so chat does not pick it up as "the current file" on its own. Two things fix that:
+
+- **Ask Chat About This Note** — the chat button in the note's title bar (or the command of the same name) opens chat with the note attached.
+- **Tools for agent mode** — Visp Notes gives Copilot's agent mode, and any other chat extension that uses VS Code's language-model tools, read-only access to the index, including the graph. Agents call them on their own, or you can name one in a prompt with `#`:
+
+| Reference | What it answers |
+| --- | --- |
+| `#activeNote` | The open note: path, tags, outline, links out, backlinks with context, tasks, and its current text including unsaved edits |
+| `#vispNote` | The same for any note, by title, alias or path |
+| `#vispSearch` | Search across notes and tasks, with the same `path:`, `tag:`, `is:` and `modified:` filters as the search command |
+| `#vispGraph` | The notes linked to and from a note, one or two links out, links to notes that don't exist yet, and notes that share a tag but aren't linked |
+| `#vispPath` | The shortest chain of links between two notes, and which way each link points |
+| `#vispTasks` | Tasks from every note, overdue first, filtered by status, due date, tag or note |
+
+For example: *"Using #vispGraph, suggest three notes this one should link to"*, or *"What's overdue? #vispTasks"*. The tools never write; an agent edits a note with its ordinary file tools, using the paths the tools return.
+
 ## Commands
 
 All commands are in the Command Palette under **Visp Notes**.
@@ -183,7 +201,7 @@ All commands are in the Command Palette under **Visp Notes**.
 | Tasks | New Task, Toggle Task, Open Tasks, Open Tasks Due Today |
 | Graph | Open Local Graph, Open Workspace Graph |
 | Editor | Toggle Live / Markdown, Bold, Italic, Inline Code, Strikethrough, Add Tag, Remove Tag |
-| Workspace | Search Notes and Tasks, Rebuild Index |
+| Workspace | Search Notes and Tasks, Rebuild Index, Ask Chat About This Note |
 | Default editor | Use Visp Notes as the Default Markdown Editor, Restore the Built-in Markdown Text Editor |
 
 ## Keyboard shortcuts

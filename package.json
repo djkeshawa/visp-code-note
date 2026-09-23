@@ -200,6 +200,12 @@
         "command": "vispNotes.toggleStrikethrough",
         "title": "Strikethrough",
         "category": "Visp Notes"
+      },
+      {
+        "command": "vispNotes.askChat",
+        "title": "Ask Chat About This Note",
+        "category": "Visp Notes",
+        "icon": "$(chat-sparkle)"
       }
     ],
     "customEditors": [
@@ -336,6 +342,13 @@
         {
           "command": "vispNotes.openTodayTasks",
           "when": "false"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "vispNotes.askChat",
+          "when": "activeCustomEditorId == vispNotes.noteEditor",
+          "group": "navigation@9"
         }
       ]
     },
@@ -542,7 +555,200 @@
           "markdownDescription": "Underline misspelled words in the note editor, and offer corrections when one is clicked. Uses a bundled English word list; code, wiki links, tags and frontmatter are never checked. Turning this off also stops the word list being loaded."
         }
       }
-    }
+    },
+    "languageModelTools": [
+      {
+        "name": "visp_activeNote",
+        "toolReferenceName": "activeNote",
+        "displayName": "Open Visp note",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(note)",
+        "tags": [
+          "notes",
+          "markdown",
+          "visp"
+        ],
+        "userDescription": "The note open in the editor, with its links, backlinks, tasks and text.",
+        "modelDescription": "Returns the Markdown note the user currently has open in VS Code (including notes open in the Visp Notes editor, which do not appear as a text editor), with its workspace path, tags, outline, the notes it links to, the notes that link to it with context, its tasks, and its full current text including unsaved edits. Call this first whenever the user says 'this note', 'my note', 'the current file' or similar and no file is attached.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "visp_readNote",
+        "toolReferenceName": "vispNote",
+        "displayName": "Read Visp note",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(book)",
+        "tags": [
+          "notes",
+          "markdown",
+          "visp"
+        ],
+        "userDescription": "Read a note by title, alias or path, with its links and backlinks.",
+        "modelDescription": "Reads one note from the user's Visp Notes workspace by title, alias, path or [[wiki link]] text. Returns its path, tags, outline, outgoing links (and which do not resolve), backlinks with the sentence that mentions it, tasks, and full text. Prefer this over reading the file directly when you need to know how the note connects to others.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "note": {
+              "type": "string",
+              "description": "The note's title, alias, workspace-relative path (for example `notes/ideas.md`), or wiki-link text."
+            }
+          },
+          "required": [
+            "note"
+          ]
+        }
+      },
+      {
+        "name": "visp_searchNotes",
+        "toolReferenceName": "vispSearch",
+        "displayName": "Search Visp notes",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(search)",
+        "tags": [
+          "notes",
+          "markdown",
+          "visp",
+          "search"
+        ],
+        "userDescription": "Search notes and tasks.",
+        "modelDescription": "Full-text search over every note and task in the workspace. Query grammar: plain words match anywhere; \"quoted phrases\" match exactly; filters `path:folder`, `tag:name`, `is:note`, `is:task`, `is:open`, `is:done`, `modified:7d` (also 12h, 2w, today, or a YYYY-MM-DD date). Returns note titles with paths and a preview of the match, and tasks with the note they are in.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "The search query."
+            },
+            "limit": {
+              "type": "number",
+              "description": "Most results to return, 1–50. Default 20."
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      },
+      {
+        "name": "visp_noteGraph",
+        "toolReferenceName": "vispGraph",
+        "displayName": "Visp note graph",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(type-hierarchy-sub)",
+        "tags": [
+          "notes",
+          "markdown",
+          "visp",
+          "graph"
+        ],
+        "userDescription": "The notes linked to and from a note, one or two links out.",
+        "modelDescription": "Walks the knowledge graph around a note: the notes it links to, the notes that link to it (direction is stated), notes two links away when depth is 2, links to notes that do not exist yet, and notes that share a tag but are not linked (good candidates for new links). Use it to gather related context, find where an idea is discussed, or suggest links. Omit `note` to use the open note.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "note": {
+              "type": "string",
+              "description": "The note's title, alias, workspace-relative path (for example `notes/ideas.md`), or wiki-link text."
+            },
+            "depth": {
+              "type": "number",
+              "enum": [
+                1,
+                2
+              ],
+              "description": "How many links out to go. Default 1."
+            }
+          }
+        }
+      },
+      {
+        "name": "visp_linkPath",
+        "toolReferenceName": "vispPath",
+        "displayName": "Visp link path",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(git-compare)",
+        "tags": [
+          "notes",
+          "markdown",
+          "visp",
+          "graph"
+        ],
+        "userDescription": "How two notes are connected through links.",
+        "modelDescription": "Finds the shortest chain of wiki links connecting two notes and states the direction of each step, or says that none exists. Use it to explain how two topics relate in the user's notes.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "from": {
+              "type": "string",
+              "description": "The note's title, alias, workspace-relative path (for example `notes/ideas.md`), or wiki-link text."
+            },
+            "to": {
+              "type": "string",
+              "description": "The note's title, alias, workspace-relative path (for example `notes/ideas.md`), or wiki-link text."
+            }
+          },
+          "required": [
+            "from",
+            "to"
+          ]
+        }
+      },
+      {
+        "name": "visp_listTasks",
+        "toolReferenceName": "vispTasks",
+        "displayName": "Visp tasks",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(checklist)",
+        "tags": [
+          "notes",
+          "markdown",
+          "visp",
+          "tasks"
+        ],
+        "userDescription": "Tasks from all notes, filtered by status, due date, tag or note.",
+        "modelDescription": "Lists Markdown checkbox tasks from the user's notes, overdue first, with due date, priority, tags and the note path and line each is written on. Tasks are `- [ ]` lines; metadata is written inline as @due(YYYY-MM-DD[ HH:MM]), @remind(30m), @priority(high|medium|low) and #tags. To change a task, edit that line in the note file.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "open",
+                "done",
+                "all"
+              ],
+              "description": "Default open."
+            },
+            "due": {
+              "type": "string",
+              "enum": [
+                "overdue",
+                "today",
+                "upcoming",
+                "undated",
+                "any"
+              ],
+              "description": "Default any."
+            },
+            "tag": {
+              "type": "string",
+              "description": "Only tasks with this tag."
+            },
+            "note": {
+              "type": "string",
+              "description": "The note's title, alias, workspace-relative path (for example `notes/ideas.md`), or wiki-link text."
+            },
+            "limit": {
+              "type": "number",
+              "description": "Most tasks to return, 1–100. Default 50."
+            }
+          }
+        }
+      }
+    ]
   },
   "scripts": {
     "compile": "npm run compile:extension && npm run compile:webview",
