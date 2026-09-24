@@ -65,7 +65,7 @@ Checkbox tasks from every note in one place, grouped by due date, note, or tag.
 
 ## AI agents
 
-Visp Notes answers the questions an agent can't answer by reading files one at a time: which notes link here, what's connected to this, how do these two ideas relate, what's overdue. Every answer names notes by their workspace path, so the agent can go straight to its own file tools to edit them. The tools only read; they never change your notes.
+Visp Notes answers the questions an agent can't answer by reading files one at a time: which notes link here, what's connected to this, how do these two ideas relate, what's overdue. Every answer names notes by their workspace path, so the agent can go straight to its own file tools to edit them. The tools only read; they never change your notes. They're never offered in an untrusted workspace, and you can switch them off (`vispNotes.agents.enabled`) or hide notes from them (`vispNotes.agents.exclude`). [SECURITY.md](SECURITY.md) covers what agents can see and where it goes, including for companies that provide Copilot.
 
 | Question | Copilot (`#` reference) | MCP tool |
 | --- | --- | --- |
@@ -259,6 +259,11 @@ In graph search, `Enter` and `Shift+Enter` move to the next and previous match.
 
 - `vispNotes.density` (`comfortable` or `compact`): row height in the workspace panel.
 - `vispNotes.graph.defaultDepth` (`1` or `2`): default link depth for local graphs.
+
+**AI agents**
+
+- `vispNotes.agents.enabled` (default on): let AI agents read notes through the Visp Notes tools. Off withdraws them at once. The MCP server reads this from the folder's `.vscode/settings.json`.
+- `vispNotes.agents.exclude`: glob patterns for notes agents may never see, such as `private/**`. Mirror your organization's Copilot content exclusions here. See [SECURITY.md](SECURITY.md).
 
 **Reminders**
 

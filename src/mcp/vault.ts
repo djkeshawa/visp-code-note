@@ -16,6 +16,12 @@ interface VaultSettings {
   readonly limitBytes: number | undefined;
 }
 
+/** What the folder allows agents: `vispNotes.agents.enabled` and `vispNotes.agents.exclude`. */
+export interface AgentAccess {
+  readonly enabled: boolean;
+  readonly exclude: readonly string[];
+}
+
 interface CachedNote {
   readonly mtimeMs: number;
   readonly size: number;
@@ -39,6 +45,17 @@ export class Vault {
   private version = 0;
 
   public constructor(public readonly root: string) {}
+
+  public async access(): Promise<AgentAccess> {
+    const settings = await readSettingsObject(this.root);
+    const exclude = settings["vispNotes.agents.exclude"];
+    return {
+      enabled: settings["vispNotes.agents.enabled"] !== false,
+      exclude: Array.isArray(exclude)
+        ? exclude.filter((pattern): pattern is string => typeof pattern === "string" && pattern.trim() !== "").map((pattern) => pattern.trim())
+        : [],
+    };
+  }
 
   public async snapshot(): Promise<IndexSnapshot> {
     const settings = await readSettings(this.root);
@@ -109,18 +126,7 @@ async function listMarkdown(root: string, excludes: readonly string[]): Promise<
 
 /** The extension's own settings for this folder, when it has a `.vscode/settings.json`. */
 async function readSettings(root: string): Promise<VaultSettings> {
-  const text = await readFile(join(root, ".vscode", "settings.json"), "utf8").catch(() => "");
-  let settings: Record<string, unknown> = {};
-  try {
-    // VS Code settings are JSON with comments and trailing commas.
-    const json = text
-      .replace(/("(?:[^"\\]|\\.)*")|\/\/[^\n]*|\/\*[\s\S]*?\*\//g, (_match, string: string | undefined) => string ?? "")
-      .replace(/,(\s*[}\]])/g, "$1");
-    const parsed: unknown = json.trim() === "" ? {} : JSON.parse(json);
-    if (typeof parsed === "object" && parsed !== null) settings = parsed as Record<string, unknown>;
-  } catch {
-    // An unreadable settings file leaves the defaults, exactly as it would in VS Code.
-  }
+  const settings = await readSettingsObject(root);
   const exclude = settings["vispNotes.exclude"];
   return {
     excludes: Array.isArray(exclude) && exclude.every((pattern) => typeof pattern === "string")
@@ -128,4 +134,19 @@ async function readSettings(root: string): Promise<VaultSettings> {
       : DEFAULT_EXCLUDES,
     limitBytes: noteSizeLimitBytes(settings["vispNotes.maxNoteSizeKB"]),
   };
+}
+
+async function readSettingsObject(root: string): Promise<Record<string, unknown>> {
+  const text = await readFile(join(root, ".vscode", "settings.json"), "utf8").catch(() => "");
+  try {
+    // VS Code settings are JSON with comments and trailing commas.
+    const json = text
+      .replace(/("(?:[^"\\]|\\.)*")|\/\/[^\n]*|\/\*[\s\S]*?\*\//g, (_match, string: string | undefined) => string ?? "")
+      .replace(/,(\s*[}\]])/g, "$1");
+    const parsed: unknown = json.trim() === "" ? {} : JSON.parse(json);
+    return typeof parsed === "object" && parsed !== null ? parsed as Record<string, unknown> : {};
+  } catch {
+    // An unreadable settings file leaves the defaults, exactly as it would in VS Code.
+    return {};
+  }
 }

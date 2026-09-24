@@ -26,30 +26,83 @@ export function activeNoteUri(lastNoteEditorUri: () => vscode.Uri | undefined): 
  * `vscode.lm` tools — work with notes the way the graph does. What they answer is shared with
  * the MCP server (see `application/agentTools.ts`); this only supplies what an editor knows
  * that a file reader does not: which note is open, and the unsaved text of open notes.
+ *
+ * The tools exist only while two things hold. The workspace is trusted — an untrusted
+ * repository's notes are exactly where instructions aimed at an agent would be planted — and
+ * `vispNotes.agents.enabled` is on, so a company or a reader can switch agent access off
+ * without uninstalling anything. Both are followed live: granting trust or flipping the setting
+ * registers or withdraws the tools at once, and a chat already open sees the change.
  */
-export function registerAgentTools(
-  snapshot: () => IndexSnapshot,
-  lastNoteEditorUri: () => vscode.Uri | undefined,
-): vscode.Disposable[] {
-  const openText = (note: NoteRecord): string | undefined =>
-    vscode.workspace.textDocuments.find((document) => document.uri.toString() === note.uri)?.getText();
-  const context = (): AgentToolContext => {
-    const current = snapshot();
-    const uri = activeNoteUri(lastNoteEditorUri)?.toString();
-    const note = uri === undefined ? undefined : current.notes.find((entry) => entry.uri === uri);
-    return {
-      snapshot: current,
-      today: todayStamp(),
-      openText,
-      ...(note === undefined ? {} : { active: { note, content: openText(note) ?? note.content } }),
+export class AgentToolRegistration implements vscode.Disposable {
+  private tools: vscode.Disposable[] = [];
+  private readonly listeners: vscode.Disposable[];
+
+  public constructor(
+    private readonly snapshot: () => IndexSnapshot,
+    private readonly lastNoteEditorUri: () => vscode.Uri | undefined,
+  ) {
+    this.listeners = [
+      vscode.workspace.onDidGrantWorkspaceTrust(() => this.sync()),
+      vscode.workspace.onDidChangeConfiguration((event) => {
+        if (event.affectsConfiguration("vispNotes.agents.enabled")) this.sync();
+      }),
+    ];
+    this.sync();
+  }
+
+  public get registered(): boolean {
+    return this.tools.length > 0;
+  }
+
+  public dispose(): void {
+    this.withdraw();
+    for (const listener of this.listeners) listener.dispose();
+  }
+
+  private sync(): void {
+    const wanted = vscode.workspace.isTrusted && agentAccessEnabled();
+    if (wanted && this.tools.length === 0) this.tools = this.register();
+    else if (!wanted) this.withdraw();
+  }
+
+  private withdraw(): void {
+    for (const tool of this.tools) tool.dispose();
+    this.tools = [];
+  }
+
+  private register(): vscode.Disposable[] {
+    const openText = (note: NoteRecord): string | undefined =>
+      vscode.workspace.textDocuments.find((document) => document.uri.toString() === note.uri)?.getText();
+    const context = (): AgentToolContext => {
+      const current = this.snapshot();
+      const uri = activeNoteUri(this.lastNoteEditorUri)?.toString();
+      const note = uri === undefined ? undefined : current.notes.find((entry) => entry.uri === uri);
+      return {
+        snapshot: current,
+        today: todayStamp(),
+        openText,
+        exclude: agentExcludes(),
+        ...(note === undefined ? {} : { active: { note, content: openText(note) ?? note.content } }),
+      };
     };
-  };
-  return AGENT_TOOLS.map((tool) => vscode.lm.registerTool<unknown>(`visp_${tool.name}`, {
-    prepareInvocation: () => ({ invocationMessage: `Visp Notes: ${tool.title.toLowerCase()}` }),
-    invoke: (options) => new vscode.LanguageModelToolResult([
-      new vscode.LanguageModelTextPart(answerAgentTool(tool.name, options.input, context())),
-    ]),
-  }));
+    return AGENT_TOOLS.map((tool) => vscode.lm.registerTool<unknown>(`visp_${tool.name}`, {
+      prepareInvocation: () => ({ invocationMessage: `Visp Notes: ${tool.title.toLowerCase()}` }),
+      invoke: (options) => new vscode.LanguageModelToolResult([
+        new vscode.LanguageModelTextPart(answerAgentTool(tool.name, options.input, context())),
+      ]),
+    }));
+  }
+}
+
+export function agentAccessEnabled(): boolean {
+  return vscode.workspace.getConfiguration("vispNotes").get<boolean>("agents.enabled", true);
+}
+
+function agentExcludes(): readonly string[] {
+  const value = vscode.workspace.getConfiguration("vispNotes").get<unknown>("agents.exclude", []);
+  return Array.isArray(value)
+    ? value.filter((pattern): pattern is string => typeof pattern === "string" && pattern.trim() !== "").map((pattern) => pattern.trim())
+    : [];
 }
 
 /**

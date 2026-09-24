@@ -103,3 +103,27 @@ test("the server speaks MCP over stdio, one message per line", async () => {
   assert.equal(replies[2]?.id, 2);
   assert.match(JSON.stringify(replies[2]?.result), /notes\/spoke\.md/);
 });
+
+test("a folder can switch agent access off, or withhold notes, from its settings", async () => {
+  const folder = await mkdtemp(join(tmpdir(), "visp-mcp-access-"));
+  await mkdir(join(folder, ".vscode"), { recursive: true });
+  await mkdir(join(folder, "private"), { recursive: true });
+  await writeFile(join(folder, "open.md"), "# Open\n\nSee [[Secret]].\n");
+  await writeFile(join(folder, "private", "secret.md"), "# Secret\n\nThe launch date.\n");
+  const settings = join(folder, ".vscode", "settings.json");
+  try {
+    await writeFile(settings, '{ "vispNotes.agents.exclude": ["private/**"] }');
+    const vault = new Vault(folder);
+    assert.match(text(await call(vault, "search_notes", { query: "launch" })), /No notes or tasks match/);
+    assert.match(text(await call(vault, "read_note", { note: "Open" })), /not shared with agents/);
+
+    await writeFile(settings, '{ "vispNotes.agents.enabled": false }');
+    const list = await handleMessage({ jsonrpc: "2.0", id: 1, method: "tools/list" }, vault, "1");
+    assert.deepEqual((list?.result as { tools: unknown[] }).tools, []);
+    const refused = await call(vault, "read_note", { note: "Open" });
+    assert.equal((refused?.result as { isError: boolean }).isError, true);
+    assert.match(text(refused), /turned off/);
+  } finally {
+    await rm(folder, { recursive: true, force: true });
+  }
+});

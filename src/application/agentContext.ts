@@ -1,5 +1,6 @@
 import type { IndexSnapshot, NoteRecord } from "../domain/models";
 import { noteResolverFor } from "../indexing/noteResolver";
+import { matchesAnyGlob } from "../indexing/glob";
 import { buildNoteContext } from "../indexing/projections";
 import { bucketFor } from "./dueTasks";
 import type { DueBucket } from "./dueTasks";
@@ -23,6 +24,38 @@ export const NOTE_CONTENT_LIMIT = 24_000;
 const BACKLINK_LIMIT = 25;
 const TASK_LIMIT = 100;
 
+/**
+ * The snapshot as agents may see it: without the notes matched by `vispNotes.agents.exclude`.
+ *
+ * A withheld note is gone from everything an agent can ask — it cannot be read, searched,
+ * listed as a task, walked to in the graph, or passed through on a link path — and the
+ * mentions it makes of other notes go with it. A visible note that links to it still shows the
+ * link, since the link is in the visible note's own text, but says the target is withheld
+ * rather than missing, so an agent does not helpfully create a duplicate.
+ */
+const views = new WeakMap<IndexSnapshot, { readonly key: string; readonly view: IndexSnapshot }>();
+
+export function agentView(snapshot: IndexSnapshot, exclude: readonly string[]): IndexSnapshot {
+  if (exclude.length === 0) return snapshot;
+  const key = exclude.join("\n");
+  const cached = views.get(snapshot);
+  if (cached?.key === key) return cached.view;
+  const visible = new Set(snapshot.notes.filter((note) => !matchesAnyGlob(note.path, exclude)).map((note) => note.uri));
+  const view: IndexSnapshot = {
+    ...snapshot,
+    notes: snapshot.notes.filter((note) => visible.has(note.uri)),
+    links: snapshot.links.filter((link) => visible.has(link.sourceUri)),
+    backlinks: snapshot.backlinks.filter((backlink) => visible.has(backlink.sourceUri) && visible.has(backlink.targetUri)),
+    tasks: snapshot.tasks.filter((task) => visible.has(task.noteUri)),
+  };
+  views.set(snapshot, { key, view });
+  return view;
+}
+
+export function isWithheld(note: { readonly path: string }, exclude: readonly string[]): boolean {
+  return exclude.length > 0 && matchesAnyGlob(note.path, exclude);
+}
+
 export function resolveNoteReference(snapshot: IndexSnapshot, reference: string): NoteRecord | undefined {
   const trimmed = reference.trim().replace(/^\[\[|\]\]$/g, "");
   if (trimmed === "") return undefined;
@@ -31,7 +64,7 @@ export function resolveNoteReference(snapshot: IndexSnapshot, reference: string)
 }
 
 export function unknownNote(reference: string): string {
-  return `No note matches "${reference}". Search with the visp_searchNotes tool to find its title or path.`;
+  return `No note matches "${reference}". Use the search tool to find its title or path.`;
 }
 
 /**
@@ -54,9 +87,11 @@ export function describeNote(snapshot: IndexSnapshot, note: NoteRecord, content 
     lines.push("", `## Links out (${out.length})`);
     for (const link of out) {
       const target = link.resolved ? resolveNoteReference(snapshot, link.target) : undefined;
-      lines.push(target === undefined
-        ? `- [[${link.target}]] — no such note yet`
-        : `- [[${link.target}]] → \`${target.path}\``);
+      lines.push(target !== undefined
+        ? `- [[${link.target}]] → \`${target.path}\``
+        : link.resolved
+          ? `- [[${link.target}]] — exists, but is not shared with agents`
+          : `- [[${link.target}]] — no such note yet`);
     }
   }
 
@@ -75,7 +110,10 @@ export function describeNote(snapshot: IndexSnapshot, note: NoteRecord, content 
   }
 
   const cut = content.length > NOTE_CONTENT_LIMIT;
-  lines.push("", "## Content", "", "````markdown", cut ? content.slice(0, NOTE_CONTENT_LIMIT) : content, "````");
+  const body = cut ? content.slice(0, NOTE_CONTENT_LIMIT) : content;
+  // A fence longer than any run of backticks in the note, so the note cannot close it early.
+  const fence = "`".repeat(Math.max(4, ...Array.from(body.matchAll(/`+/g), (run) => run[0].length + 1)));
+  lines.push("", "## Content", "", `${fence}markdown`, body, fence);
   if (cut) lines.push(`(Cut at ${NOTE_CONTENT_LIMIT} of ${content.length} characters. Read the file for the rest.)`);
   return lines.join("\n");
 }
@@ -220,8 +258,11 @@ function taskLine(task: IndexSnapshot["tasks"][number] | NoteRecord["tasks"][num
 
 function linkMap(snapshot: IndexSnapshot, direction: "out" | "in"): Map<string, Set<string>> {
   const map = new Map<string, Set<string>>();
+  const known = new Set(snapshot.notes.map((note) => note.uri));
   for (const link of snapshot.links) {
     if (link.targetUri === undefined || link.targetUri === link.sourceUri) continue;
+    // A link into a note the snapshot does not hold — one withheld from agents — is not walked.
+    if (!known.has(link.targetUri) || !known.has(link.sourceUri)) continue;
     const [key, value] = direction === "out" ? [link.sourceUri, link.targetUri] : [link.targetUri, link.sourceUri];
     let set = map.get(key);
     if (set === undefined) map.set(key, set = new Set());

@@ -38,6 +38,8 @@ const INSTRUCTIONS =
   "notes, link_path to see how two notes connect, and list_tasks for open or overdue work. " +
   "Answers give each note's workspace path; edit notes with your normal file tools.";
 
+const DISABLED = "Agent access to these notes is turned off (vispNotes.agents.enabled is false in the folder's .vscode/settings.json).";
+
 type JsonRpcId = string | number;
 
 interface JsonRpcResponse {
@@ -77,7 +79,9 @@ export async function handleMessage(
     }
     case "ping":
       return success(id, {});
-    case "tools/list":
+    case "tools/list": {
+      // A folder that has switched agent access off offers nothing to call.
+      if (!(await vault.access()).enabled) return success(id, { tools: [] });
       return success(id, {
         tools: AGENT_TOOLS.flatMap((tool) => {
           const name = MCP_NAMES[tool.name];
@@ -90,12 +94,17 @@ export async function handleMessage(
           }];
         }),
       });
+    }
     case "tools/call": {
       const tool = Object.entries(MCP_NAMES).find(([, name]) => name === args.name)?.[0] as AgentToolName | undefined;
       if (tool === undefined) return failure(id, -32602, `Unknown tool: ${String(args.name)}`);
       try {
+        const access = await vault.access();
+        if (!access.enabled) {
+          return success(id, { content: [{ type: "text", text: DISABLED }], isError: true });
+        }
         const snapshot = await vault.snapshot();
-        const text = answerAgentTool(tool, args.arguments ?? {}, { snapshot, today: today() });
+        const text = answerAgentTool(tool, args.arguments ?? {}, { snapshot, today: today(), exclude: access.exclude });
         return success(id, { content: [{ type: "text", text }], isError: false });
       } catch (error) {
         const reason = error instanceof Error ? error.message : String(error);

@@ -50,3 +50,27 @@ integrationTest("the open note is found in the Visp Notes editor, with its links
   assert.match(await ask("visp_readNote", { note: "Nothing called this" }), /No note matches/);
   await resetEditors();
 });
+
+/*
+ * `vscode.lm.tools` lists every tool the manifest contributes whatever its state, so the test
+ * asks the question that matters: can the tool still be called. The manifest's `when` clause
+ * keeps it out of chat's tool picker as well; this proves the implementation is gone too.
+ */
+integrationTest("turning agent access off withdraws the tools, and turning it on restores them", async () => {
+  const config = vscode.workspace.getConfiguration("vispNotes");
+  const callable = async (): Promise<boolean> => {
+    try {
+      await vscode.lm.invokeTool("visp_searchNotes", { input: { query: "x" }, toolInvocationToken: undefined });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  try {
+    await config.update("agents.enabled", false, vscode.ConfigurationTarget.Global);
+    await waitFor("the tools to be withdrawn", async () => !(await callable()));
+  } finally {
+    await config.update("agents.enabled", undefined, vscode.ConfigurationTarget.Global);
+  }
+  await waitFor("the tools to come back", callable);
+});

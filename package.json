@@ -68,7 +68,8 @@
     "README.md",
     "CHANGELOG.md",
     "LICENSE",
-    "THIRD_PARTY_NOTICES.md"
+    "THIRD_PARTY_NOTICES.md",
+    "SECURITY.md"
   ],
   "extensionKind": [
     "workspace"
@@ -568,6 +569,21 @@
           "default": true,
           "scope": "window",
           "markdownDescription": "Underline misspelled words in the note editor, and offer corrections when one is clicked. Uses a bundled English word list; code, wiki links, tags and frontmatter are never checked. Turning this off also stops the word list being loaded."
+        },
+        "vispNotes.agents.enabled": {
+          "type": "boolean",
+          "default": true,
+          "scope": "window",
+          "markdownDescription": "Let AI agents read your notes through the Visp Notes tools: Copilot's agent mode and other VS Code chat extensions, and the MCP server used by Claude Code, Cursor and other clients. The tools are read-only and are never offered in an untrusted workspace. Turning this off withdraws them at once. The MCP server reads this from the folder's `.vscode/settings.json`. See [SECURITY.md](https://github.com/djkeshawa/visp-code-note/blob/main/SECURITY.md) for what agents can see."
+        },
+        "vispNotes.agents.exclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "scope": "window",
+          "markdownDescription": "Glob patterns for notes AI agents may never see, such as `private/**` or `**/*-confidential.md`. A matching note can't be read, searched, listed as a task, or reached through the graph by any agent tool. Visp Notes can't see your organization's Copilot content exclusions, so mirror them here. The MCP server reads this from the folder's `.vscode/settings.json`."
         }
       }
     },
@@ -588,7 +604,8 @@
         "inputSchema": {
           "type": "object",
           "properties": {}
-        }
+        },
+        "when": "config.vispNotes.agents.enabled && isWorkspaceTrusted"
       },
       {
         "name": "visp_readNote",
@@ -614,7 +631,8 @@
           "required": [
             "note"
           ]
-        }
+        },
+        "when": "config.vispNotes.agents.enabled && isWorkspaceTrusted"
       },
       {
         "name": "visp_searchNotes",
@@ -645,7 +663,8 @@
           "required": [
             "query"
           ]
-        }
+        },
+        "when": "config.vispNotes.agents.enabled && isWorkspaceTrusted"
       },
       {
         "name": "visp_noteGraph",
@@ -677,7 +696,8 @@
               "description": "How many links out to go. Default 1."
             }
           }
-        }
+        },
+        "when": "config.vispNotes.agents.enabled && isWorkspaceTrusted"
       },
       {
         "name": "visp_linkPath",
@@ -709,7 +729,8 @@
             "from",
             "to"
           ]
-        }
+        },
+        "when": "config.vispNotes.agents.enabled && isWorkspaceTrusted"
       },
       {
         "name": "visp_listTasks",
@@ -761,7 +782,8 @@
               "description": "Most tasks to return, 1–100. Default 50."
             }
           }
-        }
+        },
+        "when": "config.vispNotes.agents.enabled && isWorkspaceTrusted"
       }
     ]
   },
