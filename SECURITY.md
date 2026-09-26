@@ -18,6 +18,8 @@ This page is for anyone deciding whether Visp Notes is safe to use: an individua
 | | Recovered drafts and delivered reminders, in VS Code's workspace storage |
 | | Words you add to the spelling dictionary, in VS Code's global storage |
 | | The MCP server file, copied into the extension's global storage on start-up |
+| | The **path** of the note each window is showing, in the extension's global storage, while agent access is on (see below) |
+| | `~/.codex/config.toml`, **only** when you choose Codex in **Connect AI Agents (MCP)…** and confirm |
 | | `.mcp.json` or `.cursor/mcp.json`, **only** when you run **Connect AI Agents (MCP)…** and choose that option |
 
 The editor and panels run in VS Code webviews under a strict content security policy. They can't load remote content or connect anywhere except the extension's own files.
@@ -27,7 +29,7 @@ The editor and panels run in VS Code webviews under a strict content security po
 Visp Notes offers the same read-only tools in two places:
 
 - **Inside VS Code:** language-model tools that Copilot's agent mode, and other chat extensions using VS Code's tool API, can call.
-- **Outside VS Code:** an MCP server that Claude Code, Cursor or any other MCP client can start.
+- **Outside VS Code:** an MCP server that Claude Code, Codex, Cursor or any other MCP client can start, including through their VS Code extensions.
 
 The tools can read notes, search them, walk the link graph and list tasks. They can't write, delete, run commands, reach the network, or read anything that isn't an indexed Markdown note under the chosen folder. There's no "read this path" input, and symbolic links aren't followed.
 
@@ -46,7 +48,7 @@ This is the common corporate setup, and the data path is the one your company ha
 - **Inside VS Code,** notes that Copilot reads through these tools go to GitHub Copilot, under your organization's Copilot agreement. That's the same service and the same terms that already cover the code Copilot sees. Visp Notes adds no new vendor or data processor.
 - **Copilot content exclusions aren't visible to extensions.** If your organization excludes paths from Copilot, Visp Notes can't see those rules, so a note the rules would cover could still reach Copilot through these tools. **Mirror the rules in `vispNotes.agents.exclude`** (below), or add `.vscode/settings.json` to the repository so the rules travel with it.
 - **Your administrators keep their existing controls.** VS Code and GitHub Copilot let an organization restrict agent mode, extension-contributed tools and MCP servers through their enterprise policies. Those apply to Visp Notes like any other extension.
-- **The MCP server is a different path.** It serves whatever MCP client you connect. That client (Claude Code, Cursor, anything else) sends what it reads to *its own* provider, which may not be one your company has approved. If your company only permits Copilot, don't connect other agents, or set `vispNotes.agents.enabled` to `false` in the repository's `.vscode/settings.json`. The MCP server honours that and offers no tools.
+- **The MCP server is a different path.** It serves whatever MCP client you connect. That client (Claude Code, Codex, Cursor, anything else) sends what it reads to *its own* provider, which may not be one your company has approved. If your company only permits Copilot, don't connect other agents, or set `vispNotes.agents.enabled` to `false` in the repository's `.vscode/settings.json`. The MCP server honours that and offers no tools.
 
 ### Controls
 
@@ -90,6 +92,7 @@ No tool can rule out injection entirely. Keep your agent's own approval prompts 
 - **It serves only the folder named by `--root`.**
 - **It lives in the extension's global storage** so its path survives updates. The extension replaces it on every start-up with the copy that shipped in the extension.
 - **The config files written by Connect AI Agents hold absolute paths on your machine.** Keep them out of version control.
+- **`active_note` tells the server which note you have open.** Each VS Code window writes that note's **path**, with a timestamp and the window's process id, to a small file in the extension's global storage, and the server reads it. The note's text is never written there; the server reads the saved file like any other note, and `vispNotes.agents.exclude` still applies. The file is only written while agent access is on and the workspace is trusted, and it's removed when access is switched off, when no note is open, and when the window closes. An entry left behind by a crashed window is ignored once its process is gone.
 
 ## Reporting a vulnerability
 

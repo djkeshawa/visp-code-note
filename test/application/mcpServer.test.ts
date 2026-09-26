@@ -64,10 +64,10 @@ test("initialize negotiates the protocol version and a notification gets no repl
   assert.equal((await handleMessage({ jsonrpc: "2.0", id: 3, method: "nope" }, vault, "1"))?.error?.code, -32601);
 });
 
-test("tools/list offers the read-only tools, without the editor-only open-note tool", async () => {
+test("tools/list offers the read-only tools", async () => {
   const reply = await handleMessage({ jsonrpc: "2.0", id: 1, method: "tools/list" }, new Vault(root), "1");
   const tools = (reply?.result as { tools: { name: string; annotations: { readOnlyHint: boolean } }[] }).tools;
-  assert.deepEqual(tools.map((tool) => tool.name), ["read_note", "search_notes", "note_graph", "link_path", "list_tasks"]);
+  assert.deepEqual(tools.map((tool) => tool.name), ["active_note", "read_note", "search_notes", "note_graph", "link_path", "list_tasks"]);
   assert.ok(tools.every((tool) => tool.annotations.readOnlyHint));
 });
 
@@ -125,5 +125,20 @@ test("a folder can switch agent access off, or withhold notes, from its settings
     assert.match(text(refused), /turned off/);
   } finally {
     await rm(folder, { recursive: true, force: true });
+  }
+});
+
+test("active_note answers with the note a running VS Code window shows, and nothing otherwise", async () => {
+  const windows = await mkdtemp(join(tmpdir(), "visp-mcp-windows-"));
+  try {
+    const vault = new Vault(root, windows);
+    assert.match(text(await call(vault, "active_note", {})), /No note is open/);
+    await writeFile(join(windows, "window-1.json"), JSON.stringify({ file: join(root, "notes", "hub.md"), at: Date.now(), pid: process.pid }));
+    assert.match(text(await call(vault, "active_note", {})), /# Hub[\s\S]*Path: `notes\/hub\.md`/);
+    assert.match(text(await call(vault, "note_graph", {})), /Hub links both ways with \*\*Spoke\*\*/, "tools default to the open note");
+    await writeFile(join(windows, "window-1.json"), JSON.stringify({ file: join(root, "notes", "hub.md"), at: Date.now(), pid: 2 ** 22 + 12345 }));
+    assert.match(text(await call(vault, "active_note", {})), /No note is open/, "a window that is gone is ignored");
+  } finally {
+    await rm(windows, { recursive: true, force: true });
   }
 });

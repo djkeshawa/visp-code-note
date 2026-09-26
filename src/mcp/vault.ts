@@ -8,6 +8,7 @@ import { matchesAnyGlob } from "../indexing/glob";
 import { buildSnapshot } from "../indexing/projections";
 import { createNoteProjector } from "../indexing/noteProjection";
 import { parseMarkdown } from "../markdown/parser";
+import { readActiveNote } from "./activeNote";
 
 const DEFAULT_EXCLUDES = ["**/node_modules/**", "**/.git/**", "**/dist/**", "**/out/**"];
 
@@ -44,7 +45,20 @@ export class Vault {
   private last: { readonly key: string; readonly snapshot: IndexSnapshot } | undefined;
   private version = 0;
 
-  public constructor(public readonly root: string) {}
+  /**
+   * @param activeNoteDirectory where VS Code windows announce the note they show; without it
+   * the server has no idea of an open note, which is right for a folder no editor has open.
+   */
+  public constructor(public readonly root: string, private readonly activeNoteDirectory?: string) {}
+
+  /** The note a VS Code window is showing, when it is one of this folder's notes. */
+  public async activeNote(snapshot: IndexSnapshot): Promise<NoteRecord | undefined> {
+    if (this.activeNoteDirectory === undefined) return undefined;
+    const entry = await readActiveNote(this.activeNoteDirectory, this.root);
+    if (entry === undefined) return undefined;
+    const uri = pathToFileURL(entry.file).href;
+    return snapshot.notes.find((note) => note.uri === uri);
+  }
 
   public async access(): Promise<AgentAccess> {
     const settings = await readSettingsObject(this.root);

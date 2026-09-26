@@ -105,21 +105,85 @@ function agentExcludes(): readonly string[] {
     : [];
 }
 
+interface ChatTarget {
+  readonly label: string;
+  readonly detail: string;
+  /** The command that proves the agent is installed, and opens it. */
+  readonly command: string;
+  readonly open: (uri: vscode.Uri) => Thenable<unknown>;
+}
+
 /**
- * Opens chat with the note attached as a file, which is what chat would have done on its own
- * for a note open in the text editor. Chat reads an attached file through VS Code's open
- * document, so unsaved edits go with it and nothing is saved behind the reader's back.
+ * Where "Ask Chat About This Note" can send a note, in the order offered.
+ *
+ * Each agent is recognised by a command it registers, and only agents that are installed are
+ * offered. Claude Code and Codex take the note in the way their own "add file" features do —
+ * an @-mention in a new Claude conversation, a file added to the Codex thread — because
+ * neither can see a note open in the Visp Notes editor as the current file. Their commands are
+ * not a published API, so a change on their side means the choice fails with a message rather
+ * than silently doing nothing.
  */
-export async function askChatAboutNote(uri: vscode.Uri | undefined): Promise<void> {
+const CHAT_TARGETS: readonly ChatTarget[] = [
+  {
+    label: "Copilot Chat",
+    detail: "VS Code chat, with the note attached",
+    command: "workbench.action.chat.open",
+    open: (uri) => vscode.commands.executeCommand("workbench.action.chat.open", { attachFiles: [uri] }),
+  },
+  {
+    label: "Claude Code",
+    detail: "A new Claude conversation that mentions the note",
+    command: "claude-vscode.editor.open",
+    open: (uri) => vscode.commands.executeCommand(
+      "claude-vscode.editor.open",
+      undefined,
+      `@${vscode.workspace.asRelativePath(uri, false)} `,
+    ),
+  },
+  {
+    label: "Codex",
+    detail: "Adds the note to the Codex thread",
+    command: "chatgpt.addFileToThread",
+    open: async (uri) => {
+      await vscode.commands.executeCommand("chatgpt.openSidebar");
+      await vscode.commands.executeCommand("chatgpt.addFileToThread", uri);
+    },
+  },
+];
+
+const LAST_CHAT_TARGET = "vispNotes.lastChatTarget";
+
+/**
+ * Opens an agent's chat with the note in it, which is what that agent would have done on its
+ * own for a note open in the text editor. With one agent installed it goes straight there;
+ * with several the reader picks, and the last pick is offered first next time.
+ */
+export async function askChatAboutNote(uri: vscode.Uri | undefined, memory?: vscode.Memento): Promise<void> {
   if (uri === undefined) {
     void vscode.window.showInformationMessage("Open a note first, then ask chat about it.");
     return;
   }
-  try {
-    await vscode.commands.executeCommand("workbench.action.chat.open", { attachFiles: [uri] });
-  } catch {
+  const commands = new Set(await vscode.commands.getCommands(true));
+  const available = CHAT_TARGETS.filter((target) => commands.has(target.command));
+  if (available.length === 0) {
     void vscode.window.showInformationMessage(
-      "Chat is not available in this window. Install GitHub Copilot Chat, or another chat extension, to ask about notes.",
+      "No chat is available in this window. Install GitHub Copilot Chat, Claude Code or Codex to ask about notes.",
     );
+    return;
+  }
+  const last = memory?.get<string>(LAST_CHAT_TARGET);
+  const ordered = [...available].sort((left, right) => Number(right.label === last) - Number(left.label === last));
+  const target = ordered.length === 1
+    ? ordered[0]
+    : await vscode.window.showQuickPick(ordered.map((entry) => ({ ...entry, description: entry.detail })), {
+      title: "Ask about this note in…",
+      placeHolder: "Which agent?",
+    });
+  if (target === undefined) return;
+  await memory?.update(LAST_CHAT_TARGET, target.label);
+  try {
+    await target.open(uri);
+  } catch (error) {
+    void vscode.window.showWarningMessage(`${target.label} could not be opened with the note: ${String(error)}`);
   }
 }

@@ -69,7 +69,7 @@ Visp Notes answers the questions an agent can't answer by reading files one at a
 
 | Question | Copilot (`#` reference) | MCP tool |
 | --- | --- | --- |
-| The note that's open, with unsaved edits | `#activeNote` | — |
+| The note that's open (Copilot also sees unsaved edits) | `#activeNote` | `active_note` |
 | A note with its links out, backlinks in context, and tasks | `#vispNote` | `read_note` |
 | Search notes and tasks with `path:`, `tag:`, `is:` and `modified:` filters | `#vispSearch` | `search_notes` |
 | Notes one or two links away, links to missing notes, and notes that share a tag but aren't linked | `#vispGraph` | `note_graph` |
@@ -80,17 +80,28 @@ Try *"Using #vispGraph, suggest three notes this one should link to"*, or ask Cl
 
 ### Copilot and other VS Code chat
 
-Nothing to set up. The tools are available in Copilot's agent mode, and in any chat extension that uses VS Code's language-model tools. Chat doesn't count a note open in the Visp Notes editor as "the current file", so use **Ask Chat About This Note** (the chat button in the note's title bar) to attach it, or reference `#activeNote`.
+Nothing to set up. The tools are available in Copilot's agent mode, and in any chat extension that uses VS Code's language-model tools.
 
-### Claude Code, Cursor and other MCP clients
+### Claude Code, Codex, Cursor and other MCP clients
 
-Run **Visp Notes: Connect AI Agents (MCP)…** and pick your agent:
+Claude Code and Codex, in the terminal or through their VS Code extensions, and Cursor connect over MCP. Run **Visp Notes: Connect AI Agents (MCP)…** and pick your agent:
 
-- **Claude Code** adds the server to `.mcp.json` in the workspace.
+- **Claude Code** adds the server to `.mcp.json` in the workspace. The Claude Code extension reads it too, and asks you to approve the server the first time.
+- **Codex** adds a `[mcp_servers.visp-notes]` table to `~/.codex/config.toml` (or under `$CODEX_HOME`), after asking. It leaves everything else in the file untouched. The CLI and the extension share that file. Because it's one file for all projects, it points at one notes folder; run the command again from another folder to switch.
 - **Cursor** adds it to `.cursor/mcp.json`.
 - **Another MCP client** copies the configuration, with the exact command and paths, to the clipboard.
 
-Restart the agent afterwards. The server is a single file that runs with Node.js 18 or newer. It reads the notes straight from disk, with the same parsing and the same `vispNotes.exclude` and `vispNotes.maxNoteSizeKB` settings as the extension, so VS Code doesn't need to be running. The config holds paths on your machine, so keep it out of version control.
+Restart the agent, or start a new session, afterwards. The server is a single file that runs with Node.js 18 or newer. It reads the notes straight from disk, with the same parsing and the same `vispNotes.exclude` and `vispNotes.maxNoteSizeKB` settings as the extension, so VS Code doesn't need to be running. The config holds paths on your machine, so keep it out of version control.
+
+**"This note" works for these agents too.** Chat and agents learn "the current file" from VS Code's text editor, and a note open in the Visp Notes editor isn't one. So each VS Code window tells the MCP server which note it's showing, and the agent can call `active_note`. Only the note's path is passed on, never its text, so the agent reads the saved file.
+
+### Ask Chat About This Note
+
+The chat button in a note's title bar opens the note in an agent. It offers whichever of these is installed, and remembers your last choice:
+
+- **Copilot Chat** attaches the note.
+- **Claude Code** starts a conversation with the note already @-mentioned in the input box.
+- **Codex** adds the note to the Codex thread.
 
 ## Getting started
 

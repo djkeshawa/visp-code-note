@@ -1,5 +1,6 @@
 import { createInterface } from "node:readline";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
+import { ACTIVE_NOTE_DIRECTORY } from "../application/activeNoteBridge";
 import { AGENT_TOOLS, answerAgentTool } from "../application/agentTools";
 import type { AgentToolName } from "../application/agentTools";
 import { todayStamp } from "../vscode/providers/explorerModel";
@@ -15,8 +16,9 @@ import { Vault } from "./vault";
  * dependencies (see THIRD_PARTY_NOTICES.md and `scripts/build-webviews.mjs` for why), and this
  * much protocol is smaller than the dependency would be.
  *
- * The tools are the ones Copilot gets inside VS Code, answered by the same code. The open-note
- * tool is left out: outside an editor there is no open note.
+ * The tools are the ones Copilot gets inside VS Code, answered by the same code. `active_note`
+ * answers from the note a VS Code window last showed — see `activeNoteBridge.ts` — which is how
+ * Claude Code and Codex, running beside the Visp Notes editor, can see "this note".
  */
 
 export const SERVER_NAME = "visp-notes";
@@ -24,6 +26,7 @@ export const SUPPORTED_PROTOCOL_VERSIONS = ["2025-06-18", "2025-03-26", "2024-11
 
 /** MCP tool names: what an MCP client shows the model, prefixed by the server's own name. */
 const MCP_NAMES: Partial<Record<AgentToolName, string>> = {
+  activeNote: "active_note",
   readNote: "read_note",
   searchNotes: "search_notes",
   noteGraph: "note_graph",
@@ -33,7 +36,8 @@ const MCP_NAMES: Partial<Record<AgentToolName, string>> = {
 
 const INSTRUCTIONS =
   "These tools read the user's Markdown notes as a linked knowledge base: notes connect with " +
-  "[[wiki links]], carry #tags, and hold `- [ ]` tasks with @due(...) dates. Use search_notes to " +
+  "[[wiki links]], carry #tags, and hold `- [ ]` tasks with @due(...) dates. Use active_note when " +
+  "the user means the note they have open, search_notes to " +
   "find notes, read_note for a note with its links and backlinks, note_graph to gather related " +
   "notes, link_path to see how two notes connect, and list_tasks for open or overdue work. " +
   "Answers give each note's workspace path; edit notes with your normal file tools.";
@@ -104,7 +108,13 @@ export async function handleMessage(
           return success(id, { content: [{ type: "text", text: DISABLED }], isError: true });
         }
         const snapshot = await vault.snapshot();
-        const text = answerAgentTool(tool, args.arguments ?? {}, { snapshot, today: today(), exclude: access.exclude });
+        const active = await vault.activeNote(snapshot);
+        const text = answerAgentTool(tool, args.arguments ?? {}, {
+          snapshot,
+          today: today(),
+          exclude: access.exclude,
+          ...(active === undefined ? {} : { active: { note: active, content: active.content } }),
+        });
         return success(id, { content: [{ type: "text", text }], isError: false });
       } catch (error) {
         const reason = error instanceof Error ? error.message : String(error);
@@ -126,7 +136,7 @@ function failure(id: JsonRpcId | null, code: number, message: string): JsonRpcRe
 
 const USAGE = `Visp Notes MCP server
 
-Usage: visp-notes-mcp [--root <folder>]
+Usage: visp-notes-mcp [--root <folder>] [--active-note-dir <folder>]
 
 Serves the Markdown notes under <folder> (default: the current directory) to MCP clients
 over stdio. Register it with your agent, for example in Claude Code:
@@ -145,7 +155,12 @@ export function run(argv: readonly string[], version: string): void {
   }
   const rootIndex = argv.indexOf("--root");
   const root = resolve(rootIndex >= 0 && argv[rootIndex + 1] !== undefined ? argv[rootIndex + 1] ?? "." : ".");
-  const vault = new Vault(root);
+  const stateIndex = argv.indexOf("--active-note-dir");
+  // Installed, the server sits in the extension's global storage beside the windows' files.
+  const activeNoteDirectory = stateIndex >= 0 && argv[stateIndex + 1] !== undefined
+    ? resolve(argv[stateIndex + 1] ?? ".")
+    : join(__dirname, ACTIVE_NOTE_DIRECTORY);
+  const vault = new Vault(root, activeNoteDirectory);
   process.stderr.write(`visp-notes MCP server ${version} serving ${root}\n`);
 
   // Replies go out in the order requests came in, even though answering is asynchronous.

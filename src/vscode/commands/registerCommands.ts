@@ -63,6 +63,7 @@ export function registerCommands(
   register(COMMAND_IDS.connectAgents, () => connectAgents(context));
   register(COMMAND_IDS.askChat, (value) => askChatAboutNote(
     value instanceof vscode.Uri ? value : activeNoteUri(() => views.activeNoteUri()),
+    context.globalState,
   ));
   register(COMMAND_IDS.openTasks, (filter) => views.openTasks(filter === "today" ? "today" : "all"));
   register(COMMAND_IDS.openTodayTasks, () => views.openTasks("today"));

@@ -21,6 +21,7 @@ import { WikiLinkCodeActionProvider } from "./vscode/providers/wikiLinkCodeActio
 import { TextDiffPreviewProvider } from "./vscode/providers/textDiffPreviewProvider";
 import { AgentToolRegistration } from "./vscode/agentTools";
 import { installMcpServer } from "./vscode/mcpSetup";
+import { ActiveNotePublisher } from "./vscode/activeNotePublisher";
 const MARKDOWN_FILE_SELECTOR: vscode.DocumentSelector = { scheme: "file", language: "markdown" };
 let draftRecoveryStore: DraftRecoveryStore | undefined;
 let reminderStore: ReminderStore | undefined;
@@ -127,6 +128,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     noteEditor.register(),
     // Chat and agents cannot see a note open in a custom editor, nor the index; these let them.
     new AgentToolRegistration(() => index.snapshot, () => noteEditor.activeUri),
+    // Agents beside the editor — Claude Code, Codex — learn the open note from this.
+    new ActiveNotePublisher(context.globalStorageUri, () => noteEditor.activeUri),
     vscode.window.registerWebviewViewProvider("vispNotes.workspace", workspacePanel, {
       webviewOptions: { retainContextWhenHidden: true },
     }),

@@ -1,4 +1,8 @@
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import * as vscode from "vscode";
+import { ActiveNotePublisher } from "../../../src/vscode/activeNotePublisher";
 import { assert, integrationTest, resetEditors, waitFor, writeFileText } from "../harness";
 
 /*
@@ -73,4 +77,34 @@ integrationTest("turning agent access off withdraws the tools, and turning it on
     await config.update("agents.enabled", undefined, vscode.ConfigurationTarget.Global);
   }
   await waitFor("the tools to come back", callable);
+});
+
+/*
+ * The other half of `active_note`: a window showing a note in the Visp Notes editor names it
+ * for agents beside the editor, and stops when agent access is switched off. The publisher is
+ * built against a scratch folder here so the test can read what it writes.
+ */
+integrationTest("the open note is announced to agents outside the editor, and withdrawn when access is off", async () => {
+  const storage = vscode.Uri.file(await mkdtemp(join(tmpdir(), "visp-active-")));
+  const announced = vscode.Uri.joinPath(storage, "active-note", `window-${process.pid}.json`);
+  const read = async (): Promise<string> =>
+    new TextDecoder().decode(await vscode.workspace.fs.readFile(announced).then((bytes) => bytes, () => new Uint8Array()));
+  const note = workspaceUri("notes", "agent-announced.md");
+  await writeFileText(note, "# Announced\n");
+  const publisher = new ActiveNotePublisher(storage, () => undefined);
+  const config = vscode.workspace.getConfiguration("vispNotes");
+  try {
+    await vscode.commands.executeCommand("vscode.openWith", note, "vispNotes.noteEditor");
+    await waitFor("the note to be announced", async () => (await read()).includes("agent-announced.md"));
+    const entry = JSON.parse(await read()) as { pid: number };
+    assert.equal(entry.pid, process.pid);
+
+    await config.update("agents.enabled", false, vscode.ConfigurationTarget.Global);
+    await waitFor("the announcement to be withdrawn", async () => (await read()) === "");
+  } finally {
+    await config.update("agents.enabled", undefined, vscode.ConfigurationTarget.Global);
+    publisher.dispose();
+    await resetEditors();
+    await vscode.workspace.fs.delete(storage, { recursive: true }).then(undefined, () => undefined);
+  }
 });

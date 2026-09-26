@@ -67,7 +67,7 @@ export const AGENT_TOOLS: readonly AgentToolDefinition[] = [
   {
     name: "activeNote",
     title: "Open note",
-    description: "Returns the Markdown note the user currently has open in the editor, with its workspace path, tags, outline, the notes it links to, the notes that link to it with context, its tasks, and its full current text including unsaved edits. Call this first whenever the user says 'this note', 'my note', 'the current file' or similar and no file is attached.",
+    description: "Returns the Markdown note the user currently has open in the editor, with its workspace path, tags, outline, the notes it links to, the notes that link to it with context, its tasks, and its full text (with unsaved edits, where the editor provides them). Call this first whenever the user says 'this note', 'my note', 'the current file' or similar and no file is attached.",
     inputSchema: { type: "object", properties: {} },
   },
   {
