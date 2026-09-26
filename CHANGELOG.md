@@ -1,20 +1,38 @@
 # Changelog
 
-## Unreleased
+## 0.16.0 - 2026-09-26
 
-- **The graph shows which way links point.** Links are drawn as gentle arcs, and when a note is selected or hovered, a current runs along each of its links from the note that wrote the link to the note it names. The selected note wears a slowly breathing ring so it is easy to find again after panning.
-- **Every list has its own colour.** Tasks, Due Today, Recent, Broken Links, Orphans and tag lists open under a large title in the same colour their row has in the sidebar, and the sidebar marks each view with a disc in that colour.
-- **Round, Reminders-style checkboxes** everywhere a task can be ticked — the Tasks list, the sidebar's Due Today, the note inspector and the note itself — filling with the list's colour when done. Overdue dates stand out as a red capsule.
-- Sidebar and list rows are rounded and inset, section headings are quiet sentence-case labels, and tag chips are tinted with their own hue.
-- A note's first heading is set as a page title, and heading rules are gone.
-- **Copilot and other agents can see your notes.** A note open in the Visp Notes editor was invisible to chat, which only looks at text editors. A new **Ask Chat About This Note** button attaches it, and six read-only agent tools — `#activeNote`, `#vispNote`, `#vispSearch`, `#vispGraph`, `#vispPath`, `#vispTasks` — let agents read notes with their links and backlinks, walk the graph, trace how two notes connect, and list tasks.
-- **An MCP server for Claude Code, Cursor and other agents.** The same read-only tools Copilot gets (`read_note`, `search_notes`, `note_graph`, `link_path`, `list_tasks`) are available over the Model Context Protocol. The server reads notes straight from disk with the extension's own parser and settings, so VS Code doesn't need to be running, and it ships as one file with no dependencies. **Connect AI Agents (MCP)…** adds it to Claude Code's `.mcp.json` or Cursor's `.cursor/mcp.json`, or copies the configuration for any other client.
-- **Claude Code and Codex, including their VS Code extensions.** **Connect AI Agents (MCP)…** has a Codex option that adds the server to `~/.codex/config.toml`, touching only its own table. A new `active_note` MCP tool lets agents beside the editor see the note you have open: each window passes on the note's path, never its text. **Ask Chat About This Note** now offers Copilot, Claude Code or Codex, whichever are installed.
-- **Agent access has controls.** `vispNotes.agents.enabled` switches every agent tool off, in VS Code at once and in the MCP server through the folder's `.vscode/settings.json`. `vispNotes.agents.exclude` hides matching notes from every tool: they can't be read, searched, listed as tasks, or reached through the graph. The tools are no longer offered in untrusted workspaces. Every answer is framed as note data rather than instructions, and note text is quoted in a fence it can't close, to blunt prompt injection.
-- **SECURITY.md** sets out what the extension reads and writes, that it makes no network requests, how data reaches agents' providers (including where a company provides Copilot), and how to report a vulnerability.
+Visp Notes is now a knowledge base your AI agents can read: Copilot, Claude Code, Codex, Cursor and any other MCP client can search your notes, follow their links and see what's overdue, with controls a company security review will want.
+
+### AI agents
+
+- **Copilot can see your notes.** A note open in the Visp Notes editor was invisible to chat, which only looks at text editors. Six read-only tools fix that: `#activeNote`, `#vispNote`, `#vispSearch`, `#vispGraph`, `#vispPath` and `#vispTasks`. They let an agent read a note with its links and backlinks, search, walk the graph, trace how two notes connect, and list tasks.
+- **An MCP server for Claude Code, Codex, Cursor and other agents.** The same tools are available over the Model Context Protocol, including through Claude Code's and Codex's VS Code extensions. The server reads notes straight from disk with the extension's own parser and settings, so VS Code doesn't need to be running. It ships as one file with no dependencies.
+- **Connect AI Agents (MCP)…** sets the server up for Claude Code (`.mcp.json`), Codex (`~/.codex/config.toml`, touching only its own table) or Cursor (`.cursor/mcp.json`), or copies the configuration for any other client.
+- **"This note" works for agents beside the editor.** The `active_note` MCP tool tells Claude Code and Codex which note you have open. Each window passes on the note's path, never its text.
+- **Ask Chat About This Note** opens the note in Copilot Chat, Claude Code or Codex, whichever are installed.
+
+### Security
+
+- **Controls for agent access.** `vispNotes.agents.enabled` switches every agent tool off: in VS Code at once, and in the MCP server through the folder's `.vscode/settings.json`. `vispNotes.agents.exclude` hides matching notes from every tool, so they can't be read, searched, listed as tasks, or reached through the graph.
+- **Untrusted workspaces.** Agent tools are no longer offered in them.
+- **Prompt injection.** Every answer is framed as note data rather than instructions, and note text is quoted in a fence it can't close.
+- **SECURITY.md** sets out what the extension reads and writes, that it makes no network requests, how data reaches each agent's provider (including where a company provides Copilot), and how to report a vulnerability.
+
+### Look and feel
+
+- **The graph shows which way links point.** Links are drawn as gentle arcs. When a note is selected or hovered, a current runs along each of its links, from the note that wrote the link to the note it names. The selected note wears a slowly breathing ring, so it's easy to find again after panning.
+- **Every list has its own colour.** Tasks, Due Today, Recent, Broken Links, Orphans and tag lists open under a large title in the same colour as their row in the sidebar. The sidebar marks each view with an icon in that colour.
+- **Round, Reminders-style checkboxes** appear everywhere a task can be ticked, and fill with the list's colour when done. Overdue dates stand out as a red capsule.
+- Sidebar and list rows are rounded and inset, section headings are quiet labels, and tag chips are tinted in their own colour. A note's first heading reads as a page title.
+
+### Fixed
+
+- **Saving a note that changed on disk** said "The file may be read-only, or an extension that formats on save may have refused it", and offered no way forward. It now names the real cause and offers **Overwrite**, **Use Disk Version** or **Compare**, and the note ends up saved either way.
+
+### Also
+
 - The Marketplace listing and README now lead with what Visp Notes is for: a linked knowledge base for your repository that you and your AI agents both read.
-- Sidebar view icons are drawn in their colour on a light wash of it, so the symbol stays readable.
-- **Fixed:** saving a note whose file changed on disk after it was opened said "The file may be read-only, or an extension that formats on save may have refused it" and offered no way forward. It now names the real cause and offers VS Code's usual choices — **Overwrite**, **Use Disk Version**, or **Compare** — and the note ends up saved either way.
 
 ## 0.15.0 - 2026-09-23
 
